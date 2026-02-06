@@ -1,6 +1,8 @@
 import streamlit as st
 import pandas as pd
 import numpy as np
+import requests
+from io import StringIO
 
 # --- Page Configuration ---
 st.set_page_config(
@@ -10,7 +12,7 @@ st.set_page_config(
 )
 
 # ==========================================
-# Fixed Patterns
+# Fixed Patterns (אותו דבר כמו קודם)
 # ==========================================
 FIXED_COMBOS_TXT = """
 A A A A
@@ -69,7 +71,6 @@ st.markdown("""
     /* Global Settings */
     .stApp { direction: ltr; text-align: left; background-color: #0E1117; color: #FAFAFA; }
     
-    /* --- REDUCE TOP SPACING --- */
     .block-container {
         padding-top: 1.5rem !important;
         padding-bottom: 1rem !important;
@@ -139,7 +140,7 @@ st.markdown("""
         pointer-events: none; border-radius: 6px;
     }
     
-    /* Grid Headers (Game Board) */
+    /* Grid Headers */
     .grid-header { 
         text-align: center; padding-bottom: 6px; 
         display: flex; flex-direction: column; align-items: center; justify-content: center;
@@ -159,7 +160,7 @@ st.markdown("""
         height: 100%;
     }
     
-    /* FORCE LEFT ALIGNMENT ON DATAFRAMES (Matches Table) */
+    /* Table Styling */
     [data-testid="stDataFrame"] th { text-align: left !important; }
     [data-testid="stDataFrame"] td { text-align: left !important; }
 
@@ -173,24 +174,74 @@ st.markdown("""
 
 # --- Logic Functions ---
 
-@st.cache_data
-def load_data_robust(uploaded_file):
-    if uploaded_file is None: return None, "No file"
+@st.cache_data(ttl=3600) # Cache for 1 hour
+def load_data_from_web():
+    url = "https://www.pais.co.il/chance/archive.aspx"
+    headers = {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36"
+    }
+    
     try:
-        uploaded_file.seek(0)
-        df = pd.read_csv(uploaded_file)
-        hebrew_map = {'תלתן': 'Clubs', 'יהלום': 'Diamonds', 'לב': 'Hearts', 'עלה': 'Spades'}
-        df.rename(columns=hebrew_map, inplace=True)
-        return df, "ok"
-    except:
-        try:
-            uploaded_file.seek(0)
-            df = pd.read_csv(uploaded_file, encoding='cp1255')
-            hebrew_map = {'תלתן': 'Clubs', 'יהלום': 'Diamonds', 'לב': 'Hearts', 'עלה': 'Spades'}
-            df.rename(columns=hebrew_map, inplace=True)
-            return df, "ok"
-        except:
-            return None, "Error loading file"
+        response = requests.get(url, headers=headers)
+        response.raise_for_status()
+        
+        # Read tables from HTML
+        # lxml is usually faster, but html5lib is more lenient. Streamlit cloud usually has lxml.
+        dfs = pd.read_html(StringIO(response.text))
+        
+        # Find the correct table (usually the one with 'הגרלה')
+        target_df = None
+        for df in dfs:
+            # Check if any column contains identifying words
+            cols = [str(c) for c in df.columns]
+            if any("הגרלה" in c for c in cols) and len(df) > 1:
+                target_df = df
+                break
+        
+        if target_df is None:
+            return None, "לא נמצאה טבלת תוצאות באתר"
+
+        # --- Data Cleaning & Mapping ---
+        # The website table often comes with Hebrew headers. We need to map them.
+        # Structure varies, but usually: [Draw, Date, Card1, Card2, Card3, Card4, ...]
+        # Or sometimes Cards are in one column. 
+        # Let's assume standard Pais Archive structure where suits are columns.
+        
+        # Try to identify columns by Hebrew names
+        hebrew_map = {
+            'תלתן': 'Clubs', 
+            'יהלום': 'Diamonds', 
+            'לב': 'Hearts', 
+            'עלה': 'Spades'
+        }
+        
+        # Rename columns if they exist explicitly
+        target_df.rename(columns=lambda x: str(x).strip(), inplace=True)
+        new_cols = {}
+        for col in target_df.columns:
+            for heb, eng in hebrew_map.items():
+                if heb in col:
+                    new_cols[col] = eng
+        
+        target_df.rename(columns=new_cols, inplace=True)
+        
+        # If columns were NOT found (e.g. website uses images or merged column), 
+        # we might need fallback logic. 
+        # However, usually pd.read_html gets the text headers if they exist.
+        
+        # Verify we have the 4 required columns
+        required = ['Clubs', 'Diamonds', 'Hearts', 'Spades']
+        missing = [c for c in required if c not in target_df.columns]
+        
+        if missing:
+            # If mapping failed, it might be that the table structure is different (e.g. combined string).
+            # For now, return error if we can't find the suits.
+            return None, f"מבנה הטבלה באתר השתנה או לא זוהה. חסרות עמודות: {missing}"
+            
+        return target_df, "ok"
+
+    except Exception as e:
+        return None, f"שגיאה בטעינת הנתונים: {str(e)}"
 
 def parse_shapes_strict(text):
     shapes = []
@@ -270,9 +321,7 @@ def draw_preview_html(shape_coords):
     grid_html += '</div>'
     return f'<div class="shape-preview-wrapper">{grid_html}</div>'
 
-# --- Custom HTML Table Generator (UPDATED HEADER LAYOUT) ---
 def create_sleeping_html_table(data_dict, required_cols):
-    # Determine Colors and Icons
     meta = {
         'Clubs': {'icon': '♣', 'color': '#E1E4E8'},
         'Diamonds': {'icon': '♦', 'color': '#FF4B4B'},
@@ -280,7 +329,6 @@ def create_sleeping_html_table(data_dict, required_cols):
         'Spades': {'icon': '♠', 'color': '#E1E4E8'}
     }
     
-    # Calculate Max Rows
     max_rows = 0
     clean_data = {}
     for col in required_cols:
@@ -288,68 +336,77 @@ def create_sleeping_html_table(data_dict, required_cols):
         if len(clean_data[col]) > max_rows:
             max_rows = len(clean_data[col])
             
-    # Build HTML as a single list then join, no indentation
     parts = []
     parts.append('<div style="overflow-x: auto; border: 1px solid #30363D; border-radius: 6px;">')
     parts.append('<table style="width: 100%; border-collapse: collapse; font-family: sans-serif; font-size: 14px;">')
     parts.append('<thead>')
     parts.append('<tr style="background-color: #161B22; border-bottom: 1px solid #30363D;">')
     
-    # Headers (Stacked Icon Above Text)
     for col in required_cols:
         c_meta = meta.get(col, {'icon': '', 'color': '#fff'})
-        
-        # New Header Content: Stacked Divs
         header_content = f"""
         <div style="display: flex; flex-direction: column; align-items: center; justify-content: center;">
             <div style="font-size: 24px; line-height: 1; margin-bottom: 2px;">{c_meta['icon']}</div>
             <div style="font-size: 11px; text-transform: uppercase;">{col}</div>
         </div>
         """
-        
         parts.append(f'<th style="padding: 10px; text-align: center; color: {c_meta["color"]}; font-weight: bold; border-right: 1px solid #30363D; width: 25%; vertical-align: middle;">{header_content}</th>')
     
     parts.append('</tr></thead><tbody>')
     
-    # Rows
     for i in range(max_rows):
         bg_color = "#0D1117" if i % 2 == 0 else "#161B22"
         parts.append(f'<tr style="background-color: {bg_color};">')
-        
         for col in required_cols:
             val = clean_data[col][i] if i < len(clean_data[col]) else ""
-            # Determine text color based on suit if val exists
             text_color = meta[col]['color'] if val != "" else "transparent"
-            
             parts.append(f'<td style="padding: 8px; text-align: center; border-right: 1px solid #30363D; color: {text_color};">{val}</td>')
         parts.append("</tr>")
         
     parts.append("</tbody></table></div>")
-    
     return "".join(parts)
 
 # --- Main Interface ---
 
 st.title("Chance Analyzer")
 
-# Sidebar
+# --- Auto-Load Data ---
+# במקום Sidebar עם העלאה, אנחנו טוענים אוטומטית (עם כפתור רענון אופציונלי)
 with st.sidebar:
-    st.header("Upload Data")
-    csv_file = st.file_uploader("Choose a CSV file", type=None)
+    st.header("Data Source")
+    if st.button("🔄 Refresh Data"):
+        st.cache_data.clear()
+        st.rerun()
+    st.caption("Data fetched automatically from pais.co.il")
 
+# Load Data
 df = None
 base_shapes = parse_shapes_strict(FIXED_COMBOS_TXT)
 
-if csv_file:
-    df, msg = load_data_robust(csv_file)
-    if df is None: st.error(f"Error: {msg}")
+# Fetching
+with st.spinner("Fetching latest results from Pais..."):
+    df, msg = load_data_from_web()
+
+if df is None:
+    st.error(f"Error: {msg}")
+    # Fallback: Allow upload if automatic fetch fails
+    uploaded_file = st.sidebar.file_uploader("Fallback: Upload CSV", type=None)
+    if uploaded_file:
+         try:
+            uploaded_file.seek(0)
+            df = pd.read_csv(uploaded_file)
+            hebrew_map = {'תלתן': 'Clubs', 'יהלום': 'Diamonds', 'לב': 'Hearts', 'עלה': 'Spades'}
+            df.rename(columns=hebrew_map, inplace=True)
+         except Exception as e:
+             st.error(f"Error reading file: {e}")
 
 if df is not None:
     required_cols = ['Clubs', 'Diamonds', 'Hearts', 'Spades']
-    df.columns = df.columns.str.strip()
+    
+    # Ensure columns exist (Data Cleaning)
     missing = [c for c in required_cols if c not in df.columns]
     if missing:
-        st.error(f"Missing columns: {missing}")
+        st.error(f"חסרות עמודות בנתונים: {missing}. ייתכן שהאתר שינה מבנה.")
         st.stop()
 
     grid_data = df[required_cols].values
@@ -358,7 +415,6 @@ if df is not None:
     # --- 1. SETTINGS & INPUTS ---
     with st.expander("⚙️ Settings & Inputs", expanded=not st.session_state.get('search_done', False)):
         
-        # Pattern & Preview
         col_conf, col_prev = st.columns([4, 1])
         with col_conf:
             def format_pattern(idx): return PATTERN_NAMES.get(idx, f"Pattern {idx+1}")
@@ -368,7 +424,6 @@ if df is not None:
         
         st.markdown("<div style='height: 18px;'></div>", unsafe_allow_html=True)
         
-        # Cards Input
         raw_cards = np.unique(grid_data.astype(str))
         clean_cards = sorted([c for c in raw_cards if str(c).lower() != 'nan' and str(c).strip() != ''])
         
@@ -381,7 +436,6 @@ if df is not None:
         
         st.markdown("<div style='margin-bottom: 10px;'></div>", unsafe_allow_html=True)
 
-        # Buttons
         b_search, b_reset = st.columns([3, 1])
         with b_search: 
             run_search = st.button("Search", type="primary")
@@ -435,23 +489,17 @@ if df is not None:
     
     selected_match_id = None
     
-    # --- Tab 1: Matches (Force Left Align + Dynamic Height) ---
+    # --- Tab 1: Matches ---
     with tab_matches:
         if found_matches:
-            # Data
             df_res = pd.DataFrame([
                 {'Missing Card': m['miss_val'], 'Index': m['miss_coords'][0], 'Hidden_ID': m['id']} 
                 for m in found_matches
             ])
             
-            # 1. Force Index to be String to ensure Left Alignment
             df_res['Index'] = df_res['Index'].astype(str)
-            
-            # Hide ID
             display_df = df_res.drop(columns=['Hidden_ID'])
             
-            # Calculate Dynamic Height
-            # 35px row height (approx) + 38px header height + 2px borders
             num_rows = len(display_df)
             calc_height = (num_rows + 1) * 35 + 3
             
@@ -461,7 +509,7 @@ if df is not None:
                 use_container_width=True, 
                 selection_mode="single-row", 
                 on_select="rerun",
-                height=calc_height # Set dynamic height
+                height=calc_height
             )
             
             if len(event.selection['rows']) > 0:
@@ -471,7 +519,7 @@ if df is not None:
             if st.session_state.get('search_done', False):
                 st.info("No matches found.")
 
-    # --- Tab 2: Sleeping Cards (HTML Fixed) ---
+    # --- Tab 2: Sleeping Cards ---
     with tab_sleep:
         sleep_data_lists = {}
         
@@ -488,13 +536,10 @@ if df is not None:
                     lst.append((c, locs[0]))
             
             lst.sort(key=lambda x: x[1], reverse=True)
-            
-            # Format: "Value : Row"
             formatted_list = [f"{item[0]} : {item[1]}" for item in lst]
             sleep_data_lists[col_name] = formatted_list
 
         if any(sleep_data_lists.values()):
-            # Use custom HTML function defined above
             html_table = create_sleeping_html_table(sleep_data_lists, required_cols)
             st.markdown(html_table, unsafe_allow_html=True)
         else:
@@ -539,6 +584,3 @@ if df is not None:
             html += f'<div class="grid-cell">{inner}{content}</div>'
     html += '</div>'
     st.markdown(html, unsafe_allow_html=True)
-
-else:
-    st.info("👋 Upload a CSV file to start.")
