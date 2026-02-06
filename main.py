@@ -62,22 +62,35 @@ PATTERN_NAMES = {
 
 # ==========================================
 
-# --- CSS Styling (FORCE MOBILE ROW LAYOUT) ---
+# --- CSS Styling (Aggressive Mobile Fix) ---
 st.markdown("""
 <style>
     /* Global */
     .stApp { direction: ltr; text-align: left; background-color: #121212; color: #e0e0e0; }
-    .block-container { padding-top: 1rem; padding-bottom: 3rem; padding-left: 0.5rem; padding-right: 0.5rem; }
+    
+    /* Reduce padding */
+    .block-container {
+        padding-top: 1rem;
+        padding-bottom: 3rem;
+        padding-left: 0.5rem;
+        padding-right: 0.5rem;
+    }
 
-    /* === CRITICAL FIX FOR MOBILE COLUMNS === */
-    /* This forces columns to stay side-by-side on mobile instead of stacking */
-    div[data-testid="column"] {
-        width: auto !important;
-        flex: 1 1 auto !important;
-        min_width: 1px !important;
+    /* === FORCE SIDE-BY-SIDE ON MOBILE === */
+    /* This overrides Streamlit's default stacking on small screens */
+    [data-testid="column"] {
+        width: calc(33.33% - 1rem) !important;
+        flex: 1 1 calc(33.33% - 1rem) !important;
+        min-width: 50px !important;
     }
     
-    /* === The Visual Grid === */
+    /* Specific fix for the 2-column layout (Results/Sleeping) */
+    .two-cols [data-testid="column"] {
+        width: calc(50% - 1rem) !important;
+        flex: 1 1 calc(50% - 1rem) !important;
+    }
+
+    /* === Visual Grid === */
     .grid-container { 
         display: grid; 
         grid-template-columns: repeat(4, 1fr); 
@@ -109,54 +122,88 @@ st.markdown("""
         display: flex; flex-direction: column; align-items: center; justify-content: center;
     }
     .suit-icon { font-size: 20px; line-height: 1; margin-bottom: 0px; }
-    .suit-name { font-size: 9px; color: #888; font-weight: bold; text-transform: uppercase; }
+    .suit-name { font-size: 10px; color: #888; font-weight: bold; text-transform: uppercase; }
 
-    /* === CUSTOM HTML TABLE FOR SLEEPING === */
+    /* === CUSTOM SLEEPING TABLE === */
     .sleeping-table {
         width: 100%;
         border-collapse: collapse;
         color: #ddd;
         font-size: 12px;
         text-align: center;
+        background-color: #1e1e1e;
+        border-radius: 6px;
     }
     .sleeping-table th {
-        padding: 5px;
+        padding: 8px 2px;
         border-bottom: 1px solid #444;
-        vertical-align: top;
+        background-color: #252525;
     }
     .sleeping-table td {
-        padding: 2px;
+        padding: 4px 2px;
         border-right: 1px solid #333;
+        border-bottom: 1px solid #2a2a2a;
     }
     .sleeping-table td:last-child { border-right: none; }
     
     /* Buttons */
     div.stButton > button { width: 100%; border-radius: 6px; height: 2.5rem; font-weight: bold; }
     
-    /* Remove input labels taking space */
+    /* Hide Labels */
     label[data-testid="stLabel"] { display: none; }
     
-    /* Shape Preview */
+    /* Preview Box */
     .shape-preview-wrapper {
         background-color: #222; border: 1px solid #444; border-radius: 4px;
         padding: 5px; display: flex; justify-content: center; align-items: center;
     }
+    
+    /* Expander */
+    div[data-testid="stExpander"] { background-color: #181818; border: 1px solid #333; border-radius: 6px; }
+    
+    /* Table Centering */
+    .dataframe { margin: 0 auto; width: 100%; }
 </style>
 """, unsafe_allow_html=True)
 
-# --- Logic ---
+# --- Logic Functions ---
 
-@st.cache_data
 def load_data_robust(uploaded_file):
     if uploaded_file is None: return None, "No file"
-    try:
-        uploaded_file.seek(0)
-        df = pd.read_csv(uploaded_file)
-        hebrew_map = {'תלתן': 'Clubs', 'יהלום': 'Diamonds', 'לב': 'Hearts', 'עלה': 'Spades'}
-        df.rename(columns=hebrew_map, inplace=True)
-        return df, "ok"
-    except:
-        return None, "Error"
+    
+    # Try multiple methods to read the file
+    methods = [
+        {'encoding': 'utf-8', 'sep': ','},
+        {'encoding': 'cp1255', 'sep': ','}, # Hebrew
+        {'encoding': 'iso-8859-8', 'sep': ','}, # Hebrew
+        {'encoding': 'utf-8-sig', 'sep': ','}, # Excel CSV
+        {'sep': None, 'engine': 'python'}, # Auto-detect separator
+    ]
+    
+    last_error = ""
+    
+    for m in methods:
+        try:
+            uploaded_file.seek(0)
+            if 'engine' in m:
+                df = pd.read_csv(uploaded_file, sep=m['sep'], engine=m['engine'])
+            else:
+                df = pd.read_csv(uploaded_file, encoding=m.get('encoding'), sep=m.get('sep'))
+                
+            # Rename columns if needed
+            hebrew_map = {'תלתן': 'Clubs', 'יהלום': 'Diamonds', 'לב': 'Hearts', 'עלה': 'Spades'}
+            df.rename(columns=hebrew_map, inplace=True)
+            
+            # Check if we have the columns
+            required = ['Clubs', 'Diamonds', 'Hearts', 'Spades']
+            if all(col in df.columns for col in required):
+                return df, "ok"
+            
+        except Exception as e:
+            last_error = str(e)
+            continue
+            
+    return None, f"Failed to read file. Last error: {last_error}"
 
 def parse_shapes_strict(text):
     shapes = []
@@ -187,12 +234,13 @@ def parse_shapes_strict(text):
 
 def generate_variations_strict(shape_idx, base_shape):
     variations = set()
-    # Simple logic for variations
-    if shape_idx in [0, 1]: variations.add(tuple(sorted(base_shape)))
+    if shape_idx == 0: variations.add(tuple(sorted(base_shape))) 
+    elif shape_idx == 1: variations.add(tuple(sorted(base_shape)))
     elif shape_idx == 2:
-        variations.add(tuple(sorted(base_shape)))
+        variations.add(tuple(sorted(base_shape))) 
         max_c = max(c for r,c in base_shape)
-        variations.add(tuple(sorted([(r, max_c-c) for r,c in base_shape])))
+        mirror = [(r, max_c-c) for r,c in base_shape]
+        variations.add(tuple(sorted(mirror)))
     elif shape_idx == 3:
         variations.add(tuple(sorted([(0,0), (1,1), (2,2), (1,2)])))
         variations.add(tuple(sorted([(0,0), (1,1), (2,2), (1,0)])))
@@ -206,14 +254,18 @@ def generate_variations_strict(shape_idx, base_shape):
         variations.add(tuple(flipped))
         for v in list(variations):
             w = max(c for r,c in v)
-            variations.add(tuple(sorted([(r, w-c) for r,c in v])))
+            mirror = [(r, w-c) for r,c in v]
+            variations.add(tuple(sorted(mirror)))
     else:
         variations.add(tuple(sorted(base_shape)))
         w = max(c for r,c in base_shape)
+        mirror_h = sorted([(r, w - c) for r, c in base_shape])
+        variations.add(tuple(mirror_h))
         max_r = max(r for r,c in base_shape)
-        variations.add(tuple(sorted([(r, w - c) for r, c in base_shape])))
-        variations.add(tuple(sorted([(max_r - r, c) for r, c in base_shape])))
-        variations.add(tuple(sorted([(max_r - r, w - c) for r, c in base_shape])))
+        flip_v = sorted([(max_r - r, c) for r, c in base_shape])
+        variations.add(tuple(flip_v))
+        flip_hv = sorted([(max_r - r, w - c) for r, c in base_shape])
+        variations.add(tuple(flip_hv))
     return [list(v) for v in variations]
 
 def draw_preview_html(shape_coords):
@@ -235,7 +287,7 @@ def draw_preview_html(shape_coords):
 
 st.title("Chance Analyzer")
 
-# Sidebar
+# Sidebar Upload
 with st.sidebar:
     st.markdown("### Upload")
     csv_file = st.file_uploader("Upload CSV", type=None)
@@ -250,32 +302,35 @@ if csv_file:
 if df is not None:
     required_cols = ['Clubs', 'Diamonds', 'Hearts', 'Spades']
     df.columns = df.columns.str.strip()
+    missing = [c for c in required_cols if c not in df.columns]
+    if missing:
+        st.error(f"Missing columns: {missing}")
+        st.stop()
+
     grid_data = df[required_cols].values
     ROW_LIMIT = 51
     
     # --- SETUP AREA ---
     with st.expander("⚙️ Settings", expanded=not st.session_state.get('search_done', False)):
         
-        # 1. Pattern & Preview
-        st.markdown("<p style='font-size:12px; margin:0; color:#888;'>Select Pattern</p>", unsafe_allow_html=True)
         c_pat, c_prev = st.columns([3, 1])
         with c_pat:
+            st.markdown("<p style='font-size:12px; margin:0; color:#888;'>Pattern</p>", unsafe_allow_html=True)
             shape_idx = st.selectbox("Pattern", range(len(base_shapes)), format_func=lambda i: PATTERN_NAMES.get(i, f"Pat {i+1}"), label_visibility="collapsed")
         with c_prev:
             st.markdown(draw_preview_html(base_shapes[shape_idx]), unsafe_allow_html=True)
         
-        # 2. Cards (FORCED ROW)
+        # Cards (Forced Row)
         st.markdown("<p style='font-size:12px; margin:5px 0 0 0; color:#888;'>Select 3 Cards</p>", unsafe_allow_html=True)
         raw_cards = np.unique(grid_data.astype(str))
         clean_cards = sorted([c for c in raw_cards if str(c).lower() != 'nan' and str(c).strip() != ''])
         
-        # Using columns to force side-by-side
-        c1_col, c2_col, c3_col = st.columns(3)
-        with c1_col: c1 = st.selectbox("C1", [""] + clean_cards, key="c1")
-        with c2_col: c2 = st.selectbox("C2", [""] + clean_cards, key="c2")
-        with c3_col: c3 = st.selectbox("C3", [""] + clean_cards, key="c3")
+        c1, c2, c3 = st.columns(3)
+        with c1: sel1 = st.selectbox("C1", [""] + clean_cards, key="c1")
+        with c2: sel2 = st.selectbox("C2", [""] + clean_cards, key="c2")
+        with c3: sel3 = st.selectbox("C3", [""] + clean_cards, key="c3")
         
-        selected_cards = [c for c in [c1, c2, c3] if c != ""]
+        selected_cards = [c for c in [sel1, sel2, sel3] if c != ""]
         
         st.write("")
         b1, b2 = st.columns(2)
@@ -303,7 +358,8 @@ if df is not None:
                     vals = []; coords = []
                     try:
                         for dr, dc in shape:
-                            vals.append(grid_data[r+dr, c+dc]); coords.append((r+dr, c+dc))
+                            vals.append(grid_data[r+dr, c+dc])
+                            coords.append((r+dr, c+dc))
                     except: continue
                     matched = 0; used = set()
                     for t in selected_cards:
@@ -321,39 +377,43 @@ if df is not None:
             m['id'] = i + 1; m['color'] = colors[i % len(colors)]
             found_matches.append(m)
 
-    # --- EXPANDERS: Results & Sleeping (SIDE BY SIDE FORCED) ---
+    # --- RESULTS & SLEEPING (Side-by-Side Wrapper) ---
     st.write("")
+    
+    # CSS class to target these specific columns
+    st.markdown('<div class="two-cols">', unsafe_allow_html=True)
     col_res, col_sleep = st.columns(2)
     
-    # 1. Matches Expander
+    # 1. Matches
     with col_res:
         with st.expander(f"📋 Matches ({len(found_matches)})", expanded=bool(found_matches)):
             if found_matches:
-                df_res_display = pd.DataFrame([{'Missing': m['miss_val'], 'Row': m['miss_coords'][0]} for m in found_matches])
-                event = st.dataframe(df_res_display, hide_index=True, use_container_width=True, selection_mode="single-row", on_select="rerun", height=200)
+                # Simple table: Missing | Row
+                df_show = pd.DataFrame([{'Missing': m['miss_val'], 'Row': m['miss_coords'][0]} for m in found_matches])
+                event = st.dataframe(df_show, hide_index=True, use_container_width=True, selection_mode="single-row", on_select="rerun", height=200)
                 selected_match_id = None
                 if len(event.selection['rows']) > 0:
                     idx = event.selection['rows'][0]
                     selected_match_id = found_matches[idx]['id']
             else:
                 selected_match_id = None
-                if st.session_state.get('search_done', False): st.caption("No matches")
+                if st.session_state.get('search_done', False):
+                    st.caption("No matches")
 
-    # 2. Sleeping Expander (CUSTOM HTML TABLE)
+    # 2. Sleeping (HTML Table)
     with col_sleep:
         with st.expander("💤 Sleeping (>7)", expanded=False):
-            # Generating HTML Table manually to ensure it displays correctly on mobile
-            html_table = "<table class='sleeping-table'><thead><tr>"
-            
+            # Prepare data
             icon_map = {'Clubs': '♣', 'Diamonds': '♦', 'Hearts': '♥', 'Spades': '♠'}
             color_map = {'Clubs': '#bbb', 'Diamonds': '#ff5555', 'Hearts': '#ff5555', 'Spades': '#bbb'}
             
-            # Headers
-            for col_name in required_cols:
-                html_table += f"<th><div style='font-size:18px; color:{color_map[col_name]}'>{icon_map[col_name]}</div><div style='font-size:9px; color:#888;'>{col_name}</div></th>"
-            html_table += "</tr></thead><tbody>"
+            # HTML Header
+            html = "<table class='sleeping-table'><thead><tr>"
+            for col in required_cols:
+                html += f"<th><div style='font-size:16px; color:{color_map[col]}'>{icon_map[col]}</div><div style='font-size:9px; color:#888;'>{col}</div></th>"
+            html += "</tr></thead><tbody>"
             
-            # Collect data per column
+            # Gather rows
             cols_data = []
             max_len = 0
             for i in range(4):
@@ -368,19 +428,20 @@ if df is not None:
                 cols_data.append(items)
                 if len(items) > max_len: max_len = len(items)
             
-            # Build rows
+            # Build HTML rows
             for r in range(max_len):
-                html_table += "<tr>"
+                html += "<tr>"
                 for c in range(4):
                     if r < len(cols_data[c]):
                         val, gap = cols_data[c][r]
-                        html_table += f"<td><b>{val}</b>: {gap}</td>"
+                        html += f"<td><b>{val}</b>: {gap}</td>"
                     else:
-                        html_table += "<td></td>"
-                html_table += "</tr>"
+                        html += "<td></td>"
+                html += "</tr>"
+            html += "</tbody></table>"
+            st.markdown(html, unsafe_allow_html=True)
             
-            html_table += "</tbody></table>"
-            st.markdown(html_table, unsafe_allow_html=True)
+    st.markdown('</div>', unsafe_allow_html=True)
 
     # --- VISUAL BOARD ---
     st.markdown("##### 📊 Game Board")
