@@ -260,7 +260,7 @@ def draw_preview_html(shape_coords):
     grid_html += '</div>'
     return f'<div class="shape-preview-wrapper">{grid_html}</div>'
 
-# --- Custom HTML Table Generator for Sleeping Cards ---
+# --- Custom HTML Table Generator for Sleeping Cards (CLEAN STRING) ---
 def create_sleeping_html_table(data_dict, required_cols):
     # Determine Colors and Icons
     meta = {
@@ -278,46 +278,37 @@ def create_sleeping_html_table(data_dict, required_cols):
         if len(clean_data[col]) > max_rows:
             max_rows = len(clean_data[col])
             
-    # Start HTML string
-    html_parts = []
-    html_parts.append('<div style="overflow-x: auto; border: 1px solid #30363D; border-radius: 6px;">')
-    html_parts.append('<table style="width: 100%; border-collapse: collapse; font-family: sans-serif; font-size: 14px;">')
-    html_parts.append('<thead>')
-    html_parts.append('<tr style="background-color: #161B22; border-bottom: 1px solid #30363D;">')
+    # Build HTML as a single list then join, no indentation
+    parts = []
+    parts.append('<div style="overflow-x: auto; border: 1px solid #30363D; border-radius: 6px;">')
+    parts.append('<table style="width: 100%; border-collapse: collapse; font-family: sans-serif; font-size: 14px;">')
+    parts.append('<thead>')
+    parts.append('<tr style="background-color: #161B22; border-bottom: 1px solid #30363D;">')
     
     # Headers
     for col in required_cols:
         c_meta = meta.get(col, {'icon': '', 'color': '#fff'})
-        header_cell = f"""
-        <th style="padding: 10px; text-align: center; color: {c_meta['color']}; font-weight: bold; border-right: 1px solid #30363D; width: 25%;">
-            <span style="font-size: 1.2em;">{c_meta['icon']}</span> {col}
-        </th>
-        """
-        html_parts.append(header_cell)
+        # Inline styles only, no indentation
+        parts.append(f'<th style="padding: 10px; text-align: center; color: {c_meta["color"]}; font-weight: bold; border-right: 1px solid #30363D; width: 25%;"><span style="font-size: 1.2em;">{c_meta["icon"]}</span> {col}</th>')
     
-    html_parts.append('</tr></thead><tbody>')
+    parts.append('</tr></thead><tbody>')
     
     # Rows
     for i in range(max_rows):
         bg_color = "#0D1117" if i % 2 == 0 else "#161B22"
-        html_parts.append(f'<tr style="background-color: {bg_color};">')
+        parts.append(f'<tr style="background-color: {bg_color};">')
         
         for col in required_cols:
             val = clean_data[col][i] if i < len(clean_data[col]) else ""
             # Determine text color based on suit if val exists
             text_color = meta[col]['color'] if val != "" else "transparent"
             
-            cell_html = f"""
-            <td style="padding: 8px; text-align: center; border-right: 1px solid #30363D; color: {text_color};">
-                {val}
-            </td>
-            """
-            html_parts.append(cell_html)
-        html_parts.append("</tr>")
+            parts.append(f'<td style="padding: 8px; text-align: center; border-right: 1px solid #30363D; color: {text_color};">{val}</td>')
+        parts.append("</tr>")
         
-    html_parts.append("</tbody></table></div>")
+    parts.append("</tbody></table></div>")
     
-    return "".join(html_parts)
+    return "".join(parts)
 
 # --- Main Interface ---
 
