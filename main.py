@@ -444,6 +444,9 @@ if df is not None:
                 for m in found_matches
             ])
             
+            # 1. Force Index to be String to ensure Left Alignment
+            df_res['Index'] = df_res['Index'].astype(str)
+            
             # Hide ID
             display_df = df_res.drop(columns=['Hidden_ID'])
             
@@ -493,7 +496,6 @@ if df is not None:
         if any(sleep_data_lists.values()):
             # Use custom HTML function defined above
             html_table = create_sleeping_html_table(sleep_data_lists, required_cols)
-            # IMPORTANT: The unsafe_allow_html=True makes it render!
             st.markdown(html_table, unsafe_allow_html=True)
         else:
             st.write("No sleeping cards found.")
