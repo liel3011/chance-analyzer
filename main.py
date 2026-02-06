@@ -149,36 +149,14 @@ st.markdown("""
         height: 100%;
     }
     
-    /* --- Table Alignment & Coloring Fixes --- */
-    
-    /* Force Left Alignment for Tables (Cleaner Look) */
-    div[data-testid="stDataFrame"] th {
+    /* --- Force Left Alignment for Matches Table --- */
+    [data-testid="stDataFrame"] th {
         text-align: left !important;
     }
-    div[data-testid="stDataFrame"] td {
+    [data-testid="stDataFrame"] td {
         text-align: left !important;
     }
     
-    /* --- Specific Coloring for Sleeping Table Headers --- */
-    /* Assuming 4 columns: Clubs(1), Diamonds(2), Hearts(3), Spades(4) */
-    /* We use nth-child selectors to target specific columns in the header */
-    
-    /* Column 2 (Diamonds) Header - Red */
-    div[data-testid="stDataFrame"] th:nth-child(2) {
-        color: #FF4B4B !important; 
-    }
-    
-    /* Column 3 (Hearts) Header - Red */
-    div[data-testid="stDataFrame"] th:nth-child(3) {
-        color: #FF4B4B !important;
-    }
-    
-    /* Column 1 & 4 (Clubs/Spades) - Gray/White */
-    div[data-testid="stDataFrame"] th:nth-child(1),
-    div[data-testid="stDataFrame"] th:nth-child(4) {
-        color: #E0E0E0 !important;
-    }
-
     /* Remove input labels spacing */
     div[data-testid="stVerticalBlock"] > div {
         gap: 0.5rem;
@@ -394,7 +372,7 @@ if df is not None:
     
     selected_match_id = None
     
-    # --- Tab 1: Matches (LEFT ALIGNED) ---
+    # --- Tab 1: Matches (FORCED LEFT ALIGN) ---
     with tab_matches:
         if found_matches:
             # Data
@@ -403,9 +381,10 @@ if df is not None:
                 for m in found_matches
             ])
             
-            # Hide ID, NO Styler (Use default left align from CSS above)
+            # Hide ID
             display_df = df_res.drop(columns=['Hidden_ID'])
             
+            # Using Column Config to try and force format, but relying mainly on CSS
             event = st.dataframe(
                 display_df, 
                 hide_index=True, 
@@ -422,12 +401,18 @@ if df is not None:
             if st.session_state.get('search_done', False):
                 st.info("No matches found.")
 
-    # --- Tab 2: Sleeping Cards (Colored Headers via CSS) ---
+    # --- Tab 2: Sleeping Cards (CUSTOM HTML TABLE) ---
+    # We use custom HTML here to guarantee the Red/White headers which Streamlit dataframe fights against.
     with tab_sleep:
-        sleep_data_dict = {}
-        max_len = 0
+        
+        # 1. Collect Data
+        cols_lists = []
+        headers_info = [] # (Name, Icon, Color)
         
         icon_map = {'Clubs': '♣', 'Diamonds': '♦', 'Hearts': '♥', 'Spades': '♠'}
+        color_map = {'Clubs': '#E1E4E8', 'Diamonds': '#FF4B4B', 'Hearts': '#FF4B4B', 'Spades': '#E1E4E8'}
+        
+        max_len = 0
         
         for col_name in required_cols:
             col_idx = required_cols.index(col_name)
@@ -442,34 +427,45 @@ if df is not None:
                     lst.append((c, locs[0]))
             
             lst.sort(key=lambda x: x[1], reverse=True)
+            formatted = [f"{item[0]} : {item[1]}" for item in lst]
             
-            # Format: "Value : Row"
-            formatted_list = [f"{item[0]} : {item[1]}" for item in lst]
+            if len(formatted) > max_len: max_len = len(formatted)
             
-            header_key = f"{icon_map[col_name]} {col_name}"
-            sleep_data_dict[header_key] = formatted_list
+            cols_lists.append(formatted)
+            headers_info.append((col_name, icon_map[col_name], color_map[col_name]))
+
+        if max_len > 0:
+            # 2. Build HTML Table String
+            html_table = """
+            <div style="overflow-x: auto;">
+                <table style="width:100%; border-collapse: collapse; border: 1px solid #30363D; border-radius: 8px; overflow: hidden;">
+                    <thead>
+                        <tr style="background-color: #161B22; border-bottom: 2px solid #30363D;">
+            """
             
-            if len(formatted_list) > max_len:
-                max_len = len(formatted_list)
-        
-        # Pad with empty strings
-        for k in sleep_data_dict:
-            while len(sleep_data_dict[k]) < max_len:
-                sleep_data_dict[k].append("")
-        
-        if sleep_data_dict:
-            df_sleep = pd.DataFrame(sleep_data_dict)
+            # Add Headers with forced colors
+            for name, icon, color in headers_info:
+                html_table += f"""
+                    <th style="padding: 10px; text-align: center; color: {color}; font-weight: bold; border-right: 1px solid #30363D; width: 25%;">
+                        <span style="font-size: 1.2em;">{icon}</span> {name}
+                    </th>
+                """
+            html_table += "</tr></thead><tbody>"
             
-            dynamic_height = min((max_len * 35) + 40, 500)
+            # Add Rows
+            for i in range(max_len):
+                bg_color = "#0D1117" if i % 2 == 0 else "#161B22"
+                html_table += f'<tr style="background-color: {bg_color};">'
+                for col_list in cols_lists:
+                    val = col_list[i] if i < len(col_list) else ""
+                    html_table += f'<td style="padding: 8px; text-align: center; border-right: 1px solid #30363D; color: #C9D1D9;">{val}</td>'
+                html_table += "</tr>"
+                
+            html_table += "</tbody></table></div>"
             
-            # Note: We rely on the CSS block at the top of the script
-            # to color the 2nd and 3rd headers RED.
-            st.dataframe(
-                df_sleep, 
-                use_container_width=True, 
-                height=dynamic_height,
-                hide_index=True
-            )
+            # 3. Render
+            st.markdown(html_table, unsafe_allow_html=True)
+            
         else:
             st.write("No sleeping cards found.")
 
