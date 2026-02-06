@@ -149,7 +149,7 @@ st.markdown("""
         height: 100%;
     }
     
-    /* FORCE LEFT ALIGNMENT ON DATAFRAMES */
+    /* FORCE LEFT ALIGNMENT ON DATAFRAMES (Matches Table) */
     [data-testid="stDataFrame"] th { text-align: left !important; }
     [data-testid="stDataFrame"] td { text-align: left !important; }
 
@@ -278,43 +278,46 @@ def create_sleeping_html_table(data_dict, required_cols):
         if len(clean_data[col]) > max_rows:
             max_rows = len(clean_data[col])
             
-    # Build HTML
-    html = """
-    <div style="overflow-x: auto; border: 1px solid #30363D; border-radius: 6px;">
-    <table style="width: 100%; border-collapse: collapse; font-family: sans-serif; font-size: 14px;">
-        <thead>
-            <tr style="background-color: #161B22; border-bottom: 1px solid #30363D;">
-    """
+    # Start HTML string
+    html_parts = []
+    html_parts.append('<div style="overflow-x: auto; border: 1px solid #30363D; border-radius: 6px;">')
+    html_parts.append('<table style="width: 100%; border-collapse: collapse; font-family: sans-serif; font-size: 14px;">')
+    html_parts.append('<thead>')
+    html_parts.append('<tr style="background-color: #161B22; border-bottom: 1px solid #30363D;">')
     
     # Headers
     for col in required_cols:
         c_meta = meta.get(col, {'icon': '', 'color': '#fff'})
-        html += f"""
+        header_cell = f"""
         <th style="padding: 10px; text-align: center; color: {c_meta['color']}; font-weight: bold; border-right: 1px solid #30363D; width: 25%;">
             <span style="font-size: 1.2em;">{c_meta['icon']}</span> {col}
         </th>
         """
-    html += "</tr></thead><tbody>"
+        html_parts.append(header_cell)
+    
+    html_parts.append('</tr></thead><tbody>')
     
     # Rows
     for i in range(max_rows):
         bg_color = "#0D1117" if i % 2 == 0 else "#161B22"
-        html += f'<tr style="background-color: {bg_color};">'
+        html_parts.append(f'<tr style="background-color: {bg_color};">')
         
         for col in required_cols:
             val = clean_data[col][i] if i < len(clean_data[col]) else ""
-            # Determine text color based on suit
+            # Determine text color based on suit if val exists
             text_color = meta[col]['color'] if val != "" else "transparent"
             
-            html += f"""
+            cell_html = f"""
             <td style="padding: 8px; text-align: center; border-right: 1px solid #30363D; color: {text_color};">
                 {val}
             </td>
             """
-        html += "</tr>"
+            html_parts.append(cell_html)
+        html_parts.append("</tr>")
         
-    html += "</tbody></table></div>"
-    return html
+    html_parts.append("</tbody></table></div>")
+    
+    return "".join(html_parts)
 
 # --- Main Interface ---
 
@@ -451,7 +454,7 @@ if df is not None:
             if st.session_state.get('search_done', False):
                 st.info("No matches found.")
 
-    # --- Tab 2: Sleeping Cards (Custom HTML for Perfect Styling) ---
+    # --- Tab 2: Sleeping Cards (HTML Fixed) ---
     with tab_sleep:
         sleep_data_lists = {}
         
@@ -476,6 +479,7 @@ if df is not None:
         if any(sleep_data_lists.values()):
             # Use custom HTML function defined above
             html_table = create_sleeping_html_table(sleep_data_lists, required_cols)
+            # IMPORTANT: The unsafe_allow_html=True makes it render!
             st.markdown(html_table, unsafe_allow_html=True)
         else:
             st.write("No sleeping cards found.")
