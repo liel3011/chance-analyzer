@@ -445,14 +445,16 @@ if df is not None:
             # Calculate Count
             grouped_df['Count'] = grouped_df['Hidden_ID'].apply(len)
             
-            # --- SORT BY COUNT (DESCENDING) ---
+            # Sort by Count (Descending)
             grouped_df = grouped_df.sort_values(by='Count', ascending=False)
+            
+            # *** FIX: Convert Count to String to FORCE Left Alignment in Streamlit ***
+            grouped_df['Count'] = grouped_df['Count'].astype(str)
             
             # Format indexes
             grouped_df['Row Indexes'] = grouped_df['Row'].apply(lambda x: ", ".join(map(str, x)))
             
-            # Reorder columns: Count is now FIRST
-            display_df = grouped_df[['Count', 'Missing Card', 'Row Indexes', 'Hidden_ID']]
+            display_df = grouped_df[['Missing Card', 'Count', 'Row Indexes', 'Hidden_ID']]
             
             # Calculate height
             num_rows = len(display_df)
