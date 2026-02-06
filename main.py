@@ -148,8 +148,11 @@ st.markdown("""
 @st.cache_data
 def load_data_robust(uploaded_file):
     if uploaded_file is None: return None, "No file uploaded"
+
+    # Try reading as CSV/Text regardless of extension
     try:
         uploaded_file.seek(0)
+        # Trying standard CSV read
         df = pd.read_csv(uploaded_file)
 
         # Map Hebrew headers to English if they exist
@@ -160,15 +163,21 @@ def load_data_robust(uploaded_file):
     except:
         try:
             uploaded_file.seek(0)
+            # Trying Hebrew encoding
             df = pd.read_csv(uploaded_file, encoding='cp1255')
-
-            # Try mapping again with different encoding
             hebrew_map = {'תלתן': 'Clubs', 'יהלום': 'Diamonds', 'לב': 'Hearts', 'עלה': 'Spades'}
             df.rename(columns=hebrew_map, inplace=True)
-
             return df, "ok"
         except:
-            return None, "Error loading file"
+            try:
+                # Fallback for tab delimited or weird formats
+                uploaded_file.seek(0)
+                df = pd.read_csv(uploaded_file, sep=None, engine='python')
+                hebrew_map = {'תלתן': 'Clubs', 'יהלום': 'Diamonds', 'לב': 'Hearts', 'עלה': 'Spades'}
+                df.rename(columns=hebrew_map, inplace=True)
+                return df, "ok"
+            except:
+                return None, "Error loading file"
 
 
 def parse_shapes_strict(text):
@@ -278,7 +287,6 @@ def draw_preview_html(shape_coords):
     max_r = max(r for r, c in norm) + 1;
     max_c = max(c for r, c in norm) + 1
 
-    # Using no indentation in the inner HTML string to avoid markdown code block issues
     grid_html = f'<div class="shape-preview-container" style="display:grid; grid-template-columns: repeat({max_c}, 20px);">'
     for r in range(max_r):
         for c in range(max_c):
@@ -294,7 +302,8 @@ st.title("📱 Chance Analyzer")
 
 with st.sidebar:
     st.header("📂 Upload Data")
-    csv_file = st.file_uploader("Upload CSV", type=['csv'])
+    # FIX: Allow more file types for mobile compatibility
+    csv_file = st.file_uploader("Upload CSV", type=['csv', 'txt', 'xls', 'xlsx'])
 
 df = None
 base_shapes = parse_shapes_strict(FIXED_COMBOS_TXT)
@@ -469,7 +478,7 @@ if df is not None:
 
         html = '<div class="grid-container">'
 
-        # Headers with Icons (No Indentation to avoid markdown code block issues)
+        # Headers with Icons
         headers = [('Clubs', '♣', '#e0e0e0'), ('Diamonds', '♦', '#ff4d4d'), ('Hearts', '♥', '#ff4d4d'),
                    ('Spades', '♠', '#e0e0e0')]
 
