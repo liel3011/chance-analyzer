@@ -62,135 +62,142 @@ PATTERN_NAMES = {
 
 # ==========================================
 
-# --- CSS Styling (BULLETPROOF MOBILE) ---
+# --- CSS Styling (Fixed Mobile Layout) ---
 st.markdown("""
 <style>
-    /* 1. LOCK SCREEN WIDTH (No Sliding) */
-    html, body, .stApp {
+    /* 1. Global Reset - LOCK WIDTH */
+    .stApp { 
         overflow-x: hidden !important;
-        max-width: 100vw !important;
-        background-color: #121212;
-        color: #e0e0e0;
+        width: 100vw !important;
     }
     
-    /* Remove padding that causes overflow */
     .block-container {
-        padding-top: 1rem;
-        padding-bottom: 5rem;
+        padding-top: 0.5rem;
+        padding-bottom: 3rem;
         padding-left: 2px !important;
         padding-right: 2px !important;
         max-width: 100vw !important;
+        overflow-x: hidden !important;
     }
 
-    /* 2. FORCE COLUMNS TO STAY IN ROW */
+    /* 2. FORCE ELEMENTS TO STAY IN ROW */
     [data-testid="stHorizontalBlock"] {
-        display: flex !important;
-        flex-direction: row !important;
         flex-wrap: nowrap !important;
-        width: 100% !important;
+        white-space: nowrap !important;
+        overflow-x: hidden !important;
         gap: 2px !important;
     }
     
-    /* Allow columns to shrink to tiny sizes */
+    /* 3. Force columns to fit on screen */
     div[data-testid="column"] {
         flex: 1 1 0px !important;
-        width: 0px !important; /* Force shrink */
         min-width: 0px !important;
+        width: 0px !important;
         padding: 0 !important;
         overflow: hidden !important;
     }
     
-    /* 3. Inputs Styling (Super Compact) */
+    /* 4. Tiny Inputs for Mobile */
     div[data-baseweb="select"] > div {
-        font-size: 12px !important;
-        min-height: 34px !important;
-        height: 34px !important;
+        font-size: 11px !important;
+        min-height: 30px !important;
+        height: 30px !important;
         padding: 0 2px !important;
-        border-radius: 4px !important;
     }
     
-    /* 4. Tables - Prevent Expansion */
-    .dataframe { 
-        width: 100% !important; 
-        font-size: 10px !important; 
-    }
+    /* 5. Compact Tables */
+    .dataframe { font-size: 10px !important; }
     
-    /* 5. Custom HTML Table Fixes */
+    /* 6. Sleeping Table HTML */
     .sleeping-table {
         width: 100% !important; 
-        table-layout: fixed !important; /* Critical for fixed width */
+        table-layout: fixed !important; 
         border-collapse: collapse; 
         color: #ddd;
         font-size: 10px; 
         text-align: center;
     }
     .sleeping-table th { padding: 2px; border-bottom: 1px solid #444; background: #222; }
-    .sleeping-table td { padding: 1px; border-right: 1px solid #333; overflow: hidden; white-space: nowrap; }
+    .sleeping-table td { padding: 1px; border-right: 1px solid #333; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
     .sleeping-table td:last-child { border-right: none; }
     
-    /* 6. Visual Grid */
+    /* 7. Grid Cells */
     .grid-container { 
         display: grid; 
         grid-template-columns: repeat(4, 1fr); 
-        gap: 2px; 
+        gap: 1px; 
         background-color: #1e1e1e; 
         padding: 2px; 
         border-radius: 4px; 
-        margin-top: 10px; 
+        margin-top: 5px; 
         border: 1px solid #333;
         width: 100% !important;
         box-sizing: border-box;
     }
     .grid-cell { 
         background-color: #2d2d2d; color: #cccccc; padding: 0; text-align: center; 
-        border-radius: 2px; font-family: sans-serif; font-size: 13px; 
-        border: 1px solid #3a3a3a; height: 32px; 
+        border-radius: 2px; font-family: sans-serif; font-size: 12px; 
+        border: 1px solid #3a3a3a; height: 30px; 
         display: flex; align-items: center; justify-content: center; 
     }
     
-    /* 7. Buttons */
+    /* 8. Buttons */
     div.stButton > button { 
         width: 100%; border-radius: 4px; height: 2.2rem; 
         font-weight: bold; padding: 0; margin: 0; font-size: 12px;
     }
     
-    /* Misc */
+    /* Hide Labels */
     label[data-testid="stLabel"] { display: none; }
-    .shape-preview-wrapper {
-        background-color: #222; border: 1px solid #444; border-radius: 4px;
-        padding: 0; display: flex; justify-content: center; align-items: center; height: 34px;
-    }
-    div[data-testid="stExpander"] { 
-        margin-bottom: 5px; border: 1px solid #333; border-radius: 4px; width: 100%;
-    }
-    .streamlit-expanderHeader { padding: 0.3rem !important; font-size: 12px !important; }
-    .streamlit-expanderContent { padding: 0 !important; }
     
-    /* Icons text */
-    .suit-icon { font-size: 16px; margin:0; line-height:1; }
+    /* Suit Icons in Grid */
+    .suit-icon { font-size: 14px; margin:0; line-height:1; }
+    
+    /* Remove padding from expanders */
+    .streamlit-expanderHeader { padding: 5px !important; margin: 0 !important; }
+    .streamlit-expanderContent { padding: 0 !important; }
 </style>
 """, unsafe_allow_html=True)
 
 # --- Logic ---
 
 @st.cache_data
-def load_data_robust(uploaded_file):
+def load_data_debug(uploaded_file):
     if uploaded_file is None: return None, "No file"
+    
+    # 1. Excel Check
     try:
         uploaded_file.seek(0)
-        df = pd.read_csv(uploaded_file)
+        df = pd.read_excel(uploaded_file)
         hebrew_map = {'תלתן': 'Clubs', 'יהלום': 'Diamonds', 'לב': 'Hearts', 'עלה': 'Spades'}
         df.rename(columns=hebrew_map, inplace=True)
         return df, "ok"
-    except:
+    except Exception as e:
+        pass # Not Excel or missing openpyxl
+
+    # 2. CSV Check (Multiple Encodings)
+    encodings = ['utf-8', 'cp1255', 'latin1']
+    for enc in encodings:
         try:
             uploaded_file.seek(0)
-            df = pd.read_excel(uploaded_file)
+            df = pd.read_csv(uploaded_file, encoding=enc)
+            
+            # Auto-detect headers based on common names
+            cols = [str(c).strip() for c in df.columns]
+            df.columns = cols
+            
+            # Map Hebrew
             hebrew_map = {'תלתן': 'Clubs', 'יהלום': 'Diamonds', 'לב': 'Hearts', 'עלה': 'Spades'}
             df.rename(columns=hebrew_map, inplace=True)
-            return df, "ok"
+            
+            # Verify we have the 4 suits
+            required = ['Clubs', 'Diamonds', 'Hearts', 'Spades']
+            if all(r in df.columns for r in required):
+                return df, "ok"
         except:
-            return None, "Error"
+            continue
+            
+    return None, "Could not read file. Make sure it is CSV/Excel with columns: Clubs, Diamonds, Hearts, Spades (or Hebrew names)."
 
 def parse_shapes_strict(text):
     shapes = []
@@ -261,7 +268,7 @@ def draw_preview_html(shape_coords):
             bg = "#007acc" if (r, c) in norm else "#333"
             grid_html += f'<div style="width:10px; height:10px; border-radius:1px; background-color:{bg};"></div>'
     grid_html += '</div>'
-    return f'<div class="shape-preview-wrapper">{grid_html}</div>'
+    return f'<div style="background:#222; border:1px solid #444; border-radius:4px; padding:4px; display:flex; justify-content:center; align-items:center; height:34px;">{grid_html}</div>'
 
 # --- Main Interface ---
 
@@ -276,22 +283,12 @@ df = None
 base_shapes = parse_shapes_strict(FIXED_COMBOS_TXT)
 
 if csv_file:
-    df, msg = load_data_robust(csv_file)
-    if df is None: st.error(f"Error reading file: {msg}")
+    df, msg = load_data_debug(csv_file)
+    if df is None: st.error(msg) # Show specific error
 
 if df is not None:
     required_cols = ['Clubs', 'Diamonds', 'Hearts', 'Spades']
-    # Check if cols exist
-    if not all(c in df.columns for c in required_cols):
-        # Fallback: check index 0-3
-        if len(df.columns) >= 4:
-            df = df.iloc[:, :4]
-            df.columns = required_cols
-        else:
-            st.error("Invalid columns")
-            st.stop()
-
-    grid_data = df.values
+    grid_data = df[required_cols].values
     ROW_LIMIT = 51
     
     # === 1. SETTINGS ROW ===
@@ -303,7 +300,7 @@ if df is not None:
         st.markdown("<div style='font-size:10px; color:#888;'>Preview</div>", unsafe_allow_html=True)
         st.markdown(draw_preview_html(base_shapes[shape_idx]), unsafe_allow_html=True)
     
-    # === 2. CARDS ROW (FORCED) ===
+    # === 2. CARDS ROW (Forced) ===
     st.markdown("<div style='font-size:10px; color:#888; margin-top:5px;'>Select 3 Cards</div>", unsafe_allow_html=True)
     raw_cards = np.unique(grid_data.astype(str))
     clean_cards = sorted([c for c in raw_cards if str(c).lower() != 'nan' and str(c).strip() != ''])
@@ -363,7 +360,6 @@ if df is not None:
     st.write("")
     col_res, col_sleep = st.columns(2)
     
-    # Results
     with col_res:
         with st.expander(f"📋 Matches ({len(found_matches)})", expanded=bool(found_matches)):
             if found_matches:
@@ -376,7 +372,6 @@ if df is not None:
                 st.session_state['selected_match'] = None
                 if st.session_state.get('search_done', False): st.caption("None")
 
-    # Sleeping
     with col_sleep:
         with st.expander("💤 Sleeping", expanded=False):
             html_table = "<table class='sleeping-table'><thead><tr>"
