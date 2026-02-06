@@ -166,20 +166,35 @@ st.markdown("""
 @st.cache_data
 def load_data_robust(uploaded_file):
     if uploaded_file is None: return None, "No file"
+    
+    # 1. Try Excel
+    try:
+        uploaded_file.seek(0)
+        df = pd.read_excel(uploaded_file)
+        # Fix Hebrew headers
+        hebrew_map = {'תלתן': 'Clubs', 'יהלום': 'Diamonds', 'לב': 'Hearts', 'עלה': 'Spades'}
+        df.rename(columns=hebrew_map, inplace=True)
+        return df, "ok"
+    except Exception:
+        pass # Not Excel
+
+    # 2. Try CSV
     try:
         uploaded_file.seek(0)
         df = pd.read_csv(uploaded_file)
         hebrew_map = {'תלתן': 'Clubs', 'יהלום': 'Diamonds', 'לב': 'Hearts', 'עלה': 'Spades'}
         df.rename(columns=hebrew_map, inplace=True)
         return df, "ok"
-    except:
+    except Exception:
+        # 3. Try CSV with Hebrew encoding
         try:
             uploaded_file.seek(0)
             df = pd.read_csv(uploaded_file, encoding='cp1255')
             hebrew_map = {'תלתן': 'Clubs', 'יהלום': 'Diamonds', 'לב': 'Hearts', 'עלה': 'Spades'}
             df.rename(columns=hebrew_map, inplace=True)
             return df, "ok"
-        except:
+        except Exception as e:
+            # 4. Try Python engine fallback
             try:
                 uploaded_file.seek(0)
                 df = pd.read_csv(uploaded_file, sep=None, engine='python')
@@ -187,7 +202,7 @@ def load_data_robust(uploaded_file):
                 df.rename(columns=hebrew_map, inplace=True)
                 return df, "ok"
             except:
-                return None, "Error"
+                return None, "Error loading file"
 
 def parse_shapes_strict(text):
     shapes = []
@@ -286,11 +301,16 @@ if csv_file:
 
 if df is not None:
     required_cols = ['Clubs', 'Diamonds', 'Hearts', 'Spades']
-    df.columns = df.columns.str.strip()
-    missing = [c for c in required_cols if c not in df.columns]
-    if missing:
-        st.error(f"Missing columns: {missing}")
-        st.stop()
+    
+    # Check if cols exist
+    if not all(c in df.columns for c in required_cols):
+        # Fallback: check index 0-3
+        if len(df.columns) >= 4:
+            df = df.iloc[:, :4]
+            df.columns = required_cols
+        else:
+            st.error("Missing columns: Clubs, Diamonds, Hearts, Spades")
+            st.stop()
 
     grid_data = df[required_cols].values
     ROW_LIMIT = 51
