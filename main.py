@@ -63,7 +63,7 @@ PATTERN_NAMES = {
 
 # ==========================================
 
-# --- CSS Styling (Modern & Clean) ---
+# --- CSS Styling ---
 st.markdown("""
 <style>
     /* Global Settings */
@@ -80,7 +80,6 @@ st.markdown("""
         border-radius: 8px; 
         height: 2.8rem; 
         font-weight: 600;
-        transition: all 0.2s ease-in-out;
     }
     
     /* Custom Grid Layout */
@@ -93,7 +92,6 @@ st.markdown("""
         border-radius: 12px; 
         margin-top: 10px; 
         border: 1px solid #30363D;
-        box-shadow: 0 4px 6px rgba(0,0,0,0.3);
     }
     
     .grid-cell { 
@@ -102,7 +100,7 @@ st.markdown("""
         padding: 0; 
         text-align: center; 
         border-radius: 6px; 
-        font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; 
+        font-family: 'Segoe UI', Roboto, sans-serif; 
         font-size: 15px; 
         position: relative; 
         border: 1px solid #30363D; 
@@ -122,13 +120,6 @@ st.markdown("""
         width: 100%; height: 100%; 
         display: flex; align-items: center; justify-content: center; 
         box-shadow: inset 0 0 8px rgba(0,0,0,0.2);
-        animation: pulse 2s infinite;
-    }
-    
-    @keyframes pulse {
-        0% { transform: scale(0.95); }
-        50% { transform: scale(1.0); }
-        100% { transform: scale(0.95); }
     }
     
     /* Frame Overlays */
@@ -143,8 +134,8 @@ st.markdown("""
         text-align: center; padding-bottom: 6px; 
         display: flex; flex-direction: column; align-items: center; justify-content: center;
     }
-    .suit-icon { font-size: 22px; line-height: 1; margin-bottom: 2px; text-shadow: 0 2px 4px rgba(0,0,0,0.5); }
-    .suit-name { font-size: 10px; color: #8B949E; font-weight: bold; text-transform: uppercase; letter-spacing: 1px; }
+    .suit-icon { font-size: 22px; line-height: 1; margin-bottom: 2px; }
+    .suit-name { font-size: 10px; color: #8B949E; font-weight: bold; text-transform: uppercase; }
     
     /* Shape Preview Box */
     .shape-preview-wrapper {
@@ -158,24 +149,17 @@ st.markdown("""
         height: 100%;
     }
     
-    /* Tab Styling */
-    .stTabs [data-baseweb="tab-list"] {
-        gap: 20px;
+    /* Table Centering Hack */
+    div[data-testid="stDataFrame"] table {
+        text-align: center !important;
     }
-    .stTabs [data-baseweb="tab"] {
-        height: 50px;
-        white-space: pre-wrap;
-        background-color: #0D1117;
-        border-radius: 4px 4px 0px 0px;
-        gap: 1px;
-        padding-top: 10px;
-        padding-bottom: 10px;
+    div[data-testid="stDataFrame"] th {
+        text-align: center !important;
     }
-    .stTabs [aria-selected="true"] {
-        background-color: #161B22;
-        border-bottom: 2px solid #58A6FF;
+    div[data-testid="stDataFrame"] td {
+        text-align: center !important;
     }
-    
+
 </style>
 """, unsafe_allow_html=True)
 
@@ -187,7 +171,6 @@ def load_data_robust(uploaded_file):
     try:
         uploaded_file.seek(0)
         df = pd.read_csv(uploaded_file)
-        # Hebrew to English mapping
         hebrew_map = {'תלתן': 'Clubs', 'יהלום': 'Diamonds', 'לב': 'Hearts', 'עלה': 'Spades'}
         df.rename(columns=hebrew_map, inplace=True)
         return df, "ok"
@@ -287,8 +270,6 @@ st.title("Chance Analyzer")
 with st.sidebar:
     st.header("Upload Data")
     csv_file = st.file_uploader("Choose a CSV file", type=None)
-    st.markdown("---")
-    st.caption("Supported formats: CSV, Hebrew/English Headers")
 
 df = None
 base_shapes = parse_shapes_strict(FIXED_COMBOS_TXT)
@@ -308,10 +289,8 @@ if df is not None:
     grid_data = df[required_cols].values
     ROW_LIMIT = 51
     
-    # --- 1. CONTROLS AREA ---
-    # Using a cleaner container
-    with st.container():
-        st.subheader("Configuration")
+    # --- 1. SETTINGS & INPUTS (Expander Returned) ---
+    with st.expander("⚙️ Settings & Inputs", expanded=not st.session_state.get('search_done', False)):
         
         # Top Row: Pattern & Preview
         col_conf, col_prev = st.columns([4, 1])
@@ -321,12 +300,11 @@ if df is not None:
         with col_prev:
             st.markdown(draw_preview_html(base_shapes[shape_idx]), unsafe_allow_html=True)
         
-        st.markdown("<div style='margin-bottom: 10px;'></div>", unsafe_allow_html=True)
-
         # Card Selection Row
         raw_cards = np.unique(grid_data.astype(str))
         clean_cards = sorted([c for c in raw_cards if str(c).lower() != 'nan' and str(c).strip() != ''])
         
+        st.caption("Select 3 Cards:")
         c1, c2, c3 = st.columns(3)
         with c1: card1 = st.selectbox("Card 1", [""] + clean_cards, key="c1")
         with c2: card2 = st.selectbox("Card 2", [""] + clean_cards, key="c2")
@@ -348,8 +326,6 @@ if df is not None:
             st.session_state['selected_match'] = None
             st.rerun()
 
-    st.markdown("---")
-
     # --- SEARCH LOGIC ---
     found_matches = []
     if (run_search or st.session_state.get('search_done', False)) and len(selected_cards) == 3:
@@ -357,7 +333,6 @@ if df is not None:
         
         variations = generate_variations_strict(shape_idx, base_shapes[shape_idx])
         rows = min(len(grid_data), ROW_LIMIT)
-        # Modern Neon Colors
         colors = ['#FF7B72', '#D2A8FF', '#79C0FF', '#7EE787', '#FFA657']
         
         raw_matches = []
@@ -393,37 +368,41 @@ if df is not None:
     
     selected_match_id = None
     
-    # --- Tab 1: Matches ---
+    # --- Tab 1: Matches (Centered, No ID) ---
     with tab_matches:
         if found_matches:
+            # Create cleaner DataFrame without ID
             df_res = pd.DataFrame([
-                {'ID': m['id'], 'Missing': m['miss_val'], 'Row': m['miss_coords'][0]} 
+                {'Missing Card': m['miss_val'], 'Index': m['miss_coords'][0], 'Hidden_ID': m['id']} 
                 for m in found_matches
             ])
             
-            # Auto-height calculation
-            row_height = 35
-            table_height = min((len(df_res) + 1) * row_height, 400) # Max 400px or fit content
+            # Display Table (Using Pandas Styler for centering)
+            # We hide the Hidden_ID from view but keep logical tracking via index if needed
+            display_df = df_res.drop(columns=['Hidden_ID'])
+            
+            # Apply styling to center text
+            styled_df = display_df.style.set_properties(**{'text-align': 'center'})\
+                                        .set_table_styles([{'selector': 'th', 'props': [('text-align', 'center')]}])
 
             event = st.dataframe(
-                df_res, 
+                styled_df, 
                 hide_index=True, 
                 use_container_width=True, 
                 selection_mode="single-row", 
                 on_select="rerun",
-                height=table_height
+                height=300
             )
             
             if len(event.selection['rows']) > 0:
                 selected_row_idx = event.selection['rows'][0]
-                selected_match_id = df_res.iloc[selected_row_idx]['ID']
+                # Retrieve the original ID using the index
+                selected_match_id = df_res.iloc[selected_row_idx]['Hidden_ID']
         else:
             if st.session_state.get('search_done', False):
                 st.info("No matches found for this pattern.")
-            else:
-                st.write("Results will appear here after search.")
 
-    # --- Tab 2: Sleeping Cards (Dynamic Height) ---
+    # --- Tab 2: Sleeping Cards (Clean Format) ---
     with tab_sleep:
         sleep_data_dict = {}
         max_len = 0
@@ -444,8 +423,8 @@ if df is not None:
             
             lst.sort(key=lambda x: x[1], reverse=True)
             
-            # Format
-            formatted_list = [f"{item[0]} (Row {item[1]})" for item in lst]
+            # Clean Format: "Value : Index"
+            formatted_list = [f"{item[0]} : {item[1]}" for item in lst]
             
             header_key = f"{icon_map[col_name]} {col_name}"
             sleep_data_dict[header_key] = formatted_list
@@ -461,17 +440,18 @@ if df is not None:
         if sleep_data_dict:
             df_sleep = pd.DataFrame(sleep_data_dict)
             
-            # Dynamic Height Logic
-            # 35px per row approx, + 40px for header
-            dynamic_height = (max_len * 35) + 40
+            # Center the sleeping table as well
+            styled_sleep = df_sleep.style.set_properties(**{'text-align': 'center'})\
+                                         .set_table_styles([{'selector': 'th', 'props': [('text-align', 'center')]}])
             
+            dynamic_height = (max_len * 35) + 40
             st.dataframe(
-                df_sleep, 
+                styled_sleep, 
                 use_container_width=True, 
-                height=dynamic_height # Sets height to fit the longest column exactly
+                height=dynamic_height
             )
         else:
-            st.success("No sleeping cards found (all cards appear before row 7).")
+            st.write("No sleeping cards found.")
 
     # --- 3. VISUAL BOARD ---
     st.subheader("Game Board")
@@ -514,5 +494,4 @@ if df is not None:
     st.markdown(html, unsafe_allow_html=True)
 
 else:
-    # Empty State Design
-    st.info("👋 Upload a CSV file from the sidebar to start analyzing.")
+    st.info("👋 Upload a CSV file from the sidebar to start.")
