@@ -379,7 +379,7 @@ if df is not None:
     
     selected_match_id = None
     
-    # --- Tab 1: Matches (Centered, Smaller) ---
+    # --- Tab 1: Matches (Centered) ---
     with tab_matches:
         if found_matches:
             # Preparing Data
@@ -414,16 +414,12 @@ if df is not None:
             if st.session_state.get('search_done', False):
                 st.info("No matches found.")
 
-    # --- Tab 2: Sleeping Cards (Colored, With Values, No Index) ---
+    # --- Tab 2: Sleeping Cards (Colored Headers, Centered) ---
     with tab_sleep:
         sleep_data_dict = {}
         max_len = 0
         
         icon_map = {'Clubs': '♣', 'Diamonds': '♦', 'Hearts': '♥', 'Spades': '♠'}
-        
-        # Identify columns for coloring
-        red_cols = []
-        black_cols = []
         
         for col_name in required_cols:
             col_idx = required_cols.index(col_name)
@@ -439,17 +435,11 @@ if df is not None:
             
             lst.sort(key=lambda x: x[1], reverse=True)
             
-            # Restore Format: "Value : Row" (Keep the data, hide the dataframe index)
+            # Format: "Value : Row"
             formatted_list = [f"{item[0]} : {item[1]}" for item in lst]
             
             header_key = f"{icon_map[col_name]} {col_name}"
             sleep_data_dict[header_key] = formatted_list
-            
-            # Categorize headers for coloring
-            if col_name in ['Hearts', 'Diamonds']:
-                red_cols.append(header_key)
-            else:
-                black_cols.append(header_key)
             
             if len(formatted_list) > max_len:
                 max_len = len(formatted_list)
@@ -462,11 +452,26 @@ if df is not None:
         if sleep_data_dict:
             df_sleep = pd.DataFrame(sleep_data_dict)
             
-            # Apply Colors using Pandas Styler
+            # Define styles for headers based on suit
+            header_styles = []
+            for i, col_name in enumerate(df_sleep.columns):
+                color = '#E1E4E8' # Default (Clubs, Spades)
+                if 'Hearts' in col_name or 'Diamonds' in col_name:
+                    color = '#F97583' # Red for Hearts and Diamonds
+                
+                # Target the specific header cell
+                header_styles.append({
+                    'selector': f'th.col_heading.level0.col{i}',
+                    'props': [('color', color)]
+                })
+            
+            # Apply centering to cells and color to headers
             styled_sleep = df_sleep.style\
-                .set_properties(subset=red_cols, **{'color': '#FF6B6B', 'font-weight': 'bold', 'text-align': 'center'})\
-                .set_properties(subset=black_cols, **{'color': '#E0E0E0', 'font-weight': 'bold', 'text-align': 'center'})\
-                .set_table_styles([{'selector': 'th', 'props': [('text-align', 'center')]}])
+                .set_properties(**{'text-align': 'center'}) \
+                .set_table_styles([
+                    {'selector': 'th', 'props': [('text-align', 'center')]}, # Center all headers
+                    *header_styles # Add suit-specific color styles
+                ])
             
             dynamic_height = min((max_len * 35) + 40, 500)
             
@@ -474,7 +479,7 @@ if df is not None:
                 styled_sleep, 
                 use_container_width=True, 
                 height=dynamic_height,
-                hide_index=True  # This hides the 0,1,2 numbering on the left!
+                hide_index=True
             )
         else:
             st.write("No sleeping cards found.")
