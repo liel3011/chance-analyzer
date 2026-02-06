@@ -337,12 +337,28 @@ with st.sidebar:
     st.header("Upload Data")
     csv_file = st.file_uploader("Choose a CSV file", type=None)
 
-df = None
+# --- SESSION STATE & FILE HANDLING FIX ---
+
+# 1. Initialize session state for data persistence
+if 'uploaded_df' not in st.session_state:
+    st.session_state['uploaded_df'] = None
+
 base_shapes = parse_shapes_strict(FIXED_COMBOS_TXT)
 
+# 2. Check for new file upload
 if csv_file:
-    df, msg = load_data_robust(csv_file)
-    if df is None: st.error(f"Error: {msg}")
+    # Load the new file and update session state
+    temp_df, msg = load_data_robust(csv_file)
+    if temp_df is not None:
+        st.session_state['uploaded_df'] = temp_df
+    elif msg != "ok":
+        st.error(f"Error: {msg}")
+
+# 3. Use the dataframe from session state (survives refreshes)
+df = st.session_state['uploaded_df']
+
+
+# --- REST OF THE APP ---
 
 if df is not None:
     required_cols = ['Clubs', 'Diamonds', 'Hearts', 'Spades']
