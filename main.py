@@ -325,7 +325,7 @@ with st.sidebar:
     st.header("Upload Data")
     csv_file = st.file_uploader("Choose a CSV file", type=None)
 
-# --- SESSION STATE FIX ---
+# --- SESSION STATE & FILE HANDLING ---
 if 'uploaded_df' not in st.session_state:
     st.session_state['uploaded_df'] = None
 
@@ -422,7 +422,7 @@ if df is not None:
     # --- TABS ---
     tab_matches, tab_sleep = st.tabs(["📋 MATCHES", "💤 SLEEPING"])
     
-    selected_match_ids = None # Changed to support multiple IDs per row
+    selected_match_ids = None 
     
     with tab_matches:
         if found_matches:
@@ -436,22 +436,21 @@ if df is not None:
                 for m in found_matches
             ])
             
-            # --- AGGREGATION LOGIC ---
-            # Group by 'Missing Card'
-            # 1. Collect all rows into a sorted list
-            # 2. Collect all Hidden_IDs into a list
+            # --- AGGREGATION & SORTING LOGIC ---
             grouped_df = raw_df.groupby('Missing Card').agg({
                 'Row': lambda x: sorted(list(x)),
                 'Hidden_ID': list
             }).reset_index()
             
-            # Add Count Column
+            # Calculate Count
             grouped_df['Count'] = grouped_df['Hidden_ID'].apply(len)
             
-            # Format "Row Indexes" as a comma separated string
+            # --- SORT BY COUNT (DESCENDING) ---
+            grouped_df = grouped_df.sort_values(by='Count', ascending=False)
+            
+            # Format indexes
             grouped_df['Row Indexes'] = grouped_df['Row'].apply(lambda x: ", ".join(map(str, x)))
             
-            # Reorder columns for display
             display_df = grouped_df[['Missing Card', 'Count', 'Row Indexes', 'Hidden_ID']]
             
             # Calculate height
@@ -459,7 +458,7 @@ if df is not None:
             calc_height = (num_rows + 1) * 35 + 3
             
             event = st.dataframe(
-                display_df.drop(columns=['Hidden_ID']), # Don't show the IDs
+                display_df.drop(columns=['Hidden_ID']), 
                 hide_index=True, 
                 use_container_width=True, 
                 selection_mode="single-row", 
@@ -467,10 +466,9 @@ if df is not None:
                 height=calc_height
             )
             
-            # Handle Selection
             if len(event.selection['rows']) > 0:
                 selected_idx = event.selection['rows'][0]
-                # Get the list of IDs from the hidden column
+                # Use iloc to get the correct row after sorting
                 selected_match_ids = display_df.iloc[selected_idx]['Hidden_ID']
                 
         else:
@@ -504,10 +502,8 @@ if df is not None:
     
     cell_styles = {}
     
-    # Filter matches to show based on selection
     matches_to_show = found_matches
     if selected_match_ids is not None:
-        # Show all matches that belong to the selected card
         matches_to_show = [m for m in found_matches if m['id'] in selected_match_ids]
 
     for m in matches_to_show:
@@ -520,7 +516,6 @@ if df is not None:
         
         miss = m['miss_coords']
         if miss not in cell_styles: cell_styles[miss] = ""
-        # Only add marker if not already present
         if "MISSING_MARKER" not in cell_styles[miss]:
              cell_styles[miss] += "MISSING_MARKER"
 
