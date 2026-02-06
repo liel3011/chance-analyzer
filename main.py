@@ -57,75 +57,59 @@ PATTERN_NAMES = {
     5: "6. Square",
     6: "7. Parallel",
     7: "8. X-Corners",
-    8: "9. Corners"
+    8: "9. Big Corners"
 }
 
 # ==========================================
 
-# --- CSS Styling (FIT TO SCREEN) ---
+# --- CSS Styling (ENGLISH & FIT MOBILE) ---
 st.markdown("""
 <style>
-    /* 1. Global Basics */
+    /* 1. LOCK SCREEN WIDTH */
     .stApp { 
         background-color: #121212; 
         color: #e0e0e0;
+        overflow-x: hidden !important; /* No sliding */
     }
     
-    /* Allow scrolling if needed, but try to fit */
     .block-container {
         padding-top: 1rem;
-        padding-bottom: 3rem;
+        padding-bottom: 5rem;
         padding-left: 2px !important;
         padding-right: 2px !important;
-        max-width: 100vw;
+        max-width: 100vw !important;
     }
 
-    /* 2. FORCE ITEMS TO SHRINK (The Fix) */
-    /* This tells the columns: "You can be 0 pixels wide if needed" */
-    [data-testid="column"] {
-        flex: 1 1 0px !important; 
-        min-width: 0 !important;
-        width: 0 !important;
-        padding: 0 1px !important; /* Very tight padding */
-        overflow: visible !important;
+    /* 2. FORCE ROW LAYOUT */
+    div[data-testid="stHorizontalBlock"] {
+        display: flex !important;
+        flex-direction: row !important;
+        flex-wrap: nowrap !important;
+        gap: 2px !important;
+        width: 100% !important;
     }
     
-    /* Force rows to stay horizontal */
-    [data-testid="stHorizontalBlock"] {
-        gap: 2px !important;
+    /* 3. Force columns to shrink */
+    div[data-testid="column"] {
+        flex: 1 1 0px !important;
+        min-width: 0 !important;
+        width: 0 !important;
+        padding: 0 1px !important;
+        overflow: hidden !important;
     }
-
-    /* 3. Make Selectboxes TINY */
+    
+    /* 4. Tiny Inputs */
     div[data-baseweb="select"] > div {
-        font-size: 11px !important; /* Small text */
-        min-height: 32px !important;
-        height: 32px !important;
+        font-size: 11px !important;
+        min-height: 34px !important;
+        height: 34px !important;
         padding-left: 2px !important;
         padding-right: 2px !important;
         border-radius: 4px !important;
     }
-    div[data-baseweb="select"] svg {
-        width: 12px !important; /* Smaller arrow icon */
-        height: 12px !important;
-    }
     
-    /* 4. Make Buttons TINY */
-    div.stButton > button {
-        font-size: 11px !important;
-        min-height: 32px !important;
-        height: 32px !important;
-        padding: 0 !important;
-        line-height: 1 !important;
-    }
-    
-    /* 5. Custom HTML Tables */
-    .sleeping-table {
-        width: 100%; border-collapse: collapse; color: #ddd;
-        font-size: 10px; text-align: center; table-layout: fixed;
-    }
-    .sleeping-table th { padding: 2px; border-bottom: 1px solid #444; background: #222; font-size: 9px; }
-    .sleeping-table td { padding: 1px; border-right: 1px solid #333; overflow: hidden; white-space: nowrap; }
-    .sleeping-table td:last-child { border-right: none; }
+    /* 5. Compact Tables */
+    .dataframe { font-size: 10px !important; width: 100% !important; }
     
     /* 6. Grid Styling */
     .grid-container { 
@@ -141,7 +125,7 @@ st.markdown("""
     }
     .missing-circle { 
         background-color: #ffffff; color: #000000; font-weight: 900; 
-        border-radius: 50%; width: 22px; height: 22px; /* Fixed small size */
+        border-radius: 4px; width: 100%; height: 100%; 
         display: flex; align-items: center; justify-content: center; 
         font-size: 11px;
     }
@@ -152,14 +136,24 @@ st.markdown("""
     .grid-header { text-align: center; padding-bottom: 2px; display: flex; flex-direction: column; align-items: center; justify-content: center; }
     .suit-icon { font-size: 16px; margin:0; line-height:1; }
 
-    /* Hide Labels & Adjust Preview */
+    /* 7. Sleeping HTML Table */
+    .sleeping-table {
+        width: 100%; border-collapse: collapse; color: #ddd;
+        font-size: 10px; text-align: center; table-layout: fixed;
+    }
+    .sleeping-table th { padding: 2px; border-bottom: 1px solid #444; background: #222; font-size: 9px; }
+    .sleeping-table td { padding: 1px; border-right: 1px solid #333; overflow: hidden; white-space: nowrap; }
+    .sleeping-table td:last-child { border-right: none; }
+
+    /* Buttons */
+    div.stButton > button { width: 100%; border-radius: 4px; height: 2.2rem; font-weight: bold; padding: 0; margin: 0; font-size: 11px; }
+    
+    /* Misc */
     label[data-testid="stLabel"] { display: none; }
     .shape-preview-wrapper {
         background-color: #222; border: 1px solid #444; border-radius: 4px;
-        padding: 0; display: flex; justify-content: center; align-items: center; height: 32px;
+        padding: 0; display: flex; justify-content: center; align-items: center; height: 34px;
     }
-    
-    /* Expander fixes */
     div[data-testid="stExpander"] { margin-bottom: 5px; border: 1px solid #333; border-radius: 4px; }
     .streamlit-expanderHeader { padding: 0.3rem !important; font-size: 12px !important; }
 </style>
@@ -170,24 +164,37 @@ st.markdown("""
 @st.cache_data
 def load_data_robust(uploaded_file):
     if uploaded_file is None: return None, "No file"
+    
+    # 1. Try Excel (Requires openpyxl in requirements.txt)
+    try:
+        uploaded_file.seek(0)
+        df = pd.read_excel(uploaded_file)
+        # Convert Hebrew headers to English internally if they exist
+        hebrew_map = {'תלתן': 'Clubs', 'יהלום': 'Diamonds', 'לב': 'Hearts', 'עלה': 'Spades'}
+        df.rename(columns=hebrew_map, inplace=True)
+        return df, "ok"
+    except Exception as e_xls:
+        pass # Not an Excel file
+
+    # 2. Try CSV (UTF-8)
     try:
         uploaded_file.seek(0)
         df = pd.read_csv(uploaded_file)
-        # Try finding Hebrew cols first
-        if 'תלתן' in df.columns:
-            hebrew_map = {'תלתן': 'Clubs', 'יהלום': 'Diamonds', 'לב': 'Hearts', 'עלה': 'Spades'}
-            df.rename(columns=hebrew_map, inplace=True)
+        hebrew_map = {'תלתן': 'Clubs', 'יהלום': 'Diamonds', 'לב': 'Hearts', 'עלה': 'Spades'}
+        df.rename(columns=hebrew_map, inplace=True)
         return df, "ok"
     except:
-        try:
-            uploaded_file.seek(0)
-            df = pd.read_excel(uploaded_file)
-            if 'תלתן' in df.columns:
-                hebrew_map = {'תלתן': 'Clubs', 'יהלום': 'Diamonds', 'לב': 'Hearts', 'עלה': 'Spades'}
-                df.rename(columns=hebrew_map, inplace=True)
-            return df, "ok"
-        except:
-            return None, "Error"
+        pass
+
+    # 3. Try CSV (Other encodings)
+    try:
+        uploaded_file.seek(0)
+        df = pd.read_csv(uploaded_file, encoding='cp1255')
+        hebrew_map = {'תלתן': 'Clubs', 'יהלום': 'Diamonds', 'לב': 'Hearts', 'עלה': 'Spades'}
+        df.rename(columns=hebrew_map, inplace=True)
+        return df, "ok"
+    except:
+        return None, "Error: Unknown file format. Please use standard CSV or Excel."
 
 def parse_shapes_strict(text):
     shapes = []
@@ -274,24 +281,25 @@ base_shapes = parse_shapes_strict(FIXED_COMBOS_TXT)
 
 if csv_file:
     df, msg = load_data_robust(csv_file)
-    if df is None: st.error("Format Error. Use CSV/Excel with suits headers.")
+    if df is None: st.error(f"{msg}")
 
 if df is not None:
     required_cols = ['Clubs', 'Diamonds', 'Hearts', 'Spades']
-    # Soft check for columns
+    
+    # Validation: Check if columns exist
     if not all(c in df.columns for c in required_cols):
-        # If columns missing, try to use first 4
-        if df.shape[1] >= 4:
+        # Fallback for files with no headers (assume first 4 cols)
+        if len(df.columns) >= 4:
             df = df.iloc[:, :4]
             df.columns = required_cols
         else:
-            st.error("File needs 4 columns")
+            st.error("Error: File must have 4 columns (Clubs, Diamonds, Hearts, Spades).")
             st.stop()
 
     grid_data = df[required_cols].values
     ROW_LIMIT = 51
     
-    # === 1. SETTINGS ===
+    # === 1. SETTINGS ROW ===
     c_pat, c_prev = st.columns([3, 1])
     with c_pat:
         st.markdown("<div style='font-size:10px; color:#888;'>Pattern</div>", unsafe_allow_html=True)
@@ -300,7 +308,7 @@ if df is not None:
         st.markdown("<div style='font-size:10px; color:#888;'>Preview</div>", unsafe_allow_html=True)
         st.markdown(draw_preview_html(base_shapes[shape_idx]), unsafe_allow_html=True)
     
-    # === 2. CARDS (TINY) ===
+    # === 2. CARDS ROW (Forced Side-by-Side) ===
     st.markdown("<div style='font-size:10px; color:#888; margin-top:5px;'>Select 3 Cards</div>", unsafe_allow_html=True)
     raw_cards = np.unique(grid_data.astype(str))
     clean_cards = sorted([c for c in raw_cards if str(c).lower() != 'nan' and str(c).strip() != ''])
@@ -312,7 +320,7 @@ if df is not None:
     
     selected_cards = [c for c in [s1, s2, s3] if c != ""]
     
-    # === 3. BUTTONS (TINY) ===
+    # === 3. BUTTONS ROW ===
     st.write("")
     b1, b2 = st.columns(2)
     with b1: run_search = st.button("SEARCH", type="primary")
@@ -357,7 +365,7 @@ if df is not None:
             m['id'] = i + 1; m['color'] = colors[i % len(colors)]
             found_matches.append(m)
 
-    # === 4. TABLES (Forced Row) ===
+    # === 4. TABLES (Forced Side-by-Side) ===
     st.write("")
     col_res, col_sleep = st.columns(2)
     
@@ -375,11 +383,13 @@ if df is not None:
 
     with col_sleep:
         with st.expander("💤 Sleeping", expanded=False):
+            # Custom HTML Table for perfect mobile fit
             html_table = "<table class='sleeping-table'><thead><tr>"
             icon_map = {'Clubs': '♣', 'Diamonds': '♦', 'Hearts': '♥', 'Spades': '♠'}
             color_map = {'Clubs': '#bbb', 'Diamonds': '#ff5555', 'Hearts': '#ff5555', 'Spades': '#bbb'}
             
             for col_name in required_cols:
+                # English name (truncated to 3 chars) + Icon
                 header_html = f"<div style='color:{color_map[col_name]}; font-size:14px;'>{icon_map[col_name]}</div><div style='font-size:8px; color:#888;'>{col_name[:3]}</div>"
                 html_table += f"<th>{header_html}</th>"
             html_table += "</tr></thead><tbody>"
@@ -412,6 +422,7 @@ if df is not None:
 
     # === 5. VISUAL BOARD ===
     st.write("---")
+    st.markdown("##### 📊 Game Board")
     
     matches_to_show = found_matches
     if st.session_state.get('selected_match'):
