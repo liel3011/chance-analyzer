@@ -1,7 +1,7 @@
 import streamlit as st
 import pandas as pd
 import numpy as np
-import requests
+import cloudscraper
 from io import StringIO
 
 # --- Page Configuration ---
@@ -175,68 +175,32 @@ st.markdown("""
 @st.cache_data(ttl=3600)
 def load_data_from_web():
     """
-    Attempts to fetch data from Pais API first, then falls back to HTML scraping.
+    Uses cloudscraper to bypass simple WAF blocks and fetch HTML tables.
     """
-    # 1. Headers to mimic a real browser (Helps avoid 'No tables found' block pages)
-    headers = {
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-        "Accept": "application/json, text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8",
-        "Accept-Language": "he-IL,he;q=0.9,en-US;q=0.8,en;q=0.7",
-        "Referer": "https://www.pais.co.il/chance/archive.aspx"
-    }
-
-    # --- Strategy A: Try the JSON API (Most Robust) ---
-    try:
-        # Common API endpoint for Pais Chance results
-        api_url = "https://www.pais.co.il/api/lottery/Chance/GetLastResults?count=50"
-        r = requests.get(api_url, headers=headers, timeout=10)
-        
-        if r.status_code == 200:
-            data = r.json()
-            # If we got data, we need to map it to our DataFrame structure
-            # API usually returns keys like 'Card1', 'Card2', 'Card3', 'Card4' or similar
-            # Let's verify we got a list
-            if isinstance(data, list) and len(data) > 0:
-                # Normalizing the JSON to a DataFrame
-                df_api = pd.DataFrame(data)
-                
-                # Check for standard Chance columns. Usually they are named by position 1-4
-                # We need to map them to Suits: 1=Spades(עלה), 2=Hearts(לב), 3=Diamonds(יהלום), 4=Clubs(תלתן)
-                # Note: The order in Chance is usually fixed: Club, Diamond, Heart, Spade (Right to Left in Hebrew)
-                # Let's inspect typical keys. Usually 'results' is a list or separate fields.
-                
-                # IF API fails or structure is unknown, we fall to Strategy B.
-                # But if it works, it's great. For now, let's skip complex mapping without seeing the JSON
-                # and rely on the HTML fallback if this is too complex to guess.
-                pass 
-
-    except Exception:
-        # Silent fail on API, move to HTML
-        pass
-
-    # --- Strategy B: Scrape the Archive HTML (Fallback) ---
     url = "https://www.pais.co.il/chance/archive.aspx"
+    
     try:
-        response = requests.get(url, headers=headers, timeout=15)
-        response.raise_for_status()
+        # Create a CloudScraper instance to mimic a real browser
+        scraper = cloudscraper.create_scraper()
         
-        # Check if we were blocked (Common WAF responses)
-        if "Incapsula" in response.text or "Security" in response.text:
-            return None, "נחסם ע'י חומת אש (IP Blocked). נסה להריץ מקומית או השתמש בהעלאה ידנית."
+        # Fetch the content
+        response = scraper.get(url, timeout=20)
+        response.raise_for_status()
 
-        # Use html5lib explicitly as it's more lenient
+        # Parse HTML tables directly from the response text
+        # flavor='html5lib' is robust for messy HTML
         dfs = pd.read_html(StringIO(response.text), flavor='html5lib')
         
         target_df = None
         for df in dfs:
             cols = [str(c) for c in df.columns]
-            # Look for a table that has 'Draw' or 'Date' columns
+            # Pais table usually has "תאריך" or "הגרלה"
             if any("הגרלה" in c for c in cols) and len(df) > 1:
                 target_df = df
                 break
         
         if target_df is None:
-            return None, "הטבלה לא נמצאה ב-HTML. ייתכן שהמבנה השתנה."
+            return None, "לא נמצאה טבלת נתונים (המבנה באתר השתנה או שנחסמנו)"
 
         # Rename Hebrew to English
         hebrew_map = {
@@ -260,16 +224,13 @@ def load_data_from_web():
         missing = [c for c in required if c not in target_df.columns]
         
         if missing:
-            return None, f"חסרות עמודות בטבלה: {missing}"
+            return None, f"חסרות עמודות בטבלה שנקראה: {missing}"
             
         return target_df, "ok"
 
-    except ValueError as e:
-        if "No tables found" in str(e):
-            return None, "האתר חסם את הגישה (No tables found). נא להשתמש בקובץ CSV ידני."
-        return None, f"שגיאת קריאה: {str(e)}"
     except Exception as e:
-        return None, f"שגיאת חיבור: {str(e)}"
+        # Generic catch to prevent app crash
+        return None, f"שגיאת תקשורת: {str(e)}"
 
 def parse_shapes_strict(text):
     shapes = []
@@ -398,51 +359,45 @@ def create_sleeping_html_table(data_dict, required_cols):
 
 st.title("Chance Analyzer")
 
-# --- Auto-Load Logic with Fallback ---
+# --- Load Logic: Auto with Fallback ---
 df = None
 base_shapes = parse_shapes_strict(FIXED_COMBOS_TXT)
 
-# Sidebar for manual actions
+# Sidebar Control
 with st.sidebar:
-    st.header("Data Control")
-    if st.button("🔄 Reload Data from Web"):
+    st.header("Data Source")
+    if st.button("🔄 Reload from Web"):
         st.cache_data.clear()
         st.rerun()
     st.markdown("---")
-    st.caption("אם הטעינה האוטומטית נכשלת (חסימה), ניתן להעלות קובץ ידנית:")
+    st.caption("אם הטעינה האוטומטית נחסמת, העלה קובץ ידנית:")
     manual_file = st.file_uploader("Upload CSV", type=None)
 
-# 1. Try Manual Upload First
+# 1. Manual File Priority
 if manual_file:
-    df, msg = load_data_robust(manual_file) # Using the old function logic we can inline or reuse
-    # Note: I'll assume we use the read_csv logic here directly to save space
     try:
         manual_file.seek(0)
         df = pd.read_csv(manual_file)
         hebrew_map = {'תלתן': 'Clubs', 'יהלום': 'Diamonds', 'לב': 'Hearts', 'עלה': 'Spades'}
         df.rename(columns=hebrew_map, inplace=True)
     except Exception as e:
-        st.error(f"Error reading file: {e}")
+        st.sidebar.error(f"File Error: {e}")
         df = None
 
-# 2. If no manual file, try Web Load
+# 2. Web Load if no file
 if df is None:
-    with st.spinner("טוען נתונים מאתר מפעל הפיס..."):
+    with st.spinner("מנסה למשוך נתונים מאתר מפעל הפיס..."):
         df, msg = load_data_from_web()
     
     if df is None:
-        # Show specific error about blocking
-        if "No tables found" in msg or "נחסם" in msg:
-            st.warning(f"⚠️ {msg}")
-            st.info("💡 טיפ: הורד את הקובץ ידנית מהאתר והעלה אותו דרך הסרגל הצדדי.")
-        else:
-            st.error(f"Error: {msg}")
+        st.warning(f"⚠️ {msg}")
+        st.info("האתר חוסם גישה משרתים (WAF). אנא הורד את הקובץ ידנית למחשב והעלה אותו בסרגל הצד.")
 
-# --- Proceed if we have data ---
+# --- Proceed ---
 if df is not None:
     required_cols = ['Clubs', 'Diamonds', 'Hearts', 'Spades']
     
-    # Validation
+    # Ensure columns exist
     missing = [c for c in required_cols if c not in df.columns]
     if missing:
         st.error(f"Data format error. Missing columns: {missing}")
@@ -623,7 +578,3 @@ if df is not None:
             html += f'<div class="grid-cell">{inner}{content}</div>'
     html += '</div>'
     st.markdown(html, unsafe_allow_html=True)
-
-else:
-    # If both Web and Manual failed or initial state
-    pass
