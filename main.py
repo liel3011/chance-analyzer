@@ -10,7 +10,7 @@ st.set_page_config(
 )
 
 # ==========================================
-# Fixed Patterns (Combos)
+# Fixed Patterns
 # ==========================================
 FIXED_COMBOS_TXT = """
 A A A A
@@ -48,7 +48,6 @@ S S S S
 A S S A
 """
 
-# Clean Pattern Names
 PATTERN_NAMES = {
     0: "1. Row (Horizontal)",
     1: "2. Column (Vertical)",
@@ -63,35 +62,22 @@ PATTERN_NAMES = {
 
 # ==========================================
 
-# --- CSS Styling (Mobile Enforcement) ---
+# --- CSS Styling (FORCE MOBILE ROW LAYOUT) ---
 st.markdown("""
 <style>
-    /* Global Settings */
+    /* Global */
     .stApp { direction: ltr; text-align: left; background-color: #121212; color: #e0e0e0; }
-    
-    /* Remove padding around main block for mobile */
-    .block-container {
-        padding-top: 1rem;
-        padding-bottom: 5rem;
-        padding-left: 0.2rem;
-        padding-right: 0.2rem;
-    }
-    
-    /* === FORCE COLUMNS ON MOBILE (The Fix) === */
-    /* This forces st.columns to stay in a row even on small screens */
+    .block-container { padding-top: 1rem; padding-bottom: 3rem; padding-left: 0.5rem; padding-right: 0.5rem; }
+
+    /* === CRITICAL FIX FOR MOBILE COLUMNS === */
+    /* This forces columns to stay side-by-side on mobile instead of stacking */
     div[data-testid="column"] {
         width: auto !important;
         flex: 1 1 auto !important;
         min_width: 1px !important;
-        padding: 0 2px !important;
     }
     
-    /* Specific adjustment for the card selectors row */
-    div[data-testid="stHorizontalBlock"] {
-        gap: 0.2rem !important;
-    }
-
-    /* === Visual Grid === */
+    /* === The Visual Grid === */
     .grid-container { 
         display: grid; 
         grid-template-columns: repeat(4, 1fr); 
@@ -102,79 +88,63 @@ st.markdown("""
         margin-top: 5px; 
         border: 1px solid #333;
     }
-    
     .grid-cell { 
-        background-color: #2d2d2d; 
-        color: #cccccc; 
-        padding: 0; 
-        text-align: center; 
-        border-radius: 4px; 
-        font-family: 'Roboto', sans-serif; 
-        font-size: 14px; 
-        position: relative; 
-        border: 1px solid #3a3a3a; 
-        height: 35px; 
-        display: flex; 
-        align-items: center; 
-        justify-content: center; 
+        background-color: #2d2d2d; color: #cccccc; padding: 0; text-align: center; 
+        border-radius: 4px; font-family: sans-serif; font-size: 14px; 
+        position: relative; border: 1px solid #3a3a3a; height: 35px; 
+        display: flex; align-items: center; justify-content: center; 
     }
-    
-    /* Missing Card */
     .missing-circle { 
-        background-color: #ffffff; 
-        color: #000000; 
-        font-weight: 900; 
-        border-radius: 4px; 
-        width: 100%; height: 100%; 
+        background-color: #ffffff; color: #000000; font-weight: 900; 
+        border-radius: 4px; width: 100%; height: 100%; 
         display: flex; align-items: center; justify-content: center; 
         box-shadow: inset 0 0 5px rgba(0,0,0,0.5);
     }
-    
-    /* Frames */
     .frame-box { 
         position: absolute; top: 0; left: 0; right: 0; bottom: 0; 
-        border-style: solid; border-color: transparent; 
-        pointer-events: none; border-radius: 4px;
+        border-style: solid; border-color: transparent; pointer-events: none; border-radius: 4px;
     }
-    
-    /* Grid Headers */
     .grid-header { 
         text-align: center; padding-bottom: 2px; 
         display: flex; flex-direction: column; align-items: center; justify-content: center;
     }
     .suit-icon { font-size: 20px; line-height: 1; margin-bottom: 0px; }
     .suit-name { font-size: 9px; color: #888; font-weight: bold; text-transform: uppercase; }
-    
-    /* Preview Box */
-    .shape-preview-wrapper {
-        background-color: #222;
-        border: 1px solid #444;
-        border-radius: 4px;
+
+    /* === CUSTOM HTML TABLE FOR SLEEPING === */
+    .sleeping-table {
+        width: 100%;
+        border-collapse: collapse;
+        color: #ddd;
+        font-size: 12px;
+        text-align: center;
+    }
+    .sleeping-table th {
         padding: 5px;
-        display: flex;
-        justify-content: center;
-        align-items: center;
-        margin-top: 0px;
+        border-bottom: 1px solid #444;
+        vertical-align: top;
     }
-    
-    /* Expander Styling */
-    div[data-testid="stExpander"] {
-        border: 1px solid #333;
-        border-radius: 6px;
-        background-color: #1a1a1a;
-        margin-bottom: 5px;
+    .sleeping-table td {
+        padding: 2px;
+        border-right: 1px solid #333;
     }
+    .sleeping-table td:last-child { border-right: none; }
     
     /* Buttons */
     div.stButton > button { width: 100%; border-radius: 6px; height: 2.5rem; font-weight: bold; }
     
-    /* Hide label of selectbox to save space */
+    /* Remove input labels taking space */
     label[data-testid="stLabel"] { display: none; }
     
+    /* Shape Preview */
+    .shape-preview-wrapper {
+        background-color: #222; border: 1px solid #444; border-radius: 4px;
+        padding: 5px; display: flex; justify-content: center; align-items: center;
+    }
 </style>
 """, unsafe_allow_html=True)
 
-# --- Logic Functions ---
+# --- Logic ---
 
 @st.cache_data
 def load_data_robust(uploaded_file):
@@ -186,14 +156,7 @@ def load_data_robust(uploaded_file):
         df.rename(columns=hebrew_map, inplace=True)
         return df, "ok"
     except:
-        try:
-            uploaded_file.seek(0)
-            df = pd.read_csv(uploaded_file, encoding='cp1255')
-            hebrew_map = {'תלתן': 'Clubs', 'יהלום': 'Diamonds', 'לב': 'Hearts', 'עלה': 'Spades'}
-            df.rename(columns=hebrew_map, inplace=True)
-            return df, "ok"
-        except:
-            return None, "Error"
+        return None, "Error"
 
 def parse_shapes_strict(text):
     shapes = []
@@ -224,13 +187,12 @@ def parse_shapes_strict(text):
 
 def generate_variations_strict(shape_idx, base_shape):
     variations = set()
-    if shape_idx == 0: variations.add(tuple(sorted(base_shape))) 
-    elif shape_idx == 1: variations.add(tuple(sorted(base_shape)))
+    # Simple logic for variations
+    if shape_idx in [0, 1]: variations.add(tuple(sorted(base_shape)))
     elif shape_idx == 2:
-        variations.add(tuple(sorted(base_shape))) 
+        variations.add(tuple(sorted(base_shape)))
         max_c = max(c for r,c in base_shape)
-        mirror = [(r, max_c-c) for r,c in base_shape]
-        variations.add(tuple(sorted(mirror)))
+        variations.add(tuple(sorted([(r, max_c-c) for r,c in base_shape])))
     elif shape_idx == 3:
         variations.add(tuple(sorted([(0,0), (1,1), (2,2), (1,2)])))
         variations.add(tuple(sorted([(0,0), (1,1), (2,2), (1,0)])))
@@ -244,18 +206,14 @@ def generate_variations_strict(shape_idx, base_shape):
         variations.add(tuple(flipped))
         for v in list(variations):
             w = max(c for r,c in v)
-            mirror = [(r, w-c) for r,c in v]
-            variations.add(tuple(sorted(mirror)))
+            variations.add(tuple(sorted([(r, w-c) for r,c in v])))
     else:
         variations.add(tuple(sorted(base_shape)))
         w = max(c for r,c in base_shape)
-        mirror_h = sorted([(r, w - c) for r, c in base_shape])
-        variations.add(tuple(mirror_h))
         max_r = max(r for r,c in base_shape)
-        flip_v = sorted([(max_r - r, c) for r, c in base_shape])
-        variations.add(tuple(flip_v))
-        flip_hv = sorted([(max_r - r, w - c) for r, c in base_shape])
-        variations.add(tuple(flip_hv))
+        variations.add(tuple(sorted([(r, w - c) for r, c in base_shape])))
+        variations.add(tuple(sorted([(max_r - r, c) for r, c in base_shape])))
+        variations.add(tuple(sorted([(max_r - r, w - c) for r, c in base_shape])))
     return [list(v) for v in variations]
 
 def draw_preview_html(shape_coords):
@@ -292,34 +250,30 @@ if csv_file:
 if df is not None:
     required_cols = ['Clubs', 'Diamonds', 'Hearts', 'Spades']
     df.columns = df.columns.str.strip()
-    missing = [c for c in required_cols if c not in df.columns]
-    if missing:
-        st.error(f"Missing columns: {missing}")
-        st.stop()
-
     grid_data = df[required_cols].values
     ROW_LIMIT = 51
     
     # --- SETUP AREA ---
     with st.expander("⚙️ Settings", expanded=not st.session_state.get('search_done', False)):
-        # Pattern
-        def format_pattern(idx): return PATTERN_NAMES.get(idx, f"Pattern {idx+1}")
+        
+        # 1. Pattern & Preview
+        st.markdown("<p style='font-size:12px; margin:0; color:#888;'>Select Pattern</p>", unsafe_allow_html=True)
         c_pat, c_prev = st.columns([3, 1])
         with c_pat:
-            st.markdown("<p style='font-size:12px; margin-bottom:0px;'>Pattern</p>", unsafe_allow_html=True)
-            shape_idx = st.selectbox("Pattern", range(len(base_shapes)), format_func=format_pattern, label_visibility="collapsed")
+            shape_idx = st.selectbox("Pattern", range(len(base_shapes)), format_func=lambda i: PATTERN_NAMES.get(i, f"Pat {i+1}"), label_visibility="collapsed")
         with c_prev:
             st.markdown(draw_preview_html(base_shapes[shape_idx]), unsafe_allow_html=True)
         
-        # Cards (Row of 3 - FORCED)
+        # 2. Cards (FORCED ROW)
+        st.markdown("<p style='font-size:12px; margin:5px 0 0 0; color:#888;'>Select 3 Cards</p>", unsafe_allow_html=True)
         raw_cards = np.unique(grid_data.astype(str))
         clean_cards = sorted([c for c in raw_cards if str(c).lower() != 'nan' and str(c).strip() != ''])
         
-        st.markdown("<p style='font-size:12px; margin-bottom:2px; margin-top:5px;'>Select 3 Cards</p>", unsafe_allow_html=True)
+        # Using columns to force side-by-side
         c1_col, c2_col, c3_col = st.columns(3)
-        with c1_col: c1 = st.selectbox("C1", [""] + clean_cards, key="c1", label_visibility="collapsed")
-        with c2_col: c2 = st.selectbox("C2", [""] + clean_cards, key="c2", label_visibility="collapsed")
-        with c3_col: c3 = st.selectbox("C3", [""] + clean_cards, key="c3", label_visibility="collapsed")
+        with c1_col: c1 = st.selectbox("C1", [""] + clean_cards, key="c1")
+        with c2_col: c2 = st.selectbox("C2", [""] + clean_cards, key="c2")
+        with c3_col: c3 = st.selectbox("C3", [""] + clean_cards, key="c3")
         
         selected_cards = [c for c in [c1, c2, c3] if c != ""]
         
@@ -367,61 +321,66 @@ if df is not None:
             m['id'] = i + 1; m['color'] = colors[i % len(colors)]
             found_matches.append(m)
 
-    # --- TABLES (Side by Side FORCED) ---
+    # --- EXPANDERS: Results & Sleeping (SIDE BY SIDE FORCED) ---
     st.write("")
     col_res, col_sleep = st.columns(2)
     
-    # 1. Results
+    # 1. Matches Expander
     with col_res:
         with st.expander(f"📋 Matches ({len(found_matches)})", expanded=bool(found_matches)):
             if found_matches:
                 df_res_display = pd.DataFrame([{'Missing': m['miss_val'], 'Row': m['miss_coords'][0]} for m in found_matches])
-                event = st.dataframe(
-                    df_res_display, 
-                    hide_index=True, 
-                    use_container_width=True, 
-                    selection_mode="single-row", 
-                    on_select="rerun",
-                    height=150
-                )
+                event = st.dataframe(df_res_display, hide_index=True, use_container_width=True, selection_mode="single-row", on_select="rerun", height=200)
                 selected_match_id = None
                 if len(event.selection['rows']) > 0:
                     idx = event.selection['rows'][0]
                     selected_match_id = found_matches[idx]['id']
             else:
                 selected_match_id = None
-                if st.session_state.get('search_done', False):
-                    st.caption("No matches")
+                if st.session_state.get('search_done', False): st.caption("No matches")
 
-    # 2. Sleeping Cards
+    # 2. Sleeping Expander (CUSTOM HTML TABLE)
     with col_sleep:
         with st.expander("💤 Sleeping (>7)", expanded=False):
-            # 4 Columns for suits, forced layout
-            s1, s2, s3, s4 = st.columns(4)
+            # Generating HTML Table manually to ensure it displays correctly on mobile
+            html_table = "<table class='sleeping-table'><thead><tr>"
+            
             icon_map = {'Clubs': '♣', 'Diamonds': '♦', 'Hearts': '♥', 'Spades': '♠'}
             color_map = {'Clubs': '#bbb', 'Diamonds': '#ff5555', 'Hearts': '#ff5555', 'Spades': '#bbb'}
             
-            for i, col_name in enumerate(required_cols):
-                target_col = [s1, s2, s3, s4][i]
-                with target_col:
-                    # Name + Icon
-                    st.markdown(f"<div style='text-align:center; font-size:9px; color:#888;'>{col_name[:3]}</div>", unsafe_allow_html=True)
-                    st.markdown(f"<div style='text-align:center; font-size:18px; color:{color_map[col_name]}'>{icon_map[col_name]}</div>", unsafe_allow_html=True)
-                    
-                    col_data = grid_data[:, i]
-                    c_unique = np.unique(col_data.astype(str))
-                    lst = []
-                    for c in c_unique:
-                        if str(c).lower() == 'nan': continue
-                        locs = np.where(col_data == c)[0]
-                        if len(locs) > 0 and locs[0] > 7: lst.append((c, locs[0]))
-                    lst.sort(key=lambda x: x[1], reverse=True)
-                    
-                    if lst:
-                        for c, g in lst: 
-                            st.markdown(f"<div style='text-align:center; font-size:10px; margin-bottom:1px;'><b>{c}</b>:{g}</div>", unsafe_allow_html=True)
+            # Headers
+            for col_name in required_cols:
+                html_table += f"<th><div style='font-size:18px; color:{color_map[col_name]}'>{icon_map[col_name]}</div><div style='font-size:9px; color:#888;'>{col_name}</div></th>"
+            html_table += "</tr></thead><tbody>"
+            
+            # Collect data per column
+            cols_data = []
+            max_len = 0
+            for i in range(4):
+                col_data = grid_data[:, i]
+                c_unique = np.unique(col_data.astype(str))
+                items = []
+                for c in c_unique:
+                    if str(c).lower() == 'nan': continue
+                    locs = np.where(col_data == c)[0]
+                    if len(locs) > 0 and locs[0] > 7: items.append((c, locs[0]))
+                items.sort(key=lambda x: x[1], reverse=True)
+                cols_data.append(items)
+                if len(items) > max_len: max_len = len(items)
+            
+            # Build rows
+            for r in range(max_len):
+                html_table += "<tr>"
+                for c in range(4):
+                    if r < len(cols_data[c]):
+                        val, gap = cols_data[c][r]
+                        html_table += f"<td><b>{val}</b>: {gap}</td>"
                     else:
-                        st.markdown("<div style='text-align:center; color:#555; font-size:10px;'>-</div>", unsafe_allow_html=True)
+                        html_table += "<td></td>"
+                html_table += "</tr>"
+            
+            html_table += "</tbody></table>"
+            st.markdown(html_table, unsafe_allow_html=True)
 
     # --- VISUAL BOARD ---
     st.markdown("##### 📊 Game Board")
