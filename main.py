@@ -70,12 +70,10 @@ st.markdown("""
     .stApp { direction: ltr; text-align: left; background-color: #0E1117; color: #FAFAFA; }
     
     /* --- REDUCE TOP SPACING --- */
-    /* Shrink the main container padding */
     .block-container {
         padding-top: 1.5rem !important;
         padding-bottom: 1rem !important;
     }
-    /* Shrink margin below the main Title */
     h1 {
         margin-bottom: -0.5rem !important;
         padding-bottom: 0rem !important;
@@ -437,7 +435,7 @@ if df is not None:
     
     selected_match_id = None
     
-    # --- Tab 1: Matches (Force Left Align) ---
+    # --- Tab 1: Matches (Force Left Align + Dynamic Height) ---
     with tab_matches:
         if found_matches:
             # Data
@@ -449,13 +447,18 @@ if df is not None:
             # Hide ID
             display_df = df_res.drop(columns=['Hidden_ID'])
             
+            # Calculate Dynamic Height
+            # 35px row height (approx) + 38px header height + 2px borders
+            num_rows = len(display_df)
+            calc_height = (num_rows + 1) * 35 + 3
+            
             event = st.dataframe(
                 display_df, 
                 hide_index=True, 
                 use_container_width=True, 
                 selection_mode="single-row", 
                 on_select="rerun",
-                height=180
+                height=calc_height # Set dynamic height
             )
             
             if len(event.selection['rows']) > 0:
