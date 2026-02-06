@@ -159,6 +159,11 @@ st.markdown("""
     div[data-testid="stDataFrame"] td {
         text-align: center !important;
     }
+    
+    /* Remove input labels spacing */
+    div[data-testid="stVerticalBlock"] > div {
+        gap: 0.5rem;
+    }
 
 </style>
 """, unsafe_allow_html=True)
@@ -289,35 +294,35 @@ if df is not None:
     grid_data = df[required_cols].values
     ROW_LIMIT = 51
     
-    # --- 1. SETTINGS & INPUTS (Expander Returned) ---
+    # --- 1. SETTINGS & INPUTS ---
     with st.expander("⚙️ Settings & Inputs", expanded=not st.session_state.get('search_done', False)):
         
-        # Top Row: Pattern & Preview
+        # Pattern & Preview
         col_conf, col_prev = st.columns([4, 1])
         with col_conf:
             def format_pattern(idx): return PATTERN_NAMES.get(idx, f"Pattern {idx+1}")
-            shape_idx = st.selectbox("Search Pattern", range(len(base_shapes)), format_func=format_pattern)
+            shape_idx = st.selectbox("Search Pattern", range(len(base_shapes)), format_func=format_pattern, label_visibility="collapsed")
         with col_prev:
             st.markdown(draw_preview_html(base_shapes[shape_idx]), unsafe_allow_html=True)
         
-        # Card Selection Row
+        # Cards Input
         raw_cards = np.unique(grid_data.astype(str))
         clean_cards = sorted([c for c in raw_cards if str(c).lower() != 'nan' and str(c).strip() != ''])
         
-        st.caption("Select 3 Cards:")
+        # Labels removed (label_visibility="collapsed")
         c1, c2, c3 = st.columns(3)
-        with c1: card1 = st.selectbox("Card 1", [""] + clean_cards, key="c1")
-        with c2: card2 = st.selectbox("Card 2", [""] + clean_cards, key="c2")
-        with c3: card3 = st.selectbox("Card 3", [""] + clean_cards, key="c3")
+        with c1: card1 = st.selectbox("C1", [""] + clean_cards, key="c1", label_visibility="collapsed")
+        with c2: card2 = st.selectbox("C2", [""] + clean_cards, key="c2", label_visibility="collapsed")
+        with c3: card3 = st.selectbox("C3", [""] + clean_cards, key="c3", label_visibility="collapsed")
         
         selected_cards = [c for c in [card1, card2, card3] if c != ""]
         
-        st.markdown("<div style='margin-bottom: 15px;'></div>", unsafe_allow_html=True)
+        st.markdown("<div style='margin-bottom: 10px;'></div>", unsafe_allow_html=True)
 
-        # Action Buttons
+        # Buttons
         b_search, b_reset = st.columns([3, 1])
         with b_search: 
-            run_search = st.button("🔍 ANALYZE BOARD", type="primary")
+            run_search = st.button("Search", type="primary")
         with b_reset: 
             reset_btn = st.button("Reset")
         
@@ -362,26 +367,24 @@ if df is not None:
             m['id'] = i + 1; m['color'] = colors[i % len(colors)]
             found_matches.append(m)
 
-    # --- 2. TABS: RESULTS & SLEEPING ---
+    # --- 2. TABS ---
     
-    tab_matches, tab_sleep = st.tabs(["📋 MATCHES FOUND", "💤 SLEEPING CARDS"])
+    tab_matches, tab_sleep = st.tabs(["📋 MATCHES", "💤 SLEEPING"])
     
     selected_match_id = None
     
-    # --- Tab 1: Matches (Centered, No ID) ---
+    # --- Tab 1: Matches (Centered, Smaller) ---
     with tab_matches:
         if found_matches:
-            # Create cleaner DataFrame without ID
             df_res = pd.DataFrame([
                 {'Missing Card': m['miss_val'], 'Index': m['miss_coords'][0], 'Hidden_ID': m['id']} 
                 for m in found_matches
             ])
             
-            # Display Table (Using Pandas Styler for centering)
-            # We hide the Hidden_ID from view but keep logical tracking via index if needed
+            # Hide the ID column
             display_df = df_res.drop(columns=['Hidden_ID'])
             
-            # Apply styling to center text
+            # Center text in DataFrame
             styled_df = display_df.style.set_properties(**{'text-align': 'center'})\
                                         .set_table_styles([{'selector': 'th', 'props': [('text-align', 'center')]}])
 
@@ -391,23 +394,26 @@ if df is not None:
                 use_container_width=True, 
                 selection_mode="single-row", 
                 on_select="rerun",
-                height=300
+                height=180  # Reduced height
             )
             
             if len(event.selection['rows']) > 0:
                 selected_row_idx = event.selection['rows'][0]
-                # Retrieve the original ID using the index
                 selected_match_id = df_res.iloc[selected_row_idx]['Hidden_ID']
         else:
             if st.session_state.get('search_done', False):
-                st.info("No matches found for this pattern.")
+                st.info("No matches found.")
 
-    # --- Tab 2: Sleeping Cards (Clean Format) ---
+    # --- Tab 2: Sleeping Cards (Colored, No Numbers) ---
     with tab_sleep:
         sleep_data_dict = {}
         max_len = 0
         
         icon_map = {'Clubs': '♣', 'Diamonds': '♦', 'Hearts': '♥', 'Spades': '♠'}
+        
+        # Identify columns for coloring
+        red_cols = []
+        black_cols = []
         
         for col_name in required_cols:
             col_idx = required_cols.index(col_name)
@@ -423,11 +429,17 @@ if df is not None:
             
             lst.sort(key=lambda x: x[1], reverse=True)
             
-            # Clean Format: "Value : Index"
-            formatted_list = [f"{item[0]} : {item[1]}" for item in lst]
+            # Just the card value, no numbering
+            formatted_list = [f"{item[0]}" for item in lst]
             
             header_key = f"{icon_map[col_name]} {col_name}"
             sleep_data_dict[header_key] = formatted_list
+            
+            # Categorize headers for coloring
+            if col_name in ['Hearts', 'Diamonds']:
+                red_cols.append(header_key)
+            else:
+                black_cols.append(header_key)
             
             if len(formatted_list) > max_len:
                 max_len = len(formatted_list)
@@ -440,11 +452,14 @@ if df is not None:
         if sleep_data_dict:
             df_sleep = pd.DataFrame(sleep_data_dict)
             
-            # Center the sleeping table as well
-            styled_sleep = df_sleep.style.set_properties(**{'text-align': 'center'})\
-                                         .set_table_styles([{'selector': 'th', 'props': [('text-align', 'center')]}])
+            # Apply Colors using Pandas Styler
+            styled_sleep = df_sleep.style\
+                .set_properties(subset=red_cols, **{'color': '#FF6B6B', 'font-weight': 'bold', 'text-align': 'center'})\
+                .set_properties(subset=black_cols, **{'color': '#E0E0E0', 'font-weight': 'bold', 'text-align': 'center'})\
+                .set_table_styles([{'selector': 'th', 'props': [('text-align', 'center')]}])
             
-            dynamic_height = (max_len * 35) + 40
+            dynamic_height = min((max_len * 35) + 40, 500)
+            
             st.dataframe(
                 styled_sleep, 
                 use_container_width=True, 
@@ -494,4 +509,4 @@ if df is not None:
     st.markdown(html, unsafe_allow_html=True)
 
 else:
-    st.info("👋 Upload a CSV file from the sidebar to start.")
+    st.info("👋 Upload a CSV file to start.")
