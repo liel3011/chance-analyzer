@@ -451,7 +451,8 @@ if df is not None:
             # Format indexes
             grouped_df['Row Indexes'] = grouped_df['Row'].apply(lambda x: ", ".join(map(str, x)))
             
-            display_df = grouped_df[['Missing Card', 'Count', 'Row Indexes', 'Hidden_ID']]
+            # Reorder columns: Count is now FIRST
+            display_df = grouped_df[['Count', 'Missing Card', 'Row Indexes', 'Hidden_ID']]
             
             # Calculate height
             num_rows = len(display_df)
