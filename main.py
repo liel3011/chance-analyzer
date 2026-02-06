@@ -270,9 +270,8 @@ def draw_preview_html(shape_coords):
     grid_html += '</div>'
     return f'<div class="shape-preview-wrapper">{grid_html}</div>'
 
-# --- Custom HTML Table Generator (UPDATED HEADER LAYOUT) ---
+# --- Custom HTML Table Generator ---
 def create_sleeping_html_table(data_dict, required_cols):
-    # Determine Colors and Icons
     meta = {
         'Clubs': {'icon': '♣', 'color': '#E1E4E8'},
         'Diamonds': {'icon': '♦', 'color': '#FF4B4B'},
@@ -280,7 +279,6 @@ def create_sleeping_html_table(data_dict, required_cols):
         'Spades': {'icon': '♠', 'color': '#E1E4E8'}
     }
     
-    # Calculate Max Rows
     max_rows = 0
     clean_data = {}
     for col in required_cols:
@@ -288,44 +286,34 @@ def create_sleeping_html_table(data_dict, required_cols):
         if len(clean_data[col]) > max_rows:
             max_rows = len(clean_data[col])
             
-    # Build HTML as a single list then join, no indentation
     parts = []
     parts.append('<div style="overflow-x: auto; border: 1px solid #30363D; border-radius: 6px;">')
     parts.append('<table style="width: 100%; border-collapse: collapse; font-family: sans-serif; font-size: 14px;">')
     parts.append('<thead>')
     parts.append('<tr style="background-color: #161B22; border-bottom: 1px solid #30363D;">')
     
-    # Headers (Stacked Icon Above Text)
     for col in required_cols:
         c_meta = meta.get(col, {'icon': '', 'color': '#fff'})
-        
-        # New Header Content: Stacked Divs
         header_content = f"""
         <div style="display: flex; flex-direction: column; align-items: center; justify-content: center;">
             <div style="font-size: 24px; line-height: 1; margin-bottom: 2px;">{c_meta['icon']}</div>
             <div style="font-size: 11px; text-transform: uppercase;">{col}</div>
         </div>
         """
-        
         parts.append(f'<th style="padding: 10px; text-align: center; color: {c_meta["color"]}; font-weight: bold; border-right: 1px solid #30363D; width: 25%; vertical-align: middle;">{header_content}</th>')
     
     parts.append('</tr></thead><tbody>')
     
-    # Rows
     for i in range(max_rows):
         bg_color = "#0D1117" if i % 2 == 0 else "#161B22"
         parts.append(f'<tr style="background-color: {bg_color};">')
-        
         for col in required_cols:
             val = clean_data[col][i] if i < len(clean_data[col]) else ""
-            # Determine text color based on suit if val exists
             text_color = meta[col]['color'] if val != "" else "transparent"
-            
             parts.append(f'<td style="padding: 8px; text-align: center; border-right: 1px solid #30363D; color: {text_color};">{val}</td>')
         parts.append("</tr>")
         
     parts.append("</tbody></table></div>")
-    
     return "".join(parts)
 
 # --- Main Interface ---
@@ -337,28 +325,20 @@ with st.sidebar:
     st.header("Upload Data")
     csv_file = st.file_uploader("Choose a CSV file", type=None)
 
-# --- SESSION STATE & FILE HANDLING FIX ---
-
-# 1. Initialize session state for data persistence
+# --- SESSION STATE FIX ---
 if 'uploaded_df' not in st.session_state:
     st.session_state['uploaded_df'] = None
 
 base_shapes = parse_shapes_strict(FIXED_COMBOS_TXT)
 
-# 2. Check for new file upload
 if csv_file:
-    # Load the new file and update session state
     temp_df, msg = load_data_robust(csv_file)
     if temp_df is not None:
         st.session_state['uploaded_df'] = temp_df
     elif msg != "ok":
         st.error(f"Error: {msg}")
 
-# 3. Use the dataframe from session state (survives refreshes)
 df = st.session_state['uploaded_df']
-
-
-# --- REST OF THE APP ---
 
 if df is not None:
     required_cols = ['Clubs', 'Diamonds', 'Hearts', 'Spades']
@@ -371,10 +351,8 @@ if df is not None:
     grid_data = df[required_cols].values
     ROW_LIMIT = 51
     
-    # --- 1. SETTINGS & INPUTS ---
+    # --- Settings ---
     with st.expander("⚙️ Settings & Inputs", expanded=not st.session_state.get('search_done', False)):
-        
-        # Pattern & Preview
         col_conf, col_prev = st.columns([4, 1])
         with col_conf:
             def format_pattern(idx): return PATTERN_NAMES.get(idx, f"Pattern {idx+1}")
@@ -384,7 +362,6 @@ if df is not None:
         
         st.markdown("<div style='height: 18px;'></div>", unsafe_allow_html=True)
         
-        # Cards Input
         raw_cards = np.unique(grid_data.astype(str))
         clean_cards = sorted([c for c in raw_cards if str(c).lower() != 'nan' and str(c).strip() != ''])
         
@@ -397,19 +374,16 @@ if df is not None:
         
         st.markdown("<div style='margin-bottom: 10px;'></div>", unsafe_allow_html=True)
 
-        # Buttons
         b_search, b_reset = st.columns([3, 1])
-        with b_search: 
-            run_search = st.button("Search", type="primary")
-        with b_reset: 
-            reset_btn = st.button("Reset")
+        with b_search: run_search = st.button("Search", type="primary")
+        with b_reset: reset_btn = st.button("Reset")
         
         if reset_btn:
             st.session_state['search_done'] = False
             st.session_state['selected_match'] = None
             st.rerun()
 
-    # --- SEARCH LOGIC ---
+    # --- Search Logic ---
     found_matches = []
     if (run_search or st.session_state.get('search_done', False)) and len(selected_cards) == 3:
         st.session_state['search_done'] = True
@@ -445,85 +419,96 @@ if df is not None:
             m['id'] = i + 1; m['color'] = colors[i % len(colors)]
             found_matches.append(m)
 
-    # --- 2. TABS ---
-    
+    # --- TABS ---
     tab_matches, tab_sleep = st.tabs(["📋 MATCHES", "💤 SLEEPING"])
     
-    selected_match_id = None
+    selected_match_ids = None # Changed to support multiple IDs per row
     
-    # --- Tab 1: Matches (Force Left Align + Dynamic Height) ---
     with tab_matches:
         if found_matches:
-            # Data
-            df_res = pd.DataFrame([
-                {'Missing Card': m['miss_val'], 'Index': m['miss_coords'][0], 'Hidden_ID': m['id']} 
+            # Create a raw dataframe
+            raw_df = pd.DataFrame([
+                {
+                    'Missing Card': m['miss_val'], 
+                    'Row': m['miss_coords'][0], 
+                    'Hidden_ID': m['id']
+                } 
                 for m in found_matches
             ])
             
-            # 1. Force Index to be String to ensure Left Alignment
-            df_res['Index'] = df_res['Index'].astype(str)
+            # --- AGGREGATION LOGIC ---
+            # Group by 'Missing Card'
+            # 1. Collect all rows into a sorted list
+            # 2. Collect all Hidden_IDs into a list
+            grouped_df = raw_df.groupby('Missing Card').agg({
+                'Row': lambda x: sorted(list(x)),
+                'Hidden_ID': list
+            }).reset_index()
             
-            # Hide ID
-            display_df = df_res.drop(columns=['Hidden_ID'])
+            # Add Count Column
+            grouped_df['Count'] = grouped_df['Hidden_ID'].apply(len)
             
-            # Calculate Dynamic Height
-            # 35px row height (approx) + 38px header height + 2px borders
+            # Format "Row Indexes" as a comma separated string
+            grouped_df['Row Indexes'] = grouped_df['Row'].apply(lambda x: ", ".join(map(str, x)))
+            
+            # Reorder columns for display
+            display_df = grouped_df[['Missing Card', 'Count', 'Row Indexes', 'Hidden_ID']]
+            
+            # Calculate height
             num_rows = len(display_df)
             calc_height = (num_rows + 1) * 35 + 3
             
             event = st.dataframe(
-                display_df, 
+                display_df.drop(columns=['Hidden_ID']), # Don't show the IDs
                 hide_index=True, 
                 use_container_width=True, 
                 selection_mode="single-row", 
                 on_select="rerun",
-                height=calc_height # Set dynamic height
+                height=calc_height
             )
             
+            # Handle Selection
             if len(event.selection['rows']) > 0:
-                selected_row_idx = event.selection['rows'][0]
-                selected_match_id = df_res.iloc[selected_row_idx]['Hidden_ID']
+                selected_idx = event.selection['rows'][0]
+                # Get the list of IDs from the hidden column
+                selected_match_ids = display_df.iloc[selected_idx]['Hidden_ID']
+                
         else:
             if st.session_state.get('search_done', False):
                 st.info("No matches found.")
 
-    # --- Tab 2: Sleeping Cards (HTML Fixed) ---
     with tab_sleep:
         sleep_data_lists = {}
-        
         for col_name in required_cols:
             col_idx = required_cols.index(col_name)
             col_data = grid_data[:, col_idx]
             c_unique = np.unique(col_data.astype(str))
-            
             lst = []
             for c in c_unique:
                 if str(c).lower() == 'nan': continue
                 locs = np.where(col_data == c)[0]
                 if len(locs) > 0 and locs[0] > 7:
                     lst.append((c, locs[0]))
-            
             lst.sort(key=lambda x: x[1], reverse=True)
-            
-            # Format: "Value : Row"
             formatted_list = [f"{item[0]} : {item[1]}" for item in lst]
             sleep_data_lists[col_name] = formatted_list
 
         if any(sleep_data_lists.values()):
-            # Use custom HTML function defined above
             html_table = create_sleeping_html_table(sleep_data_lists, required_cols)
             st.markdown(html_table, unsafe_allow_html=True)
         else:
             st.write("No sleeping cards found.")
 
-    # --- 3. VISUAL BOARD ---
+    # --- GAME BOARD ---
     st.subheader("Game Board")
     
     cell_styles = {}
     
+    # Filter matches to show based on selection
     matches_to_show = found_matches
-    if selected_match_id is not None:
-        matches_to_show = [m for m in found_matches if m['id'] == selected_match_id]
+    if selected_match_ids is not None:
+        # Show all matches that belong to the selected card
+        matches_to_show = [m for m in found_matches if m['id'] in selected_match_ids]
 
     for m in matches_to_show:
         col = m['color']
@@ -535,10 +520,11 @@ if df is not None:
         
         miss = m['miss_coords']
         if miss not in cell_styles: cell_styles[miss] = ""
-        cell_styles[miss] += "MISSING_MARKER"
+        # Only add marker if not already present
+        if "MISSING_MARKER" not in cell_styles[miss]:
+             cell_styles[miss] += "MISSING_MARKER"
 
     html = '<div class="grid-container">'
-    
     headers = [('Clubs', '♣', '#E1E4E8'), ('Diamonds', '♦', '#FF4B4B'), ('Hearts', '♥', '#FF4B4B'), ('Spades', '♠', '#E1E4E8')]
     for name, icon, color in headers:
         html += f'<div class="grid-header"><div class="suit-icon" style="color:{color};">{icon}</div><div class="suit-name">{name}</div></div>'
