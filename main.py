@@ -149,13 +149,15 @@ st.markdown("""
         height: 100%;
     }
     
-    /* Table Centering Hack */
-    div[data-testid="stDataFrame"] table {
-        text-align: center !important;
-    }
+    /* --- Table Centering & Styling --- */
+    
+    /* Headers */
     div[data-testid="stDataFrame"] th {
         text-align: center !important;
+        font-size: 13px;
     }
+    
+    /* Cells */
     div[data-testid="stDataFrame"] td {
         text-align: center !important;
     }
@@ -305,6 +307,10 @@ if df is not None:
         with col_prev:
             st.markdown(draw_preview_html(base_shapes[shape_idx]), unsafe_allow_html=True)
         
+        # --- Spacer for the user request ---
+        st.markdown("<div style='height: 18px;'></div>", unsafe_allow_html=True)
+        # -----------------------------------
+        
         # Cards Input
         raw_cards = np.unique(grid_data.astype(str))
         clean_cards = sorted([c for c in raw_cards if str(c).lower() != 'nan' and str(c).strip() != ''])
@@ -376,6 +382,7 @@ if df is not None:
     # --- Tab 1: Matches (Centered, Smaller) ---
     with tab_matches:
         if found_matches:
+            # Preparing Data
             df_res = pd.DataFrame([
                 {'Missing Card': m['miss_val'], 'Index': m['miss_coords'][0], 'Hidden_ID': m['id']} 
                 for m in found_matches
@@ -384,9 +391,12 @@ if df is not None:
             # Hide the ID column
             display_df = df_res.drop(columns=['Hidden_ID'])
             
-            # Center text in DataFrame
+            # Center text in DataFrame using Styler
             styled_df = display_df.style.set_properties(**{'text-align': 'center'})\
-                                        .set_table_styles([{'selector': 'th', 'props': [('text-align', 'center')]}])
+                                        .set_table_styles([
+                                            {'selector': 'th', 'props': [('text-align', 'center')]},
+                                            {'selector': 'td', 'props': [('text-align', 'center')]}
+                                        ])
 
             event = st.dataframe(
                 styled_df, 
@@ -404,7 +414,7 @@ if df is not None:
             if st.session_state.get('search_done', False):
                 st.info("No matches found.")
 
-    # --- Tab 2: Sleeping Cards (Colored, No Numbers) ---
+    # --- Tab 2: Sleeping Cards (Colored, With Values, No Index) ---
     with tab_sleep:
         sleep_data_dict = {}
         max_len = 0
@@ -429,8 +439,8 @@ if df is not None:
             
             lst.sort(key=lambda x: x[1], reverse=True)
             
-            # Just the card value, no numbering
-            formatted_list = [f"{item[0]}" for item in lst]
+            # Restore Format: "Value : Row" (Keep the data, hide the dataframe index)
+            formatted_list = [f"{item[0]} : {item[1]}" for item in lst]
             
             header_key = f"{icon_map[col_name]} {col_name}"
             sleep_data_dict[header_key] = formatted_list
@@ -463,7 +473,8 @@ if df is not None:
             st.dataframe(
                 styled_sleep, 
                 use_container_width=True, 
-                height=dynamic_height
+                height=dynamic_height,
+                hide_index=True  # This hides the 0,1,2 numbering on the left!
             )
         else:
             st.write("No sleeping cards found.")
