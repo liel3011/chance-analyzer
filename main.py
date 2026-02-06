@@ -4,7 +4,7 @@ import numpy as np
 
 # --- Page Configuration ---
 st.set_page_config(
-    page_title="Chance Analyzer Pro",
+    page_title="Chance Analyzer",
     layout="wide",
     initial_sidebar_state="collapsed"
 )
@@ -48,7 +48,6 @@ S S S S
 A S S A
 """
 
-# Pattern Names
 PATTERN_NAMES = {
     0: "1. Row (Horizontal)",
     1: "2. Column (Vertical)",
@@ -63,16 +62,29 @@ PATTERN_NAMES = {
 
 # ==========================================
 
-# --- CSS Styling (Compact & Mobile) ---
+# --- CSS Styling (Clean & Centered) ---
 st.markdown("""
 <style>
     /* Global */
     .stApp { direction: ltr; text-align: left; background-color: #121212; color: #e0e0e0; }
+    
+    /* Inputs Alignment */
     .stSelectbox, .stMultiSelect, .stButton, div[data-testid="stExpander"], div[data-testid="stSidebar"] { 
         direction: ltr; text-align: left; 
     }
+
+    /* === Centered Tables === */
+    .dataframe { 
+        text-align: center !important; 
+        width: 100% !important;
+        margin: auto;
+    }
+    th, td { 
+        text-align: center !important; 
+        vertical-align: middle !important;
+    }
     
-    /* Compact Header spacing */
+    /* Mobile Spacing */
     .block-container {
         padding-top: 1rem;
         padding-bottom: 2rem;
@@ -80,7 +92,7 @@ st.markdown("""
         padding-right: 0.5rem;
     }
     
-    /* === The Visual Grid === */
+    /* === Visual Grid === */
     .grid-container { 
         display: grid; 
         grid-template-columns: repeat(4, 1fr); 
@@ -134,7 +146,7 @@ st.markdown("""
     .suit-icon { font-size: 20px; line-height: 1; margin-bottom: 0px; }
     .suit-name { font-size: 9px; color: #888; font-weight: bold; text-transform: uppercase; }
     
-    /* Preview Box (Smaller now) */
+    /* Preview Box */
     .shape-preview-wrapper {
         background-color: #222;
         border: 1px solid #444;
@@ -146,7 +158,7 @@ st.markdown("""
         margin-top: 0px;
     }
     
-    /* Make Expanders look cleaner */
+    /* Clean Expanders */
     div[data-testid="stExpander"] {
         border: 1px solid #333;
         border-radius: 6px;
@@ -156,8 +168,9 @@ st.markdown("""
     /* Buttons */
     div.stButton > button { width: 100%; border-radius: 6px; height: 2.5rem; font-weight: bold; }
     
-    /* Tighten columns */
-    div[data-testid="column"] { gap: 0.2rem; }
+    /* Tight Columns Gap */
+    div[data-testid="column"] { gap: 0.3rem; }
+    
 </style>
 """, unsafe_allow_html=True)
 
@@ -258,7 +271,6 @@ def draw_preview_html(shape_coords):
     norm = [(r-min_r, c-min_c) for r,c in shape_coords]
     max_r = max(r for r, c in norm) + 1; max_c = max(c for r, c in norm) + 1
     
-    # Smaller grid preview (12px cells instead of 18px)
     grid_html = f'<div style="display:grid; grid-template-columns: repeat({max_c}, 12px); gap: 2px;">'
     for r in range(max_r):
         for c in range(max_c):
@@ -270,7 +282,7 @@ def draw_preview_html(shape_coords):
 
 # --- Main Interface ---
 
-st.title("📱 Chance Analyzer")
+st.title("Chance Analyzer")
 
 # Sidebar
 with st.sidebar:
@@ -295,10 +307,10 @@ if df is not None:
     grid_data = df[required_cols].values
     ROW_LIMIT = 51
     
-    # --- 1. SETTINGS AREA (Compact) ---
-    with st.expander("⚙️ Settings & Inputs", expanded=not st.session_state.get('search_done', False)):
+    # --- SETUP AREA ---
+    with st.expander("⚙️ Settings", expanded=not st.session_state.get('search_done', False)):
         
-        # Pattern & Preview (Side by Side)
+        # Pattern & Preview
         c_pat, c_prev = st.columns([3, 1])
         with c_pat:
             def format_pattern(idx): return PATTERN_NAMES.get(idx, f"Pattern {idx+1}")
@@ -306,12 +318,13 @@ if df is not None:
         with c_prev:
             st.markdown(draw_preview_html(base_shapes[shape_idx]), unsafe_allow_html=True)
         
-        # Cards
+        # Cards (Single Row, Small Gap)
         raw_cards = np.unique(grid_data.astype(str))
         clean_cards = sorted([c for c in raw_cards if str(c).lower() != 'nan' and str(c).strip() != ''])
         
         st.caption("Select 3 Cards:")
-        c1_col, c2_col, c3_col = st.columns(3)
+        # gap="small" makes them sit closer
+        c1_col, c2_col, c3_col = st.columns(3, gap="small")
         with c1_col: c1 = st.selectbox("C1", [""] + clean_cards, key="c1", label_visibility="collapsed")
         with c2_col: c2 = st.selectbox("C2", [""] + clean_cards, key="c2", label_visibility="collapsed")
         with c3_col: c3 = st.selectbox("C3", [""] + clean_cards, key="c3", label_visibility="collapsed")
@@ -364,57 +377,73 @@ if df is not None:
             m['id'] = i + 1; m['color'] = colors[i % len(colors)]
             found_matches.append(m)
 
-    # --- 2. RESULTS & SLEEPING (Expandable & Compact) ---
-    # Two columns for better layout (on mobile they stack naturally)
-    
+    # --- 2. SIDE-BY-SIDE EXPANDERS (Results & Sleeping) ---
     col_res, col_sleep = st.columns(2)
     
+    # -- Left: Results --
     with col_res:
-        with st.expander(f"📋 Matches ({len(found_matches)})", expanded=bool(found_matches)):
+        with st.expander(f"📋 Results ({len(found_matches)})", expanded=bool(found_matches)):
             if found_matches:
-                df_res = pd.DataFrame([{'ID': m['id'], 'Missing': m['miss_val'], 'Row': m['miss_coords'][0]} for m in found_matches])
+                # Removed ID column, Keep Missing & Row
+                df_res = pd.DataFrame([{'Missing': m['miss_val'], 'Row': m['miss_coords'][0], 'ID': m['id']} for m in found_matches])
+                
+                # We hide the 'ID' column from view but keep it for selection logic
                 event = st.dataframe(
-                    df_res, 
+                    df_res[['Missing', 'Row']], 
                     hide_index=True, 
                     use_container_width=True, 
                     selection_mode="single-row", 
                     on_select="rerun",
-                    height=150
+                    height=200
                 )
+                
                 selected_match_id = None
                 if len(event.selection['rows']) > 0:
-                    selected_match_id = df_res.iloc[event.selection['rows'][0]]['ID']
+                    # Map back the selection index to the actual ID
+                    selected_idx = event.selection['rows'][0]
+                    selected_match_id = df_res.iloc[selected_idx]['ID']
             else:
                 selected_match_id = None
                 if st.session_state.get('search_done', False):
                     st.caption("No matches found")
 
+    # -- Right: Sleeping --
     with col_sleep:
-        with st.expander("💤 Sleeping Cards (>7)", expanded=False):
-            sleep_cols = st.columns(4)
+        with st.expander("💤 Sleeping (>7)", expanded=False):
+            # Better Table for Sleeping
+            sleep_data = []
             icon_map = {'Clubs': '♣', 'Diamonds': '♦', 'Hearts': '♥', 'Spades': '♠'}
-            color_map = {'Clubs': '#bbb', 'Diamonds': '#ff5555', 'Hearts': '#ff5555', 'Spades': '#bbb'}
             
             for i, col_name in enumerate(required_cols):
-                with sleep_cols[i]:
-                    st.markdown(f"<div style='text-align:center; font-size:18px; color:{color_map[col_name]}'>{icon_map[col_name]}</div>", unsafe_allow_html=True)
-                    col_data = grid_data[:, i]
-                    c_unique = np.unique(col_data.astype(str))
-                    lst = []
-                    for c in c_unique:
-                        if str(c).lower() == 'nan': continue
-                        locs = np.where(col_data == c)[0]
-                        if len(locs) > 0 and locs[0] > 7: lst.append((c, locs[0]))
-                    lst.sort(key=lambda x: x[1], reverse=True)
-                    
-                    if lst:
-                        for c, g in lst: 
-                            st.markdown(f"<div style='text-align:center; font-size:11px; margin-bottom:1px;'><b>{c}</b>: {g}</div>", unsafe_allow_html=True)
-                    else:
-                        st.markdown("<div style='text-align:center; color:#555; font-size:11px;'>-</div>", unsafe_allow_html=True)
+                col_data = grid_data[:, i]
+                c_unique = np.unique(col_data.astype(str))
+                for c in c_unique:
+                    if str(c).lower() == 'nan': continue
+                    locs = np.where(col_data == c)[0]
+                    if len(locs) > 0:
+                        gap = int(locs[0])
+                        if gap > 7:
+                            sleep_data.append({
+                                'Suit': icon_map[col_name],
+                                'Card': c,
+                                'Gap': gap
+                            })
+            
+            if sleep_data:
+                df_sleep = pd.DataFrame(sleep_data)
+                # Sort by Gap Descending
+                df_sleep = df_sleep.sort_values(by='Gap', ascending=False)
+                st.dataframe(
+                    df_sleep, 
+                    hide_index=True, 
+                    use_container_width=True, 
+                    height=200
+                )
+            else:
+                st.caption("No sleeping cards found.")
 
     # --- 3. VISUAL BOARD ---
-    st.markdown("##### 📊 Game Board")
+    st.write("")
     
     cell_styles = {}
     matches_to_show = found_matches
@@ -453,4 +482,4 @@ if df is not None:
     st.markdown(html, unsafe_allow_html=True)
 
 else:
-    st.info("👆 Tap the sidebar arrow to upload CSV.")
+    st.info("👆 Upload CSV to start.")
