@@ -10,7 +10,7 @@ st.set_page_config(
 )
 
 # ==========================================
-# Fixed Patterns (Combos)
+# Fixed Patterns
 # ==========================================
 FIXED_COMBOS_TXT = """
 A A A A
@@ -49,138 +49,125 @@ A S S A
 """
 
 PATTERN_NAMES = {
-    0: "1. Row (Horizontal)",
-    1: "2. Column (Vertical)",
+    0: "1. Row",
+    1: "2. Column",
     2: "3. Diagonal",
     3: "4. ZigZag",
     4: "5. Bridge",
-    5: "6. Square (2x2)",
-    6: "7. Parallel Gaps",
+    5: "6. Square",
+    6: "7. Parallel",
     7: "8. X-Corners",
-    8: "9. Large Corners"
+    8: "9. Big Corners"
 }
 
 # ==========================================
 
-# --- CSS Styling (Fixed Mobile Layout) ---
+# --- CSS Styling (BULLETPROOF MOBILE) ---
 st.markdown("""
 <style>
-    /* 1. Global Reset */
-    .stApp { 
-        direction: ltr; 
-        text-align: left; 
-        background-color: #121212; 
+    /* 1. LOCK SCREEN WIDTH (No Sliding) */
+    html, body, .stApp {
+        overflow-x: hidden !important;
+        max-width: 100vw !important;
+        background-color: #121212;
         color: #e0e0e0;
-        overflow-x: hidden; /* STOP SLIDING */
     }
     
+    /* Remove padding that causes overflow */
     .block-container {
         padding-top: 1rem;
         padding-bottom: 5rem;
-        padding-left: 2px;
-        padding-right: 2px;
-        max-width: 100vw;
+        padding-left: 2px !important;
+        padding-right: 2px !important;
+        max-width: 100vw !important;
     }
 
-    /* 2. FORCE ROW LAYOUT (Side-by-Side) */
-    div[data-testid="stHorizontalBlock"] {
+    /* 2. FORCE COLUMNS TO STAY IN ROW */
+    [data-testid="stHorizontalBlock"] {
         display: flex !important;
         flex-direction: row !important;
-        flex-wrap: nowrap !important; /* Force single line */
-        gap: 4px !important;
+        flex-wrap: nowrap !important;
         width: 100% !important;
+        gap: 2px !important;
     }
     
-    /* 3. Allow shrinking (Prevents sliding) */
+    /* Allow columns to shrink to tiny sizes */
     div[data-testid="column"] {
         flex: 1 1 0px !important;
+        width: 0px !important; /* Force shrink */
         min-width: 0px !important;
-        width: auto !important;
         padding: 0 !important;
-        overflow: hidden !important; /* Cut overflow */
+        overflow: hidden !important;
     }
     
-    /* 4. Compact Inputs */
+    /* 3. Inputs Styling (Super Compact) */
     div[data-baseweb="select"] > div {
-        font-size: 13px !important;
-        min-height: 38px !important;
-        padding: 0 4px !important;
+        font-size: 12px !important;
+        min-height: 34px !important;
+        height: 34px !important;
+        padding: 0 2px !important;
         border-radius: 4px !important;
     }
     
-    /* 5. Tables */
+    /* 4. Tables - Prevent Expansion */
     .dataframe { 
         width: 100% !important; 
-        font-size: 11px !important; 
-        text-align: center !important;
+        font-size: 10px !important; 
     }
-    th, td { text-align: center !important; padding: 2px !important; }
-
+    
+    /* 5. Custom HTML Table Fixes */
+    .sleeping-table {
+        width: 100% !important; 
+        table-layout: fixed !important; /* Critical for fixed width */
+        border-collapse: collapse; 
+        color: #ddd;
+        font-size: 10px; 
+        text-align: center;
+    }
+    .sleeping-table th { padding: 2px; border-bottom: 1px solid #444; background: #222; }
+    .sleeping-table td { padding: 1px; border-right: 1px solid #333; overflow: hidden; white-space: nowrap; }
+    .sleeping-table td:last-child { border-right: none; }
+    
     /* 6. Visual Grid */
     .grid-container { 
         display: grid; 
         grid-template-columns: repeat(4, 1fr); 
         gap: 2px; 
         background-color: #1e1e1e; 
-        padding: 3px; 
-        border-radius: 6px; 
+        padding: 2px; 
+        border-radius: 4px; 
         margin-top: 10px; 
         border: 1px solid #333;
-        width: 100%;
+        width: 100% !important;
+        box-sizing: border-box;
     }
     .grid-cell { 
         background-color: #2d2d2d; color: #cccccc; padding: 0; text-align: center; 
-        border-radius: 4px; font-family: sans-serif; font-size: 14px; 
-        position: relative; border: 1px solid #3a3a3a; height: 35px; 
+        border-radius: 2px; font-family: sans-serif; font-size: 13px; 
+        border: 1px solid #3a3a3a; height: 32px; 
         display: flex; align-items: center; justify-content: center; 
     }
-    .missing-circle { 
-        background-color: #ffffff; color: #000000; font-weight: 900; 
-        border-radius: 4px; width: 100%; height: 100%; 
-        display: flex; align-items: center; justify-content: center; 
-        box-shadow: inset 0 0 5px rgba(0,0,0,0.5);
-    }
-    .frame-box { 
-        position: absolute; top: 0; left: 0; right: 0; bottom: 0; 
-        border-style: solid; border-color: transparent; pointer-events: none; border-radius: 4px;
-    }
-    .grid-header { 
-        text-align: center; padding-bottom: 2px; 
-        display: flex; flex-direction: column; align-items: center; justify-content: center;
-    }
-    .suit-icon { font-size: 20px; line-height: 1; margin-bottom: 0px; }
     
-    /* 7. Sleeping Table */
-    .sleeping-table {
-        width: 100%; border-collapse: collapse; color: #ddd;
-        font-size: 10px; text-align: center; table-layout: fixed;
-    }
-    .sleeping-table th {
-        padding: 2px; border-bottom: 1px solid #444; vertical-align: top; background-color: #222;
-    }
-    .sleeping-table td {
-        padding: 2px; border-right: 1px solid #333; word-wrap: break-word; vertical-align: top;
-    }
-    .sleeping-table td:last-child { border-right: none; }
-    
-    /* Buttons */
+    /* 7. Buttons */
     div.stButton > button { 
-        width: 100%; border-radius: 6px; height: 2.5rem; 
-        font-weight: bold; padding: 0; margin-top: 0px; 
+        width: 100%; border-radius: 4px; height: 2.2rem; 
+        font-weight: bold; padding: 0; margin: 0; font-size: 12px;
     }
     
-    /* Labels hidden */
+    /* Misc */
     label[data-testid="stLabel"] { display: none; }
-    
-    /* Preview */
     .shape-preview-wrapper {
         background-color: #222; border: 1px solid #444; border-radius: 4px;
-        padding: 5px; display: flex; justify-content: center; align-items: center; height: 38px;
+        padding: 0; display: flex; justify-content: center; align-items: center; height: 34px;
     }
+    div[data-testid="stExpander"] { 
+        margin-bottom: 5px; border: 1px solid #333; border-radius: 4px; width: 100%;
+    }
+    .streamlit-expanderHeader { padding: 0.3rem !important; font-size: 12px !important; }
+    .streamlit-expanderContent { padding: 0 !important; }
     
-    /* Expander */
-    div[data-testid="stExpander"] { margin-bottom: 5px; border: 1px solid #333; border-radius: 6px; }
-    .streamlit-expanderHeader { padding: 0.4rem !important; font-size: 13px !important; }
+    /* Icons text */
+    .suit-icon { font-size: 16px; margin:0; line-height:1; }
 </style>
 """, unsafe_allow_html=True)
 
@@ -189,44 +176,21 @@ st.markdown("""
 @st.cache_data
 def load_data_robust(uploaded_file):
     if uploaded_file is None: return None, "No file"
-    
-    # 1. Try Excel
     try:
         uploaded_file.seek(0)
-        df = pd.read_excel(uploaded_file)
+        df = pd.read_csv(uploaded_file)
         hebrew_map = {'תלתן': 'Clubs', 'יהלום': 'Diamonds', 'לב': 'Hearts', 'עלה': 'Spades'}
         df.rename(columns=hebrew_map, inplace=True)
         return df, "ok"
     except:
-        pass
-        
-    # 2. Try CSV with different separators and encodings
-    encodings = ['utf-8', 'cp1255', 'latin1']
-    separators = [',', ';', '\t']
-    
-    for enc in encodings:
-        for sep in separators:
-            try:
-                uploaded_file.seek(0)
-                df = pd.read_csv(uploaded_file, encoding=enc, sep=sep)
-                
-                # Check if we have the right columns
-                # Try Hebrew names
-                hebrew_cols = ['תלתן', 'יהלום', 'לב', 'עלה']
-                if all(c in df.columns for c in hebrew_cols):
-                    hebrew_map = {'תלתן': 'Clubs', 'יהלום': 'Diamonds', 'לב': 'Hearts', 'עלה': 'Spades'}
-                    df.rename(columns=hebrew_map, inplace=True)
-                    return df, "ok"
-                
-                # Try English names
-                eng_cols = ['Clubs', 'Diamonds', 'Hearts', 'Spades']
-                if all(c in df.columns for c in eng_cols):
-                    return df, "ok"
-                    
-            except:
-                continue
-                
-    return None, "File Format Error: Could not detect columns (Clubs/Diamonds...)."
+        try:
+            uploaded_file.seek(0)
+            df = pd.read_excel(uploaded_file)
+            hebrew_map = {'תלתן': 'Clubs', 'יהלום': 'Diamonds', 'לב': 'Hearts', 'עלה': 'Spades'}
+            df.rename(columns=hebrew_map, inplace=True)
+            return df, "ok"
+        except:
+            return None, "Error"
 
 def parse_shapes_strict(text):
     shapes = []
@@ -291,12 +255,11 @@ def draw_preview_html(shape_coords):
     norm = [(r-min_r, c-min_c) for r,c in shape_coords]
     max_r = max(r for r, c in norm) + 1; max_c = max(c for r, c in norm) + 1
     
-    grid_html = f'<div style="display:grid; grid-template-columns: repeat({max_c}, 12px); gap: 2px;">'
+    grid_html = f'<div style="display:grid; grid-template-columns: repeat({max_c}, 10px); gap: 1px;">'
     for r in range(max_r):
         for c in range(max_c):
             bg = "#007acc" if (r, c) in norm else "#333"
-            border = "1px solid #555" if (r, c) not in norm else "1px solid #0098ff"
-            grid_html += f'<div style="width:12px; height:12px; border-radius:1px; background-color:{bg}; border:{border};"></div>'
+            grid_html += f'<div style="width:10px; height:10px; border-radius:1px; background-color:{bg};"></div>'
     grid_html += '</div>'
     return f'<div class="shape-preview-wrapper">{grid_html}</div>'
 
@@ -307,37 +270,41 @@ st.title("Chance Analyzer")
 # Sidebar
 with st.sidebar:
     st.markdown("### Upload")
-    csv_file = st.file_uploader("Upload CSV", type=None)
+    csv_file = st.file_uploader("Upload CSV/Excel", type=None)
 
 df = None
 base_shapes = parse_shapes_strict(FIXED_COMBOS_TXT)
 
 if csv_file:
     df, msg = load_data_robust(csv_file)
-    if df is None: st.error(f"{msg}")
+    if df is None: st.error(f"Error reading file: {msg}")
 
 if df is not None:
     required_cols = ['Clubs', 'Diamonds', 'Hearts', 'Spades']
-    # Ensure all required cols exist
-    missing = [c for c in required_cols if c not in df.columns]
-    if missing:
-        st.error(f"Missing columns: {missing}")
-        st.stop()
+    # Check if cols exist
+    if not all(c in df.columns for c in required_cols):
+        # Fallback: check index 0-3
+        if len(df.columns) >= 4:
+            df = df.iloc[:, :4]
+            df.columns = required_cols
+        else:
+            st.error("Invalid columns")
+            st.stop()
 
-    grid_data = df[required_cols].values
+    grid_data = df.values
     ROW_LIMIT = 51
     
     # === 1. SETTINGS ROW ===
     c_pat, c_prev = st.columns([3, 1])
     with c_pat:
-        st.markdown("<div style='font-size:11px; color:#888;'>Pattern</div>", unsafe_allow_html=True)
+        st.markdown("<div style='font-size:10px; color:#888;'>Pattern</div>", unsafe_allow_html=True)
         shape_idx = st.selectbox("Pattern", range(len(base_shapes)), format_func=lambda i: PATTERN_NAMES.get(i, f"Pat {i+1}"), key="p_sel")
     with c_prev:
-        st.markdown("<div style='font-size:11px; color:#888;'>Preview</div>", unsafe_allow_html=True)
+        st.markdown("<div style='font-size:10px; color:#888;'>Preview</div>", unsafe_allow_html=True)
         st.markdown(draw_preview_html(base_shapes[shape_idx]), unsafe_allow_html=True)
     
-    # === 2. CARDS ROW ===
-    st.markdown("<div style='font-size:11px; color:#888; margin-top:5px;'>Select 3 Cards</div>", unsafe_allow_html=True)
+    # === 2. CARDS ROW (FORCED) ===
+    st.markdown("<div style='font-size:10px; color:#888; margin-top:5px;'>Select 3 Cards</div>", unsafe_allow_html=True)
     raw_cards = np.unique(grid_data.astype(str))
     clean_cards = sorted([c for c in raw_cards if str(c).lower() != 'nan' and str(c).strip() != ''])
     
@@ -345,10 +312,9 @@ if df is not None:
     with c1: s1 = st.selectbox("C1", [""] + clean_cards, key="c1")
     with c2: s2 = st.selectbox("C2", [""] + clean_cards, key="c2")
     with c3: s3 = st.selectbox("C3", [""] + clean_cards, key="c3")
-    
     selected_cards = [c for c in [s1, s2, s3] if c != ""]
     
-    # === 3. BUTTONS ===
+    # === 3. BUTTONS ROW ===
     st.write("")
     b1, b2 = st.columns(2)
     with b1: run_search = st.button("SEARCH", type="primary")
@@ -401,7 +367,7 @@ if df is not None:
     with col_res:
         with st.expander(f"📋 Matches ({len(found_matches)})", expanded=bool(found_matches)):
             if found_matches:
-                df_res_display = pd.DataFrame([{'Missing': m['miss_val'], 'Row': m['miss_coords'][0]} for m in found_matches])
+                df_res_display = pd.DataFrame([{'Miss': m['miss_val'], 'Row': m['miss_coords'][0]} for m in found_matches])
                 event = st.dataframe(df_res_display, hide_index=True, use_container_width=True, selection_mode="single-row", on_select="rerun", height=200)
                 if len(event.selection['rows']) > 0:
                     idx = event.selection['rows'][0]
@@ -418,7 +384,7 @@ if df is not None:
             color_map = {'Clubs': '#bbb', 'Diamonds': '#ff5555', 'Hearts': '#ff5555', 'Spades': '#bbb'}
             
             for col_name in required_cols:
-                header_html = f"<div style='color:{color_map[col_name]}; font-size:14px;'>{icon_map[col_name]}</div><div style='font-size:9px; color:#888;'>{col_name[:3]}</div>"
+                header_html = f"<div style='color:{color_map[col_name]}; font-size:14px;'>{icon_map[col_name]}</div><div style='font-size:8px; color:#888;'>{col_name[:3]}</div>"
                 html_table += f"<th>{header_html}</th>"
             html_table += "</tr></thead><tbody>"
             
@@ -470,8 +436,7 @@ if df is not None:
         cell_styles[miss] += "MISSING_MARKER"
 
     html = '<div class="grid-container">'
-    headers = [('Clubs', '♣', '#e0e0e0'), ('Diamonds', '♦', '#ff4d4d'), ('Hearts', '♥', '#ff4d4d'), ('Spades', '♠', '#e0e0e0')]
-    for name, icon, color in headers:
+    for name, icon, color in [('Clubs', '♣', '#e0e0e0'), ('Diamonds', '♦', '#ff4d4d'), ('Hearts', '♥', '#ff4d4d'), ('Spades', '♠', '#e0e0e0')]:
         html += f'<div class="grid-header"><div class="suit-icon" style="color:{color};">{icon}</div><div class="suit-name">{name}</div></div>'
     
     for r in range(min(len(grid_data), ROW_LIMIT)):
