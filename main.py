@@ -2,10 +2,10 @@ import streamlit as st
 import pandas as pd
 import numpy as np
 
-# --- Page Configuration ---
+# --- Page Configuration (Vertical & Stable) ---
 st.set_page_config(
     page_title="Chance Analyzer",
-    layout="centered",  # Changed to centered for better mobile focus
+    layout="centered", # מרכז את התצוגה ומונע בריחה לצדדים
     initial_sidebar_state="collapsed"
 )
 
@@ -57,101 +57,52 @@ PATTERN_NAMES = {
     5: "6. Square",
     6: "7. Parallel",
     7: "8. X-Corners",
-    8: "9. Big Corners"
+    8: "9. Corners"
 }
 
 # ==========================================
 
-# --- CSS Styling (Clean & Stable) ---
+# --- CSS Styling (Minimalist) ---
 st.markdown("""
 <style>
-    /* Global Settings */
-    .stApp { 
-        background-color: #121212; 
-        color: #e0e0e0;
-    }
+    /* Dark Theme Base */
+    .stApp { background-color: #121212; color: #e0e0e0; }
     
-    /* Buttons - Full Width & Big */
+    /* Bigger Buttons */
     div.stButton > button { 
-        width: 100%; 
-        border-radius: 8px; 
-        height: 3rem; 
-        font-weight: bold; 
-        font-size: 16px;
+        width: 100%; border-radius: 8px; height: 3rem; font-size: 18px; font-weight: bold;
     }
     
-    /* Selectboxes - Clean */
-    div[data-baseweb="select"] > div {
-        border-radius: 8px !important;
-        min-height: 45px; /* Easy to tap */
-    }
+    /* Inputs */
+    div[data-baseweb="select"] > div { border-radius: 8px; min-height: 45px; }
     
-    /* Visual Grid */
+    /* Sleeping Table Styling */
+    .sleep-table { width: 100%; text-align: center; border-collapse: collapse; color: #ccc; }
+    .sleep-table th { background: #222; padding: 10px; border-bottom: 2px solid #444; font-size: 14px; }
+    .sleep-table td { padding: 8px; border-bottom: 1px solid #333; font-size: 14px; border-right: 1px solid #333; }
+    .sleep-table td:last-child { border-right: none; }
+    
+    /* Grid Styling */
     .grid-container { 
-        display: grid; 
-        grid-template-columns: repeat(4, 1fr); 
-        gap: 3px; 
-        background-color: #1e1e1e; 
-        padding: 5px; 
-        border-radius: 8px; 
-        margin-top: 15px; 
-        border: 1px solid #333;
+        display: grid; grid-template-columns: repeat(4, 1fr); gap: 2px; 
+        background: #1e1e1e; padding: 5px; border-radius: 8px; margin-top: 15px; border: 1px solid #333;
     }
     .grid-cell { 
-        background-color: #2d2d2d; 
-        color: #cccccc; 
-        padding: 0; 
-        text-align: center; 
-        border-radius: 4px; 
-        font-family: sans-serif; 
-        font-size: 14px; 
-        border: 1px solid #3a3a3a; 
-        height: 40px; 
-        display: flex; 
-        align-items: center; 
-        justify-content: center; 
+        background: #2d2d2d; color: #ccc; text-align: center; 
+        border-radius: 4px; height: 45px; display: flex; align-items: center; justify-content: center; 
+        font-weight: bold; border: 1px solid #3a3a3a;
     }
-    .missing-circle { 
-        background-color: #ffffff; 
-        color: #000000; 
-        font-weight: 900; 
-        border-radius: 50%; 
-        width: 28px; 
-        height: 28px; 
-        display: flex; 
-        align-items: center; 
-        justify-content: center; 
-        box-shadow: 0 0 5px rgba(255,255,255,0.5);
+    .missing-marker {
+        background: #fff; color: #000; border-radius: 50%; width: 28px; height: 28px;
+        display: flex; align-items: center; justify-content: center; box-shadow: 0 0 5px white;
     }
-    .frame-box { 
-        position: absolute; top: 0; left: 0; right: 0; bottom: 0; 
-        border-style: solid; border-color: transparent; pointer-events: none; border-radius: 4px;
+    .frame-marker {
+        position: absolute; border: 2px solid transparent; top:0; left:0; right:0; bottom:0; pointer-events:none;
     }
-    .grid-header { 
-        text-align: center; padding-bottom: 5px; 
-        display: flex; flex-direction: column; align-items: center; justify-content: center;
-    }
-    .suit-icon { font-size: 24px; margin:0; line-height:1; }
+    .grid-header { text-align: center; padding-bottom: 5px; font-size: 12px; color: #888; }
     
-    /* Sleeping Table */
-    .sleeping-table {
-        width: 100%; border-collapse: collapse; color: #ddd;
-        font-size: 14px; text-align: center;
-    }
-    .sleeping-table th { padding: 8px; border-bottom: 2px solid #444; background: #222; }
-    .sleeping-table td { padding: 6px; border-bottom: 1px solid #333; }
-    
-    /* Expanders */
-    div[data-testid="stExpander"] { 
-        background-color: #1a1a1a; 
-        border-radius: 8px; 
-        margin-bottom: 10px;
-    }
-    
-    /* Preview Centering */
-    .shape-preview-wrapper {
-        display: flex; justify-content: center; padding: 10px; background: #222; border-radius: 8px;
-    }
+    /* Expander */
+    div[data-testid="stExpander"] { background: #1a1a1a; border-radius: 8px; margin-bottom: 10px; border: 1px solid #333; }
 </style>
 """, unsafe_allow_html=True)
 
@@ -160,276 +111,258 @@ st.markdown("""
 @st.cache_data
 def load_data_robust(uploaded_file):
     if uploaded_file is None: return None, "No file"
+    
+    # 1. Try Excel
+    try:
+        uploaded_file.seek(0)
+        df = pd.read_excel(uploaded_file)
+        # Fix Hebrew headers
+        hebrew_map = {'תלתן': 'Clubs', 'יהלום': 'Diamonds', 'לב': 'Hearts', 'עלה': 'Spades'}
+        df.rename(columns=hebrew_map, inplace=True)
+        return df, "ok"
+    except Exception:
+        pass # Not Excel
+
+    # 2. Try CSV
     try:
         uploaded_file.seek(0)
         df = pd.read_csv(uploaded_file)
-        if 'תלתן' in df.columns:
-            hebrew_map = {'תלתן': 'Clubs', 'יהלום': 'Diamonds', 'לב': 'Hearts', 'עלה': 'Spades'}
-            df.rename(columns=hebrew_map, inplace=True)
+        hebrew_map = {'תלתן': 'Clubs', 'יהלום': 'Diamonds', 'לב': 'Hearts', 'עלה': 'Spades'}
+        df.rename(columns=hebrew_map, inplace=True)
         return df, "ok"
-    except:
+    except Exception:
+        # 3. Try CSV with Hebrew encoding
         try:
             uploaded_file.seek(0)
-            df = pd.read_excel(uploaded_file)
-            if 'תלתן' in df.columns:
-                hebrew_map = {'תלתן': 'Clubs', 'יהלום': 'Diamonds', 'לב': 'Hearts', 'עלה': 'Spades'}
-                df.rename(columns=hebrew_map, inplace=True)
+            df = pd.read_csv(uploaded_file, encoding='cp1255')
+            hebrew_map = {'תלתן': 'Clubs', 'יהלום': 'Diamonds', 'לב': 'Hearts', 'עלה': 'Spades'}
+            df.rename(columns=hebrew_map, inplace=True)
             return df, "ok"
-        except:
-            return None, "Error: Please upload a valid CSV or Excel file."
+        except Exception as e:
+            return None, f"Error reading file. Please ensure 'openpyxl' is in requirements.txt. Details: {e}"
 
-def parse_shapes_strict(text):
+def parse_shapes(text):
     shapes = []
     text = text.replace('\r\n', '\n')
     blocks = text.split('\n\n')
     for block in blocks:
         if not block.strip(): continue
-        lines = [l for l in block.split('\n')]
+        lines = block.split('\n')
         coords = []
         for r, line in enumerate(lines):
             c_idx = 0
             i = 0
             while i < len(line):
                 char = line[i]
-                if char == 'A':
-                    coords.append((r, c_idx)); c_idx += 1
+                if char == 'A': coords.append((r, c_idx)); c_idx += 1
                 elif char == 'S': c_idx += 1 
                 elif char == ' ':
-                    prev = line[i-1] if i > 0 else None
-                    next_c = line[i+1] if i < len(line)-1 else None
-                    if not (prev in ['A', 'S'] and next_c in ['A', 'S']): c_idx += 1
+                    if i>0 and i<len(line)-1: c_idx += 1
                 i += 1
-        if not coords: continue
-        min_c = min(c for r, c in coords)
-        coords = [(r, c - min_c) for r, c in coords]
-        shapes.append(coords)
+        if coords:
+            min_c = min(c for r, c in coords)
+            shapes.append([(r, c - min_c) for r, c in coords])
     return shapes
 
-def generate_variations_strict(shape_idx, base_shape):
+def generate_variations(shape_idx, base):
     variations = set()
-    if shape_idx in [0, 1]: variations.add(tuple(sorted(base_shape)))
-    elif shape_idx == 2:
-        variations.add(tuple(sorted(base_shape)))
-        max_c = max(c for r,c in base_shape)
-        variations.add(tuple(sorted([(r, max_c-c) for r,c in base_shape])))
-    elif shape_idx == 3:
-        variations.add(tuple(sorted([(0,0), (1,1), (2,2), (1,2)])))
-        variations.add(tuple(sorted([(0,0), (1,1), (2,2), (1,0)])))
-        variations.add(tuple(sorted([(0,2), (1,1), (2,0), (1,2)])))
-        variations.add(tuple(sorted([(0,2), (1,1), (2,0), (1,0)])))
-    elif shape_idx == 4:
+    if shape_idx < 2: variations.add(tuple(sorted(base)))
+    else:
+        variations.add(tuple(sorted(base)))
+        w = max(c for r,c in base)
+        variations.add(tuple(sorted([(r, w-c) for r,c in base])))
+        if shape_idx >= 3:
+             max_r = max(r for r,c in base)
+             variations.add(tuple(sorted([(max_r-r, c) for r,c in base])))
+             variations.add(tuple(sorted([(max_r-r, w-c) for r,c in base])))
+    
+    if shape_idx == 4: # Bridge Fix
         base = [(0,0), (0,1), (0,3), (1,1)]
         variations.add(tuple(sorted(base)))
-        max_r = max(r for r,c in base)
-        flipped = sorted([(max_r - r, c) for r, c in base])
-        variations.add(tuple(flipped))
-        for v in list(variations):
-            w = max(c for r,c in v)
-            variations.add(tuple(sorted([(r, w-c) for r,c in v])))
-    else:
-        variations.add(tuple(sorted(base_shape)))
-        w = max(c for r,c in base_shape)
-        max_r = max(r for r,c in base_shape)
-        variations.add(tuple(sorted([(r, w - c) for r, c in base_shape])))
-        variations.add(tuple(sorted([(max_r - r, c) for r, c in base_shape])))
-        variations.add(tuple(sorted([(max_r - r, w - c) for r, c in base_shape])))
+        variations.add(tuple(sorted([(1-r, c) for r,c in base])))
+        
     return [list(v) for v in variations]
 
-def draw_preview_html(shape_coords):
-    if not shape_coords: return ""
-    min_r = min(r for r,c in shape_coords); min_c = min(c for r,c in shape_coords)
-    norm = [(r-min_r, c-min_c) for r,c in shape_coords]
-    max_r = max(r for r, c in norm) + 1; max_c = max(c for r, c in norm) + 1
-    
-    grid_html = f'<div style="display:grid; grid-template-columns: repeat({max_c}, 15px); gap: 2px;">'
+def draw_preview(coords):
+    if not coords: return ""
+    max_r = max(r for r,c in coords)+1; max_c = max(c for r,c in coords)+1
+    html = f'<div style="display:grid; grid-template-columns: repeat({max_c}, 15px); gap:2px; justify-content:center; background:#222; padding:10px; border-radius:8px;">'
     for r in range(max_r):
         for c in range(max_c):
-            bg = "#007acc" if (r, c) in norm else "#333"
-            grid_html += f'<div style="width:15px; height:15px; border-radius:2px; background-color:{bg};"></div>'
-    grid_html += '</div>'
-    return f'<div class="shape-preview-wrapper">{grid_html}</div>'
+            bg = "#007acc" if (r,c) in coords else "#333"
+            html += f'<div style="width:15px; height:15px; border-radius:2px; background:{bg}"></div>'
+    html += '</div>'
+    return html
 
-# --- Main Interface ---
+# --- Main App ---
 
 st.title("Chance Analyzer")
 
-# Sidebar
+# Upload
 with st.sidebar:
-    st.header("Upload Data")
+    st.header("Upload File")
     csv_file = st.file_uploader("Upload CSV/Excel", type=None)
 
 df = None
-base_shapes = parse_shapes_strict(FIXED_COMBOS_TXT)
+base_shapes = parse_shapes(FIXED_COMBOS_TXT)
 
 if csv_file:
     df, msg = load_data_robust(csv_file)
     if df is None: st.error(msg)
 
 if df is not None:
-    required_cols = ['Clubs', 'Diamonds', 'Hearts', 'Spades']
-    if not all(c in df.columns for c in required_cols):
+    # Validate Columns
+    req = ['Clubs', 'Diamonds', 'Hearts', 'Spades']
+    if not all(c in df.columns for c in req):
         if df.shape[1] >= 4:
-            df = df.iloc[:, :4]
-            df.columns = required_cols
+            df = df.iloc[:, :4]; df.columns = req
         else:
-            st.error("Invalid columns")
-            st.stop()
+            st.error("Invalid columns"); st.stop()
 
-    grid_data = df[required_cols].values
-    ROW_LIMIT = 51
+    grid = df.values
     
-    # --- SETUP (Stacked Vertically) ---
+    # --- 1. Settings (Vertical) ---
     with st.expander("⚙️ Settings", expanded=not st.session_state.get('search_done', False)):
         
         # Pattern
-        shape_idx = st.selectbox("Select Pattern", range(len(base_shapes)), format_func=lambda i: PATTERN_NAMES.get(i, f"Pat {i+1}"))
-        st.markdown(draw_preview_html(base_shapes[shape_idx]), unsafe_allow_html=True)
+        s_idx = st.selectbox("Select Pattern", range(len(base_shapes)), format_func=lambda i: PATTERN_NAMES.get(i, f"Pat {i+1}"))
+        st.markdown(draw_preview(base_shapes[s_idx]), unsafe_allow_html=True)
         
         st.write("---")
         
-        # Cards (Standard Stack)
+        # Cards
         st.write("Select 3 Cards:")
-        raw_cards = np.unique(grid_data.astype(str))
-        clean_cards = sorted([c for c in raw_cards if str(c).lower() != 'nan' and str(c).strip() != ''])
+        unq = np.unique(grid.astype(str))
+        opts = sorted([c for c in unq if str(c).lower() != 'nan' and str(c).strip() != ''])
         
-        c1 = st.selectbox("Card 1", [""] + clean_cards, key="c1")
-        c2 = st.selectbox("Card 2", [""] + clean_cards, key="c2")
-        c3 = st.selectbox("Card 3", [""] + clean_cards, key="c3")
-        
-        selected_cards = [c for c in [c1, c2, c3] if c != ""]
+        c1 = st.selectbox("Card 1", [""] + opts)
+        c2 = st.selectbox("Card 2", [""] + opts)
+        c3 = st.selectbox("Card 3", [""] + opts)
+        selected = [c for c in [c1,c2,c3] if c!=""]
         
         st.write("")
-        col_b1, col_b2 = st.columns(2)
-        with col_b1: run_search = st.button("SEARCH", type="primary")
-        with col_b2: reset_btn = st.button("RESET")
+        if st.button("SEARCH"):
+            st.session_state['search_done'] = True
+            st.session_state['sel_id'] = None
         
-        if reset_btn:
+        if st.button("RESET"):
             st.session_state['search_done'] = False
-            st.session_state['selected_match'] = None
             st.rerun()
 
-    # --- LOGIC ---
-    found_matches = []
-    if (run_search or st.session_state.get('search_done', False)) and len(selected_cards) == 3:
-        st.session_state['search_done'] = True
-        variations = generate_variations_strict(shape_idx, base_shapes[shape_idx])
-        rows = min(len(grid_data), ROW_LIMIT)
-        colors = ['#00ff99', '#ffcc00', '#ff66cc', '#00ccff', '#ff5050', '#cc99ff', '#ffff00']
+    # --- Logic ---
+    matches = []
+    if st.session_state.get('search_done', False) and len(selected) == 3:
+        variations = generate_variations(s_idx, base_shapes[s_idx])
+        colors = ['#00ff99', '#ffcc00', '#ff66cc', '#00ccff', '#ff5050']
         
-        raw_matches = []
         for shape in variations:
             sh_h = max(r for r,c in shape)+1; sh_w = max(c for r,c in shape)+1
-            for r in range(rows - sh_h + 1):
+            for r in range(min(len(grid), 51) - sh_h + 1):
                 for c in range(4 - sh_w + 1):
                     vals = []; coords = []
                     try:
                         for dr, dc in shape:
-                            vals.append(grid_data[r+dr, c+dc]); coords.append((r+dr, c+dc))
+                            vals.append(grid[r+dr, c+dc]); coords.append((r+dr, c+dc))
                     except: continue
-                    matched = 0; used = set()
-                    for t in selected_cards:
+                    
+                    found = 0; used = set()
+                    for t in selected:
                         for i, v in enumerate(vals):
                             if i not in used and str(v) == t:
-                                used.add(i); matched += 1; break
-                    if matched == 3:
+                                used.add(i); found += 1; break
+                    
+                    if found == 3:
                         miss_i = [i for i in range(4) if i not in used][0]
-                        m_data = {'coords': tuple(sorted(coords)), 'miss_coords': coords[miss_i], 'miss_val': vals[miss_i], 'full_coords_list': coords}
-                        if not any(x['coords'] == m_data['coords'] for x in raw_matches):
-                            raw_matches.append(m_data)
-        
-        raw_matches.sort(key=lambda x: x['miss_coords'][0])
-        for i, m in enumerate(raw_matches):
-            m['id'] = i + 1; m['color'] = colors[i % len(colors)]
-            found_matches.append(m)
+                        m_id = len(matches) + 1
+                        matches.append({
+                            'id': m_id, 'miss': vals[miss_i], 'row': coords[miss_i][0],
+                            'coords': coords, 'miss_coords': coords[miss_i], 'col': colors[(m_id-1)%len(colors)]
+                        })
+        matches.sort(key=lambda x: x['row'])
 
-    # --- RESULTS (Stacked) ---
+    # --- 2. Matches Table (Vertical) ---
     st.write("")
-    
-    # 1. Matches
-    with st.expander(f"📋 Matches ({len(found_matches)})", expanded=bool(found_matches)):
-        if found_matches:
-            df_res_display = pd.DataFrame([{'Missing': m['miss_val'], 'Row': m['miss_coords'][0]} for m in found_matches])
-            event = st.dataframe(df_res_display, hide_index=True, use_container_width=True, selection_mode="single-row", on_select="rerun", height=200)
-            if len(event.selection['rows']) > 0:
-                idx = event.selection['rows'][0]
-                st.session_state['selected_match'] = found_matches[idx]['id']
-        else:
-            st.session_state['selected_match'] = None
-            if st.session_state.get('search_done', False): st.info("No matches found")
+    if st.session_state.get('search_done', False):
+        with st.expander(f"📋 Matches ({len(matches)})", expanded=True):
+            if matches:
+                res_df = pd.DataFrame([{'Missing': m['miss'], 'Row': m['row']} for m in matches])
+                evt = st.dataframe(res_df, hide_index=True, use_container_width=True, selection_mode="single-row", on_select="rerun")
+                if len(evt.selection['rows']) > 0:
+                    st.session_state['sel_id'] = matches[evt.selection['rows'][0]]['id']
+            else:
+                st.info("No matches")
 
-    # 2. Sleeping Cards
-    with st.expander("💤 Sleeping Cards (>7)", expanded=False):
-        # Prepare Data for Table
-        icon_map = {'Clubs': '♣', 'Diamonds': '♦', 'Hearts': '♥', 'Spades': '♠'}
+    # --- 3. Sleeping Cards (Vertical - HTML Table) ---
+    with st.expander("💤 Sleeping (>7)", expanded=False):
+        html = "<table class='sleep-table'><thead><tr>"
+        icons = ['♣', '♦', '♥', '♠']
+        names = ['Clubs', 'Diamonds', 'Hearts', 'Spades']
+        colors = ['#aaa', '#ff5555', '#ff5555', '#aaa']
         
-        cols_data = []
-        max_len = 0
         for i in range(4):
-            col_data = grid_data[:, i]
-            c_unique = np.unique(col_data.astype(str))
-            items = []
-            for c in c_unique:
-                if str(c).lower() == 'nan': continue
-                locs = np.where(col_data == c)[0]
-                if len(locs) > 0 and locs[0] > 7: items.append((c, locs[0]))
-            items.sort(key=lambda x: x[1], reverse=True)
-            cols_data.append(items)
-            if len(items) > max_len: max_len = len(items)
-            
-        html_table = "<table class='sleeping-table'><thead><tr>"
-        for col_name in required_cols:
-            html_table += f"<th>{icon_map[col_name]} {col_name}</th>"
-        html_table += "</tr></thead><tbody>"
+            html += f"<th><div style='font-size:20px; color:{colors[i]}'>{icons[i]}</div><div style='font-size:10px'>{names[i]}</div></th>"
+        html += "</tr></thead><tbody>"
         
-        for r in range(max_len):
-            html_table += "<tr>"
+        data = []
+        max_rows = 0
+        for i in range(4):
+            col_d = grid[:, i]
+            unq = np.unique(col_d.astype(str))
+            items = []
+            for val in unq:
+                if val.lower() == 'nan': continue
+                locs = np.where(col_d == val)[0]
+                if len(locs)>0 and locs[0] > 7: items.append((val, locs[0]))
+            items.sort(key=lambda x: x[1], reverse=True)
+            data.append(items)
+            max_rows = max(max_rows, len(items))
+            
+        for r in range(max_rows):
+            html += "<tr>"
             for c in range(4):
-                if r < len(cols_data[c]):
-                    val, gap = cols_data[c][r]
-                    html_table += f"<td><b>{val}</b>: {gap}</td>"
+                if r < len(data[c]):
+                    val, gap = data[c][r]
+                    html += f"<td><b>{val}</b>: {gap}</td>"
                 else:
-                    html_table += "<td></td>"
-            html_table += "</tr>"
-        html_table += "</tbody></table>"
-        st.markdown(html_table, unsafe_allow_html=True)
+                    html += "<td></td>"
+            html += "</tr>"
+        html += "</tbody></table>"
+        st.markdown(html, unsafe_allow_html=True)
 
-    # --- VISUAL BOARD ---
+    # --- 4. Game Board (Vertical) ---
     st.write("---")
-    st.markdown("##### 📊 Game Board")
+    st.markdown("### 📊 Game Board")
     
-    matches_to_show = found_matches
-    if st.session_state.get('selected_match'):
-        matches_to_show = [m for m in found_matches if m['id'] == st.session_state['selected_match']]
+    sel_match = None
+    if st.session_state.get('sel_id'):
+        sel_match = next((m for m in matches if m['id'] == st.session_state['sel_id']), None)
+        
+    style_map = {}
+    if sel_match:
+        for crd in sel_match['coords']:
+            if crd != sel_match['miss_coords']:
+                if crd not in style_map: style_map[crd] = ""
+                style_map[crd] += f'<div class="frame-marker" style="border-color:{sel_match["col"]}; border-width:2px; top:2px; left:2px; right:2px; bottom:2px;"></div>'
+        style_map[sel_match['miss_coords']] = "MISS"
 
-    cell_styles = {}
-    for m in matches_to_show:
-        col = m['color']
-        for coord in m['full_coords_list']:
-            if coord != m['miss_coords']:
-                if coord not in cell_styles: cell_styles[coord] = ""
-                count = cell_styles[coord].count("frame-box")
-                inset = count * 3
-                cell_styles[coord] += f'<div class="frame-box" style="border-width: 2px; border-color: {col}; top: {inset}px; left: {inset}px; right: {inset}px; bottom: {inset}px;"></div>'
-        miss = m['miss_coords']
-        if miss not in cell_styles: cell_styles[miss] = ""
-        cell_styles[miss] += "MISSING_MARKER"
-
-    html = '<div class="grid-container">'
-    for name, icon, color in [('Clubs', '♣', '#e0e0e0'), ('Diamonds', '♦', '#ff4d4d'), ('Hearts', '♥', '#ff4d4d'), ('Spades', '♠', '#e0e0e0')]:
-        html += f'<div class="grid-header"><div class="suit-icon" style="color:{color};">{icon}</div><div class="suit-name">{name}</div></div>'
-    
-    for r in range(min(len(grid_data), ROW_LIMIT)):
+    grid_html = '<div class="grid-container">'
+    for i in range(4):
+        grid_html += f'<div class="grid-header"><div class="suit-icon" style="color:{colors[i]}">{icons[i]}</div>{names[i]}</div>'
+        
+    for r in range(min(len(grid), 51)):
         for c in range(4):
-            val = str(grid_data[r, c]); 
+            val = str(grid[r, c]); 
             if val == 'nan': val = ''
-            content = cell_styles.get((r, c), "")
+            
+            extra = style_map.get((r, c), "")
             inner = val
-            if "MISSING_MARKER" in content:
-                inner = f'<div class="missing-circle">{val}</div>'
-                content = content.replace("MISSING_MARKER", "")
-            html += f'<div class="grid-cell">{inner}{content}</div>'
-    html += '</div>'
-    st.markdown(html, unsafe_allow_html=True)
+            if "MISS" in extra:
+                inner = f'<div class="missing-marker">{val}</div>'
+                extra = ""
+            
+            grid_html += f'<div class="grid-cell" style="position:relative;">{inner}{extra}</div>'
+    grid_html += '</div>'
+    st.markdown(grid_html, unsafe_allow_html=True)
 
 else:
-    st.info("👆 Tap the sidebar arrow to upload CSV.")
+    st.info("👆 Please upload a file in the sidebar")
