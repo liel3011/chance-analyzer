@@ -69,6 +69,18 @@ st.markdown("""
     /* Global Settings */
     .stApp { direction: ltr; text-align: left; background-color: #0E1117; color: #FAFAFA; }
     
+    /* --- REDUCE TOP SPACING --- */
+    /* Shrink the main container padding */
+    .block-container {
+        padding-top: 1.5rem !important;
+        padding-bottom: 1rem !important;
+    }
+    /* Shrink margin below the main Title */
+    h1 {
+        margin-bottom: -0.5rem !important;
+        padding-bottom: 0rem !important;
+    }
+    
     /* Clean Inputs */
     .stSelectbox, .stMultiSelect, div[data-testid="stExpander"] { 
         direction: ltr; text-align: left; 
@@ -129,7 +141,7 @@ st.markdown("""
         pointer-events: none; border-radius: 6px;
     }
     
-    /* Grid Headers */
+    /* Grid Headers (Game Board) */
     .grid-header { 
         text-align: center; padding-bottom: 6px; 
         display: flex; flex-direction: column; align-items: center; justify-content: center;
@@ -260,7 +272,7 @@ def draw_preview_html(shape_coords):
     grid_html += '</div>'
     return f'<div class="shape-preview-wrapper">{grid_html}</div>'
 
-# --- Custom HTML Table Generator for Sleeping Cards (CLEAN STRING) ---
+# --- Custom HTML Table Generator (UPDATED HEADER LAYOUT) ---
 def create_sleeping_html_table(data_dict, required_cols):
     # Determine Colors and Icons
     meta = {
@@ -285,11 +297,19 @@ def create_sleeping_html_table(data_dict, required_cols):
     parts.append('<thead>')
     parts.append('<tr style="background-color: #161B22; border-bottom: 1px solid #30363D;">')
     
-    # Headers
+    # Headers (Stacked Icon Above Text)
     for col in required_cols:
         c_meta = meta.get(col, {'icon': '', 'color': '#fff'})
-        # Inline styles only, no indentation
-        parts.append(f'<th style="padding: 10px; text-align: center; color: {c_meta["color"]}; font-weight: bold; border-right: 1px solid #30363D; width: 25%;"><span style="font-size: 1.2em;">{c_meta["icon"]}</span> {col}</th>')
+        
+        # New Header Content: Stacked Divs
+        header_content = f"""
+        <div style="display: flex; flex-direction: column; align-items: center; justify-content: center;">
+            <div style="font-size: 24px; line-height: 1; margin-bottom: 2px;">{c_meta['icon']}</div>
+            <div style="font-size: 11px; text-transform: uppercase;">{col}</div>
+        </div>
+        """
+        
+        parts.append(f'<th style="padding: 10px; text-align: center; color: {c_meta["color"]}; font-weight: bold; border-right: 1px solid #30363D; width: 25%; vertical-align: middle;">{header_content}</th>')
     
     parts.append('</tr></thead><tbody>')
     
