@@ -4,13 +4,13 @@ import numpy as np
 
 # --- Page Configuration ---
 st.set_page_config(
-    page_title="Chance Analyzer",
+    page_title="Chance Analyzer Pro",
     layout="wide",
     initial_sidebar_state="collapsed"
 )
 
 # ==========================================
-# Fixed Patterns (Combos)
+# Fixed Patterns
 # ==========================================
 FIXED_COMBOS_TXT = """
 A A A A
@@ -48,7 +48,7 @@ S S S S
 A S S A
 """
 
-# Clean Pattern Names (No Emojis)
+# Pattern Names
 PATTERN_NAMES = {
     0: "1. Row (Horizontal)",
     1: "2. Column (Vertical)",
@@ -63,18 +63,16 @@ PATTERN_NAMES = {
 
 # ==========================================
 
-# --- CSS Styling (Clean & Mobile Optimized) ---
+# --- CSS Styling (Compact & Mobile) ---
 st.markdown("""
 <style>
-    /* Global Settings */
+    /* Global */
     .stApp { direction: ltr; text-align: left; background-color: #121212; color: #e0e0e0; }
-    
-    /* Clean Inputs */
     .stSelectbox, .stMultiSelect, .stButton, div[data-testid="stExpander"], div[data-testid="stSidebar"] { 
         direction: ltr; text-align: left; 
     }
     
-    /* Mobile Spacing Optimization */
+    /* Compact Header spacing */
     .block-container {
         padding-top: 1rem;
         padding-bottom: 2rem;
@@ -86,11 +84,11 @@ st.markdown("""
     .grid-container { 
         display: grid; 
         grid-template-columns: repeat(4, 1fr); 
-        gap: 3px; 
+        gap: 2px; 
         background-color: #1e1e1e; 
-        padding: 6px; 
+        padding: 4px; 
         border-radius: 8px; 
-        margin-top: 10px; 
+        margin-top: 5px; 
         border: 1px solid #333;
     }
     
@@ -104,75 +102,62 @@ st.markdown("""
         font-size: 14px; 
         position: relative; 
         border: 1px solid #3a3a3a; 
-        height: 36px; 
+        height: 35px; 
         display: flex; 
         align-items: center; 
         justify-content: center; 
     }
     
-    /* Missing Card - High Contrast */
+    /* Missing Card */
     .missing-circle { 
         background-color: #ffffff; 
         color: #000000; 
         font-weight: 900; 
-        border-radius: 4px; /* Slightly rounded square looks better on mobile grids */
-        width: 100%; 
-        height: 100%; 
-        display: flex; 
-        align-items: center; 
-        justify-content: center; 
+        border-radius: 4px; 
+        width: 100%; height: 100%; 
+        display: flex; align-items: center; justify-content: center; 
         box-shadow: inset 0 0 5px rgba(0,0,0,0.5);
     }
     
-    /* Frames for existing cards */
+    /* Frames */
     .frame-box { 
-        position: absolute; 
-        top: 0; left: 0; right: 0; bottom: 0; 
-        border-style: solid; 
-        border-color: transparent; 
-        pointer-events: none; 
-        border-radius: 4px;
+        position: absolute; top: 0; left: 0; right: 0; bottom: 0; 
+        border-style: solid; border-color: transparent; 
+        pointer-events: none; border-radius: 4px;
     }
     
-    /* Grid Headers (Suits) */
+    /* Grid Headers */
     .grid-header { 
-        text-align: center; 
-        padding-bottom: 4px; 
-        display: flex; 
-        flex-direction: column; 
-        align-items: center; 
-        justify-content: center;
+        text-align: center; padding-bottom: 2px; 
+        display: flex; flex-direction: column; align-items: center; justify-content: center;
     }
+    .suit-icon { font-size: 20px; line-height: 1; margin-bottom: 0px; }
+    .suit-name { font-size: 9px; color: #888; font-weight: bold; text-transform: uppercase; }
     
-    .suit-icon { font-size: 24px; line-height: 1; margin-bottom: 0px; }
-    .suit-name { font-size: 10px; color: #888; font-weight: bold; text-transform: uppercase; }
-    
-    /* Buttons */
-    div.stButton > button { 
-        width: 100%; 
-        border-radius: 6px; 
-        font-weight: 600; 
-        height: 3rem;
-    }
-    
-    /* Shape Preview Box */
+    /* Preview Box (Smaller now) */
     .shape-preview-wrapper {
         background-color: #222;
         border: 1px solid #444;
-        border-radius: 6px;
-        padding: 10px;
+        border-radius: 4px;
+        padding: 5px;
         display: flex;
         justify-content: center;
         align-items: center;
-        margin-bottom: 10px;
+        margin-top: 0px;
     }
     
-    /* Fix Input Spacing */
-    div[data-testid="column"] { gap: 0.3rem; }
+    /* Make Expanders look cleaner */
+    div[data-testid="stExpander"] {
+        border: 1px solid #333;
+        border-radius: 6px;
+        background-color: #1a1a1a;
+    }
     
-    /* Results Table Clean Up */
-    .dataframe { font-size: 12px !important; }
+    /* Buttons */
+    div.stButton > button { width: 100%; border-radius: 6px; height: 2.5rem; font-weight: bold; }
     
+    /* Tighten columns */
+    div[data-testid="column"] { gap: 0.2rem; }
 </style>
 """, unsafe_allow_html=True)
 
@@ -273,24 +258,24 @@ def draw_preview_html(shape_coords):
     norm = [(r-min_r, c-min_c) for r,c in shape_coords]
     max_r = max(r for r, c in norm) + 1; max_c = max(c for r, c in norm) + 1
     
-    # Clean grid preview
-    grid_html = f'<div style="display:grid; grid-template-columns: repeat({max_c}, 18px); gap: 2px;">'
+    # Smaller grid preview (12px cells instead of 18px)
+    grid_html = f'<div style="display:grid; grid-template-columns: repeat({max_c}, 12px); gap: 2px;">'
     for r in range(max_r):
         for c in range(max_c):
             bg = "#007acc" if (r, c) in norm else "#333"
             border = "1px solid #555" if (r, c) not in norm else "1px solid #0098ff"
-            grid_html += f'<div style="width:18px; height:18px; border-radius:2px; background-color:{bg}; border:{border};"></div>'
+            grid_html += f'<div style="width:12px; height:12px; border-radius:1px; background-color:{bg}; border:{border};"></div>'
     grid_html += '</div>'
     return f'<div class="shape-preview-wrapper">{grid_html}</div>'
 
 # --- Main Interface ---
 
-st.title("Chance Analyzer")
+st.title("📱 Chance Analyzer")
 
-# Sidebar Upload
+# Sidebar
 with st.sidebar:
-    st.header("Data Source")
-    csv_file = st.file_uploader("Upload CSV File", type=None)
+    st.header("Upload")
+    csv_file = st.file_uploader("Upload CSV", type=None)
 
 df = None
 base_shapes = parse_shapes_strict(FIXED_COMBOS_TXT)
@@ -310,21 +295,22 @@ if df is not None:
     grid_data = df[required_cols].values
     ROW_LIMIT = 51
     
-    # --- SETUP AREA ---
-    # Collapsible setup to save space after search
-    with st.expander("Settings & Inputs", expanded=not st.session_state.get('search_done', False)):
+    # --- 1. SETTINGS AREA (Compact) ---
+    with st.expander("⚙️ Settings & Inputs", expanded=not st.session_state.get('search_done', False)):
         
-        # 1. Pattern Selection
-        def format_pattern(idx): return PATTERN_NAMES.get(idx, f"Pattern {idx+1}")
+        # Pattern & Preview (Side by Side)
+        c_pat, c_prev = st.columns([3, 1])
+        with c_pat:
+            def format_pattern(idx): return PATTERN_NAMES.get(idx, f"Pattern {idx+1}")
+            shape_idx = st.selectbox("Pattern", range(len(base_shapes)), format_func=format_pattern, label_visibility="collapsed")
+        with c_prev:
+            st.markdown(draw_preview_html(base_shapes[shape_idx]), unsafe_allow_html=True)
         
-        shape_idx = st.selectbox("Select Pattern", range(len(base_shapes)), format_func=format_pattern)
-        st.markdown(draw_preview_html(base_shapes[shape_idx]), unsafe_allow_html=True)
-        
-        # 2. Card Selection
+        # Cards
         raw_cards = np.unique(grid_data.astype(str))
         clean_cards = sorted([c for c in raw_cards if str(c).lower() != 'nan' and str(c).strip() != ''])
         
-        st.write("Select 3 Cards:")
+        st.caption("Select 3 Cards:")
         c1_col, c2_col, c3_col = st.columns(3)
         with c1_col: c1 = st.selectbox("C1", [""] + clean_cards, key="c1", label_visibility="collapsed")
         with c2_col: c2 = st.selectbox("C2", [""] + clean_cards, key="c2", label_visibility="collapsed")
@@ -333,8 +319,6 @@ if df is not None:
         selected_cards = [c for c in [c1, c2, c3] if c != ""]
         
         st.write("")
-        
-        # 3. Action Buttons
         b1, b2 = st.columns(2)
         with b1: run_search = st.button("SEARCH", type="primary")
         with b2: reset_btn = st.button("RESET")
@@ -380,31 +364,57 @@ if df is not None:
             m['id'] = i + 1; m['color'] = colors[i % len(colors)]
             found_matches.append(m)
 
-    # --- RESULTS TABLE ---
-    if found_matches:
-        st.success(f"Found {len(found_matches)} matches")
-        
-        df_res = pd.DataFrame([{'ID': m['id'], 'Missing': m['miss_val'], 'Row': m['miss_coords'][0]} for m in found_matches])
-        
-        event = st.dataframe(
-            df_res, 
-            hide_index=True, 
-            use_container_width=True, 
-            selection_mode="single-row", 
-            on_select="rerun",
-            height=150
-        )
-        
-        selected_match_id = None
-        if len(event.selection['rows']) > 0:
-            selected_match_id = df_res.iloc[event.selection['rows'][0]]['ID']
-    else:
-        selected_match_id = None
-        if st.session_state.get('search_done', False):
-            st.warning("No matches found")
+    # --- 2. RESULTS & SLEEPING (Expandable & Compact) ---
+    # Two columns for better layout (on mobile they stack naturally)
+    
+    col_res, col_sleep = st.columns(2)
+    
+    with col_res:
+        with st.expander(f"📋 Matches ({len(found_matches)})", expanded=bool(found_matches)):
+            if found_matches:
+                df_res = pd.DataFrame([{'ID': m['id'], 'Missing': m['miss_val'], 'Row': m['miss_coords'][0]} for m in found_matches])
+                event = st.dataframe(
+                    df_res, 
+                    hide_index=True, 
+                    use_container_width=True, 
+                    selection_mode="single-row", 
+                    on_select="rerun",
+                    height=150
+                )
+                selected_match_id = None
+                if len(event.selection['rows']) > 0:
+                    selected_match_id = df_res.iloc[event.selection['rows'][0]]['ID']
+            else:
+                selected_match_id = None
+                if st.session_state.get('search_done', False):
+                    st.caption("No matches found")
 
-    # --- VISUAL BOARD ---
-    st.write("---")
+    with col_sleep:
+        with st.expander("💤 Sleeping Cards (>7)", expanded=False):
+            sleep_cols = st.columns(4)
+            icon_map = {'Clubs': '♣', 'Diamonds': '♦', 'Hearts': '♥', 'Spades': '♠'}
+            color_map = {'Clubs': '#bbb', 'Diamonds': '#ff5555', 'Hearts': '#ff5555', 'Spades': '#bbb'}
+            
+            for i, col_name in enumerate(required_cols):
+                with sleep_cols[i]:
+                    st.markdown(f"<div style='text-align:center; font-size:18px; color:{color_map[col_name]}'>{icon_map[col_name]}</div>", unsafe_allow_html=True)
+                    col_data = grid_data[:, i]
+                    c_unique = np.unique(col_data.astype(str))
+                    lst = []
+                    for c in c_unique:
+                        if str(c).lower() == 'nan': continue
+                        locs = np.where(col_data == c)[0]
+                        if len(locs) > 0 and locs[0] > 7: lst.append((c, locs[0]))
+                    lst.sort(key=lambda x: x[1], reverse=True)
+                    
+                    if lst:
+                        for c, g in lst: 
+                            st.markdown(f"<div style='text-align:center; font-size:11px; margin-bottom:1px;'><b>{c}</b>: {g}</div>", unsafe_allow_html=True)
+                    else:
+                        st.markdown("<div style='text-align:center; color:#555; font-size:11px;'>-</div>", unsafe_allow_html=True)
+
+    # --- 3. VISUAL BOARD ---
+    st.markdown("##### 📊 Game Board")
     
     cell_styles = {}
     matches_to_show = found_matches
@@ -438,35 +448,9 @@ if df is not None:
             if "MISSING_MARKER" in content:
                 inner = f'<div class="missing-circle">{val}</div>'
                 content = content.replace("MISSING_MARKER", "")
-            
             html += f'<div class="grid-cell">{inner}{content}</div>'
     html += '</div>'
     st.markdown(html, unsafe_allow_html=True)
-
-    # --- SLEEPING SECTION (Hidden by default) ---
-    st.write("")
-    with st.expander("Sleeping Cards (>7)", expanded=False):
-        sleep_cols = st.columns(4)
-        icon_map = {'Clubs': '♣', 'Diamonds': '♦', 'Hearts': '♥', 'Spades': '♠'}
-        color_map = {'Clubs': '#bbb', 'Diamonds': '#ff5555', 'Hearts': '#ff5555', 'Spades': '#bbb'}
-        
-        for i, col_name in enumerate(required_cols):
-            with sleep_cols[i]:
-                st.markdown(f"<div style='text-align:center; font-size:20px; color:{color_map[col_name]}'>{icon_map[col_name]}</div>", unsafe_allow_html=True)
-                col_data = grid_data[:, i]
-                c_unique = np.unique(col_data.astype(str))
-                lst = []
-                for c in c_unique:
-                    if str(c).lower() == 'nan': continue
-                    locs = np.where(col_data == c)[0]
-                    if len(locs) > 0 and locs[0] > 7: lst.append((c, locs[0]))
-                lst.sort(key=lambda x: x[1], reverse=True)
-                
-                if lst:
-                    for c, g in lst: 
-                        st.markdown(f"<div style='text-align:center; font-size:12px; margin-bottom:2px;'><b>{c}</b>: {g}</div>", unsafe_allow_html=True)
-                else:
-                    st.markdown("<div style='text-align:center; color:#555; font-size:12px;'>-</div>", unsafe_allow_html=True)
 
 else:
     st.info("👆 Tap the sidebar arrow to upload CSV.")
