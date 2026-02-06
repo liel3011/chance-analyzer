@@ -70,30 +70,23 @@ st.markdown("""
     .block-container { padding-top: 1rem; padding-bottom: 3rem; padding-left: 0.2rem; padding-right: 0.2rem; }
 
     /* === CRITICAL FIX: FORCE SIDE-BY-SIDE ON MOBILE === */
-    /* This forces st.columns to NEVER stack vertically */
     [data-testid="stHorizontalBlock"] {
         flex-direction: row !important;
         flex-wrap: nowrap !important;
         gap: 0.3rem !important;
     }
     
-    /* Allow columns to shrink to fit the screen */
     [data-testid="column"] {
         flex: 1 1 0px !important;
         width: auto !important;
-        min-width: 0px !important;
+        min_width: 0px !important;
+        padding: 0 2px !important;
     }
 
     /* === Visual Grid === */
     .grid-container { 
-        display: grid; 
-        grid-template-columns: repeat(4, 1fr); 
-        gap: 2px; 
-        background-color: #1e1e1e; 
-        padding: 4px; 
-        border-radius: 8px; 
-        margin-top: 5px; 
-        border: 1px solid #333;
+        display: grid; grid-template-columns: repeat(4, 1fr); gap: 2px; 
+        background-color: #1e1e1e; padding: 4px; border-radius: 8px; margin-top: 5px; border: 1px solid #333;
     }
     .grid-cell { 
         background-color: #2d2d2d; color: #cccccc; padding: 0; text-align: center; 
@@ -120,57 +113,89 @@ st.markdown("""
 
     /* === CUSTOM HTML TABLE FOR SLEEPING === */
     .sleeping-table {
-        width: 100%;
-        border-collapse: collapse;
-        color: #ddd;
-        font-size: 11px; /* Smaller font for mobile */
-        text-align: center;
-        table-layout: fixed; /* Equal width columns */
+        width: 100%; border-collapse: collapse; color: #ddd; font-size: 11px; text-align: center; table-layout: fixed;
     }
-    .sleeping-table th {
-        padding: 2px;
-        border-bottom: 1px solid #444;
-        vertical-align: top;
-        background-color: #222;
-    }
-    .sleeping-table td {
-        padding: 2px;
-        border-right: 1px solid #333;
-        word-wrap: break-word;
-    }
+    .sleeping-table th { padding: 2px; border-bottom: 1px solid #444; vertical-align: top; background-color: #222; }
+    .sleeping-table td { padding: 2px; border-right: 1px solid #333; word-wrap: break-word; }
     .sleeping-table td:last-child { border-right: none; }
     
     /* Buttons */
     div.stButton > button { width: 100%; border-radius: 6px; height: 2.5rem; font-weight: bold; padding: 0;}
     
-    /* Remove input labels taking space */
     label[data-testid="stLabel"] { display: none; }
     
-    /* Shape Preview */
     .shape-preview-wrapper {
         background-color: #222; border: 1px solid #444; border-radius: 4px;
         padding: 5px; display: flex; justify-content: center; align-items: center; height: 100%;
     }
     
-    /* Adjust expander styling */
     div[data-testid="stExpander"] { margin-bottom: 5px; }
     .streamlit-expanderHeader { padding: 0.5rem !important; font-size: 14px !important; }
 </style>
 """, unsafe_allow_html=True)
 
-# --- Logic ---
+# --- Improved Data Loading Logic ---
 
 @st.cache_data
 def load_data_robust(uploaded_file):
     if uploaded_file is None: return None, "No file"
-    try:
-        uploaded_file.seek(0)
-        df = pd.read_csv(uploaded_file)
-        hebrew_map = {'תלתן': 'Clubs', 'יהלום': 'Diamonds', 'לב': 'Hearts', 'עלה': 'Spades'}
-        df.rename(columns=hebrew_map, inplace=True)
-        return df, "ok"
-    except:
-        return None, "Error"
+    
+    df = None
+    error_msg = ""
+    
+    # 1. Check file extension
+    filename = uploaded_file.name.lower()
+    
+    # 2. Try reading as Excel if applicable
+    if filename.endswith('.xlsx') or filename.endswith('.xls'):
+        try:
+            df = pd.read_excel(uploaded_file)
+        except Exception as e:
+            error_msg = f"Excel Error: {e}"
+    
+    # 3. Try reading as CSV (various encodings)
+    if df is None:
+        encodings = ['utf-8', 'cp1255', 'windows-1255', 'latin1', 'utf-16']
+        for enc in encodings:
+            try:
+                uploaded_file.seek(0)
+                df = pd.read_csv(uploaded_file, encoding=enc)
+                break # Success
+            except:
+                continue
+    
+    # 4. Try reading with python engine (fallback)
+    if df is None:
+        try:
+            uploaded_file.seek(0)
+            df = pd.read_csv(uploaded_file, sep=None, engine='python')
+        except Exception as e:
+            return None, f"Read Failed: {e}"
+
+    if df is None:
+        return None, "Unknown file format"
+
+    # 5. Normalize Columns
+    df.columns = df.columns.str.strip()
+    
+    # Map Hebrew to English
+    hebrew_map = {'תלתן': 'Clubs', 'יהלום': 'Diamonds', 'לב': 'Hearts', 'עלה': 'Spades'}
+    df.rename(columns=hebrew_map, inplace=True)
+    
+    # Verify Columns
+    required = ['Clubs', 'Diamonds', 'Hearts', 'Spades']
+    missing = [c for c in required if c not in df.columns]
+    
+    if missing:
+        # Try to detect if headers are in the second row
+        if len(df) > 1:
+            # Simple check if second row contains 'תלתן' or 'Clubs'
+            # (Logic omitted for brevity, stick to basic check first)
+            return None, f"Missing columns: {missing}. Found: {list(df.columns)}"
+        else:
+            return None, f"Missing columns: {missing}"
+            
+    return df, "ok"
 
 def parse_shapes_strict(text):
     shapes = []
@@ -201,7 +226,6 @@ def parse_shapes_strict(text):
 
 def generate_variations_strict(shape_idx, base_shape):
     variations = set()
-    # Simple logic for variations
     if shape_idx in [0, 1]: variations.add(tuple(sorted(base_shape)))
     elif shape_idx == 2:
         variations.add(tuple(sorted(base_shape)))
@@ -252,7 +276,7 @@ st.title("Chance Analyzer")
 # Sidebar
 with st.sidebar:
     st.markdown("### Upload")
-    csv_file = st.file_uploader("Upload CSV", type=None)
+    csv_file = st.file_uploader("Upload CSV/Excel", type=None)
 
 df = None
 base_shapes = parse_shapes_strict(FIXED_COMBOS_TXT)
@@ -263,22 +287,21 @@ if csv_file:
 
 if df is not None:
     required_cols = ['Clubs', 'Diamonds', 'Hearts', 'Spades']
-    df.columns = df.columns.str.strip()
     grid_data = df[required_cols].values
     ROW_LIMIT = 51
     
     # --- SETUP AREA ---
     with st.expander("⚙️ Settings", expanded=not st.session_state.get('search_done', False)):
         
-        # 1. Pattern & Preview (Row 1)
+        # 1. Pattern & Preview
         st.markdown("<p style='font-size:12px; margin:0; color:#888;'>Select Pattern</p>", unsafe_allow_html=True)
         c_pat, c_prev = st.columns([3, 1])
         with c_pat:
-            shape_idx = st.selectbox("Pattern", range(len(base_shapes)), format_func=lambda i: PATTERN_NAMES.get(i, f"Pat {i+1}"), key="p_sel")
+            shape_idx = st.selectbox("Pattern", range(len(base_shapes)), format_func=lambda i: PATTERN_NAMES.get(i, f"Pat {i+1}"), label_visibility="collapsed")
         with c_prev:
             st.markdown(draw_preview_html(base_shapes[shape_idx]), unsafe_allow_html=True)
         
-        # 2. Cards (Row 2 - FORCED SIDE-BY-SIDE)
+        # 2. Cards (FORCED ROW)
         st.markdown("<p style='font-size:12px; margin:5px 0 0 0; color:#888;'>Select 3 Cards</p>", unsafe_allow_html=True)
         raw_cards = np.unique(grid_data.astype(str))
         clean_cards = sorted([c for c in raw_cards if str(c).lower() != 'nan' and str(c).strip() != ''])
@@ -291,7 +314,6 @@ if df is not None:
         selected_cards = [c for c in [c1, c2, c3] if c != ""]
         
         st.write("")
-        # 3. Buttons (Row 3)
         b1, b2 = st.columns(2)
         with b1: run_search = st.button("SEARCH", type="primary")
         with b2: reset_btn = st.button("RESET")
@@ -335,7 +357,7 @@ if df is not None:
             m['id'] = i + 1; m['color'] = colors[i % len(colors)]
             found_matches.append(m)
 
-    # --- EXPANDERS: Results & Sleeping (FORCED SIDE-BY-SIDE) ---
+    # --- EXPANDERS (FORCED SIDE BY SIDE) ---
     st.write("")
     col_res, col_sleep = st.columns(2)
     
@@ -353,22 +375,21 @@ if df is not None:
                 selected_match_id = None
                 if st.session_state.get('search_done', False): st.caption("No matches")
 
-    # 2. Sleeping Cards (HTML TABLE with Names)
+    # 2. Sleeping Cards
     with col_sleep:
         with st.expander("💤 Sleeping (>7)", expanded=False):
-            # Generating HTML Table
+            # HTML TABLE
             html_table = "<table class='sleeping-table'><thead><tr>"
             
             icon_map = {'Clubs': '♣', 'Diamonds': '♦', 'Hearts': '♥', 'Spades': '♠'}
             color_map = {'Clubs': '#bbb', 'Diamonds': '#ff5555', 'Hearts': '#ff5555', 'Spades': '#bbb'}
             
-            # Create Headers with Name + Icon
+            # Headers
             for col_name in required_cols:
                 header_html = f"<div style='color:{color_map[col_name]}'>{icon_map[col_name]}</div><div style='font-size:9px; color:#888;'>{col_name}</div>"
                 html_table += f"<th>{header_html}</th>"
             html_table += "</tr></thead><tbody>"
             
-            # Data collection
             cols_data = []
             max_len = 0
             for i in range(4):
@@ -383,7 +404,6 @@ if df is not None:
                 cols_data.append(items)
                 if len(items) > max_len: max_len = len(items)
             
-            # Build rows
             for r in range(max_len):
                 html_table += "<tr>"
                 for c in range(4):
