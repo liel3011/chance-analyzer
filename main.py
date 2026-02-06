@@ -149,19 +149,36 @@ st.markdown("""
         height: 100%;
     }
     
-    /* --- Table Centering & Styling --- */
+    /* --- Table Alignment & Coloring Fixes --- */
     
-    /* Headers */
+    /* Force Left Alignment for Tables (Cleaner Look) */
     div[data-testid="stDataFrame"] th {
-        text-align: center !important;
-        font-size: 13px;
+        text-align: left !important;
     }
-    
-    /* Cells */
     div[data-testid="stDataFrame"] td {
-        text-align: center !important;
+        text-align: left !important;
     }
     
+    /* --- Specific Coloring for Sleeping Table Headers --- */
+    /* Assuming 4 columns: Clubs(1), Diamonds(2), Hearts(3), Spades(4) */
+    /* We use nth-child selectors to target specific columns in the header */
+    
+    /* Column 2 (Diamonds) Header - Red */
+    div[data-testid="stDataFrame"] th:nth-child(2) {
+        color: #FF4B4B !important; 
+    }
+    
+    /* Column 3 (Hearts) Header - Red */
+    div[data-testid="stDataFrame"] th:nth-child(3) {
+        color: #FF4B4B !important;
+    }
+    
+    /* Column 1 & 4 (Clubs/Spades) - Gray/White */
+    div[data-testid="stDataFrame"] th:nth-child(1),
+    div[data-testid="stDataFrame"] th:nth-child(4) {
+        color: #E0E0E0 !important;
+    }
+
     /* Remove input labels spacing */
     div[data-testid="stVerticalBlock"] > div {
         gap: 0.5rem;
@@ -307,15 +324,13 @@ if df is not None:
         with col_prev:
             st.markdown(draw_preview_html(base_shapes[shape_idx]), unsafe_allow_html=True)
         
-        # --- Spacer for the user request ---
+        # --- Spacer ---
         st.markdown("<div style='height: 18px;'></div>", unsafe_allow_html=True)
-        # -----------------------------------
         
         # Cards Input
         raw_cards = np.unique(grid_data.astype(str))
         clean_cards = sorted([c for c in raw_cards if str(c).lower() != 'nan' and str(c).strip() != ''])
         
-        # Labels removed (label_visibility="collapsed")
         c1, c2, c3 = st.columns(3)
         with c1: card1 = st.selectbox("C1", [""] + clean_cards, key="c1", label_visibility="collapsed")
         with c2: card2 = st.selectbox("C2", [""] + clean_cards, key="c2", label_visibility="collapsed")
@@ -379,32 +394,25 @@ if df is not None:
     
     selected_match_id = None
     
-    # --- Tab 1: Matches (Centered) ---
+    # --- Tab 1: Matches (LEFT ALIGNED) ---
     with tab_matches:
         if found_matches:
-            # Preparing Data
+            # Data
             df_res = pd.DataFrame([
                 {'Missing Card': m['miss_val'], 'Index': m['miss_coords'][0], 'Hidden_ID': m['id']} 
                 for m in found_matches
             ])
             
-            # Hide the ID column
+            # Hide ID, NO Styler (Use default left align from CSS above)
             display_df = df_res.drop(columns=['Hidden_ID'])
             
-            # Center text in DataFrame using Styler
-            styled_df = display_df.style.set_properties(**{'text-align': 'center'})\
-                                        .set_table_styles([
-                                            {'selector': 'th', 'props': [('text-align', 'center')]},
-                                            {'selector': 'td', 'props': [('text-align', 'center')]}
-                                        ])
-
             event = st.dataframe(
-                styled_df, 
+                display_df, 
                 hide_index=True, 
                 use_container_width=True, 
                 selection_mode="single-row", 
                 on_select="rerun",
-                height=180  # Reduced height
+                height=180
             )
             
             if len(event.selection['rows']) > 0:
@@ -414,7 +422,7 @@ if df is not None:
             if st.session_state.get('search_done', False):
                 st.info("No matches found.")
 
-    # --- Tab 2: Sleeping Cards (Colored Headers, Centered) ---
+    # --- Tab 2: Sleeping Cards (Colored Headers via CSS) ---
     with tab_sleep:
         sleep_data_dict = {}
         max_len = 0
@@ -452,31 +460,12 @@ if df is not None:
         if sleep_data_dict:
             df_sleep = pd.DataFrame(sleep_data_dict)
             
-            # Define styles for headers based on suit
-            header_styles = []
-            for i, col_name in enumerate(df_sleep.columns):
-                color = '#E1E4E8' # Default (Clubs, Spades)
-                if 'Hearts' in col_name or 'Diamonds' in col_name:
-                    color = '#F97583' # Red for Hearts and Diamonds
-                
-                # Target the specific header cell
-                header_styles.append({
-                    'selector': f'th.col_heading.level0.col{i}',
-                    'props': [('color', color)]
-                })
-            
-            # Apply centering to cells and color to headers
-            styled_sleep = df_sleep.style\
-                .set_properties(**{'text-align': 'center'}) \
-                .set_table_styles([
-                    {'selector': 'th', 'props': [('text-align', 'center')]}, # Center all headers
-                    *header_styles # Add suit-specific color styles
-                ])
-            
             dynamic_height = min((max_len * 35) + 40, 500)
             
+            # Note: We rely on the CSS block at the top of the script
+            # to color the 2nd and 3rd headers RED.
             st.dataframe(
-                styled_sleep, 
+                df_sleep, 
                 use_container_width=True, 
                 height=dynamic_height,
                 hide_index=True
@@ -507,7 +496,7 @@ if df is not None:
 
     html = '<div class="grid-container">'
     
-    headers = [('Clubs', '♣', '#E1E4E8'), ('Diamonds', '♦', '#F97583'), ('Hearts', '♥', '#F97583'), ('Spades', '♠', '#E1E4E8')]
+    headers = [('Clubs', '♣', '#E1E4E8'), ('Diamonds', '♦', '#FF4B4B'), ('Hearts', '♥', '#FF4B4B'), ('Spades', '♠', '#E1E4E8')]
     for name, icon, color in headers:
         html += f'<div class="grid-header"><div class="suit-icon" style="color:{color};">{icon}</div><div class="suit-name">{name}</div></div>'
     
