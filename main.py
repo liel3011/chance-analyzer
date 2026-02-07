@@ -154,7 +154,7 @@ st.markdown("""
     .dot-plus { width: 8px; height: 8px; background: #3FB950; border-radius: 50%; display: inline-block; }
     .dot-minus { width: 8px; height: 8px; background: #F85149; border-radius: 50%; display: inline-block; }
 
-    /* --- COMPACT RESULT CARD STYLING (REDUCED SIZES) --- */
+    /* --- COMPACT RESULT CARD STYLING --- */
     .result-card {
         background: linear-gradient(135deg, #1F2428 0%, #161B22 100%);
         border: 1px solid #30363D; border-radius: 12px; padding: 12px; text-align: center; margin-top: 5px;
@@ -165,11 +165,8 @@ st.markdown("""
     }
     .result-part { text-align: center; }
     .res-suit { font-size: 11px; color: #8B949E; text-transform: uppercase; font-weight: bold; margin-bottom: 0px;}
-    
-    /* Reduced font size for PLUS/MINUS text */
     .res-val { font-size: 16px; font-weight: 900; } 
     
-    /* Reduced font size for the Number result */
     .main-stat { font-size: 30px; font-weight: 900; color: #58A6FF; line-height: 1; margin: 2px 0; }
     .sub-stat { font-size: 10px; color: #8B949E; text-transform: uppercase; letter-spacing: 0.5px; }
 
@@ -325,10 +322,16 @@ def create_sleeping_html_table(data_dict, required_cols):
     parts.append("</tbody></table></div>")
     return "".join(parts)
 
-# --- BOARD GENERATOR FUNCTION (Shared Logic) ---
+# --- BOARD GENERATOR FUNCTION ---
 def generate_board_html(grid_data, row_limit, cell_styles):
     html = '<div class="grid-container">'
-    headers = [('Clubs', '♣', '#E1E4E8'), ('Diamonds', '♦', '#FF4B4B'), ('Hearts', '♥', '#FF4B4B'), ('Spades', '♠', '#E1E4E8')]
+    # UPDATED ORDER: Spades, Diamonds, Hearts, Clubs
+    headers = [
+        ('Spades', '♠', '#E1E4E8'),
+        ('Diamonds', '♦', '#FF4B4B'),
+        ('Hearts', '♥', '#FF4B4B'),
+        ('Clubs', '♣', '#E1E4E8')
+    ]
     for name, icon, color in headers:
         html += f'<div class="grid-header"><div class="suit-icon" style="color:{color};">{icon}</div><div class="suit-name">{name}</div></div>'
     
@@ -377,7 +380,8 @@ if csv_file:
 df = st.session_state['uploaded_df']
 
 if df is not None:
-    required_cols = ['Clubs', 'Diamonds', 'Hearts', 'Spades']
+    # UPDATED ORDER: Spades, Diamonds, Hearts, Clubs
+    required_cols = ['Spades', 'Diamonds', 'Hearts', 'Clubs']
     df.columns = df.columns.str.strip()
     missing = [c for c in required_cols if c not in df.columns]
     if missing:
@@ -546,8 +550,8 @@ if df is not None:
         # 2. Controls
         all_suits = [c for c in required_cols if c in df.columns]
         sc1, sc2, sc3 = st.columns([1.5, 1.5, 1])
-        with sc1: s_choice1 = st.selectbox("S1", all_suits, index=2, label_visibility="collapsed") # Heart
-        with sc2: s_choice2 = st.selectbox("S2", all_suits, index=3, label_visibility="collapsed") # Spade
+        with sc1: s_choice1 = st.selectbox("S1", all_suits, index=0, label_visibility="collapsed") # Spade
+        with sc2: s_choice2 = st.selectbox("S2", all_suits, index=2, label_visibility="collapsed") # Heart
         with sc3: 
             color_board = st.checkbox("🎨 Color", value=False)
         
