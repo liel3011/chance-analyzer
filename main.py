@@ -1,6 +1,8 @@
 import streamlit as st
 import pandas as pd
 import numpy as np
+import cloudscraper
+from io import StringIO
 
 # --- Page Configuration ---
 st.set_page_config(
@@ -62,6 +64,66 @@ PATTERN_NAMES = {
 }
 
 # ==========================================
+# Logic for Pairs (+/-)
+# ==========================================
+PLUS_SET = {"8", "10", "Q", "A"}
+MINUS_SET = {"7", "9", "J", "K"}
+
+def get_card_sign(card_val):
+    """Returns '+' or '-' for a card."""
+    val = str(card_val).strip().upper()
+    if val in PLUS_SET: return "+"
+    if val in MINUS_SET: return "-"
+    return "?"
+
+def analyze_pairs_data(df):
+    """
+    Analyzes the Heart-Spade pairs in the dataframe.
+    Assumes df is sorted with the LATEST draw at index 0.
+    """
+    results = []
+    required = ['Hearts', 'Spades']
+    if not all(col in df.columns for col in required):
+        return results
+
+    # Identify Draw Number column (usually contains 'הגרלה' or 'Draw')
+    draw_col = None
+    for c in df.columns:
+        if 'הגרלה' in str(c) or 'Draw' in str(c):
+            draw_col = c
+            break
+
+    # Calculate signs
+    h_signs = df['Hearts'].apply(get_card_sign)
+    s_signs = df['Spades'].apply(get_card_sign)
+    pairs_series = h_signs + s_signs # e.g. "++", "-+"
+
+    target_pairs = ["++", "--", "+-", "-+"]
+    
+    for p in target_pairs:
+        # Find the first index (closest to 0) where this pair appears
+        matches = (pairs_series == p)
+        if matches.any():
+            last_seen_idx = matches.idxmax() # returns the first occurrence index
+            
+            # Get details
+            draw_num = df.iloc[last_seen_idx][draw_col] if draw_col else f"#{last_seen_idx}"
+            h_card = df.iloc[last_seen_idx]['Hearts']
+            s_card = df.iloc[last_seen_idx]['Spades']
+            
+            results.append({
+                "pair": p,
+                "draws_ago": last_seen_idx, # Index 0 means 0 draws ago
+                "draw_num": draw_num,
+                "h_card": h_card,
+                "s_card": s_card
+            })
+    
+    # Sort by 'draws_ago' descending (Sleeping longest first)
+    results.sort(key=lambda x: x['draws_ago'], reverse=True)
+    return results
+
+# ==========================================
 
 # --- CSS Styling ---
 st.markdown("""
@@ -69,7 +131,6 @@ st.markdown("""
     /* Global Settings */
     .stApp { direction: ltr; text-align: left; background-color: #0E1117; color: #FAFAFA; }
     
-    /* --- REDUCE TOP SPACING --- */
     .block-container {
         padding-top: 1.5rem !important;
         padding-bottom: 1rem !important;
@@ -92,7 +153,7 @@ st.markdown("""
         font-weight: 600;
     }
     
-    /* Custom Grid Layout */
+    /* Custom Grid Layout (Game Board) */
     .grid-container { 
         display: grid; 
         grid-template-columns: repeat(4, 1fr); 
@@ -139,7 +200,7 @@ st.markdown("""
         pointer-events: none; border-radius: 6px;
     }
     
-    /* Grid Headers (Game Board) */
+    /* Grid Headers */
     .grid-header { 
         text-align: center; padding-bottom: 6px; 
         display: flex; flex-direction: column; align-items: center; justify-content: center;
@@ -159,38 +220,107 @@ st.markdown("""
         height: 100%;
     }
     
-    /* FORCE LEFT ALIGNMENT ON DATAFRAMES (Matches Table) */
+    /* Table Styling */
     [data-testid="stDataFrame"] th { text-align: left !important; }
     [data-testid="stDataFrame"] td { text-align: left !important; }
 
-    /* Remove input labels spacing */
     div[data-testid="stVerticalBlock"] > div {
         gap: 0.5rem;
     }
 
+    /* --- PAIR CARDS STYLING --- */
+    .pair-card {
+        background-color: #161B22;
+        border: 1px solid #30363D;
+        border-radius: 10px;
+        padding: 15px;
+        margin-bottom: 10px;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+    }
+    .pair-title {
+        font-size: 18px;
+        font-weight: bold;
+        color: #E6EDF3;
+        display: flex;
+        align-items: center;
+        gap: 10px;
+    }
+    .pair-badge {
+        padding: 2px 8px;
+        border-radius: 4px;
+        font-size: 14px;
+        font-weight: bold;
+    }
+    .badge-plus { background-color: #238636; color: white; }
+    .badge-minus { background-color: #DA3633; color: white; }
+    
+    .pair-stat {
+        text-align: right;
+        font-size: 13px;
+        color: #8B949E;
+    }
+    .pair-val {
+        font-size: 20px;
+        font-weight: bold;
+        color: #58A6FF;
+    }
+    .sleeper-alert {
+        border: 1px solid #D29922; /* Yellow border for sleepers */
+    }
 </style>
 """, unsafe_allow_html=True)
 
 # --- Logic Functions ---
 
-@st.cache_data
-def load_data_robust(uploaded_file):
-    if uploaded_file is None: return None, "No file"
+@st.cache_data(ttl=3600)
+def load_data_from_web():
+    url = "https://www.pais.co.il/chance/archive.aspx"
+    
     try:
-        uploaded_file.seek(0)
-        df = pd.read_csv(uploaded_file)
-        hebrew_map = {'תלתן': 'Clubs', 'יהלום': 'Diamonds', 'לב': 'Hearts', 'עלה': 'Spades'}
-        df.rename(columns=hebrew_map, inplace=True)
-        return df, "ok"
-    except:
-        try:
-            uploaded_file.seek(0)
-            df = pd.read_csv(uploaded_file, encoding='cp1255')
-            hebrew_map = {'תלתן': 'Clubs', 'יהלום': 'Diamonds', 'לב': 'Hearts', 'עלה': 'Spades'}
-            df.rename(columns=hebrew_map, inplace=True)
-            return df, "ok"
-        except:
-            return None, "Error loading file"
+        scraper = cloudscraper.create_scraper()
+        response = scraper.get(url, timeout=20)
+        response.raise_for_status()
+
+        dfs = pd.read_html(StringIO(response.text), flavor='html5lib')
+        
+        target_df = None
+        for df in dfs:
+            cols = [str(c) for c in df.columns]
+            if any("הגרלה" in c for c in cols) and len(df) > 1:
+                target_df = df
+                break
+        
+        if target_df is None:
+            return None, "לא נמצאה טבלת נתונים (המבנה באתר השתנה או שנחסמנו)"
+
+        hebrew_map = {
+            'תלתן': 'Clubs', 
+            'יהלום': 'Diamonds', 
+            'לב': 'Hearts', 
+            'עלה': 'Spades'
+        }
+        
+        target_df.rename(columns=lambda x: str(x).strip(), inplace=True)
+        new_cols = {}
+        for col in target_df.columns:
+            for heb, eng in hebrew_map.items():
+                if heb in col:
+                    new_cols[col] = eng
+        
+        target_df.rename(columns=new_cols, inplace=True)
+        
+        required = ['Clubs', 'Diamonds', 'Hearts', 'Spades']
+        missing = [c for c in required if c not in target_df.columns]
+        
+        if missing:
+            return None, f"חסרות עמודות בטבלה שנקראה: {missing}"
+            
+        return target_df, "ok"
+
+    except Exception as e:
+        return None, f"שגיאה בטעינה: {str(e)}"
 
 def parse_shapes_strict(text):
     shapes = []
@@ -270,7 +400,6 @@ def draw_preview_html(shape_coords):
     grid_html += '</div>'
     return f'<div class="shape-preview-wrapper">{grid_html}</div>'
 
-# --- Custom HTML Table Generator ---
 def create_sleeping_html_table(data_dict, required_cols):
     meta = {
         'Clubs': {'icon': '♣', 'color': '#E1E4E8'},
@@ -320,39 +449,56 @@ def create_sleeping_html_table(data_dict, required_cols):
 
 st.title("Chance Analyzer")
 
-# Sidebar
-with st.sidebar:
-    st.header("Upload Data")
-    csv_file = st.file_uploader("Choose a CSV file", type=None)
-
-# --- SESSION STATE & FILE HANDLING ---
-if 'uploaded_df' not in st.session_state:
-    st.session_state['uploaded_df'] = None
-
+# --- Load Logic: Auto with Fallback ---
+df = None
 base_shapes = parse_shapes_strict(FIXED_COMBOS_TXT)
 
-if csv_file:
-    temp_df, msg = load_data_robust(csv_file)
-    if temp_df is not None:
-        st.session_state['uploaded_df'] = temp_df
-    elif msg != "ok":
-        st.error(f"Error: {msg}")
+# Sidebar Control
+with st.sidebar:
+    st.header("Data Source")
+    if st.button("🔄 Reload from Web"):
+        st.cache_data.clear()
+        st.rerun()
+    st.markdown("---")
+    st.caption("אם הטעינה האוטומטית נחסמת, העלה קובץ ידנית:")
+    manual_file = st.file_uploader("Upload CSV", type=None)
 
-df = st.session_state['uploaded_df']
+# 1. Manual File Priority
+if manual_file:
+    try:
+        manual_file.seek(0)
+        df = pd.read_csv(manual_file)
+        hebrew_map = {'תלתן': 'Clubs', 'יהלום': 'Diamonds', 'לב': 'Hearts', 'עלה': 'Spades'}
+        df.rename(columns=hebrew_map, inplace=True)
+    except Exception as e:
+        st.sidebar.error(f"File Error: {e}")
+        df = None
 
+# 2. Web Load if no file
+if df is None:
+    with st.spinner("מנסה למשוך נתונים מאתר מפעל הפיס..."):
+        df, msg = load_data_from_web()
+    
+    if df is None:
+        st.warning(f"⚠️ {msg}")
+        st.info("האתר חוסם גישה משרתים (WAF). אנא הורד את הקובץ ידנית למחשב והעלה אותו בסרגל הצד.")
+
+# --- Proceed ---
 if df is not None:
     required_cols = ['Clubs', 'Diamonds', 'Hearts', 'Spades']
-    df.columns = df.columns.str.strip()
+    
+    # Ensure columns exist
     missing = [c for c in required_cols if c not in df.columns]
     if missing:
-        st.error(f"Missing columns: {missing}")
+        st.error(f"Data format error. Missing columns: {missing}")
         st.stop()
 
     grid_data = df[required_cols].values
     ROW_LIMIT = 51
     
-    # --- Settings ---
+    # --- SETTINGS & INPUTS ---
     with st.expander("⚙️ Settings & Inputs", expanded=not st.session_state.get('search_done', False)):
+        
         col_conf, col_prev = st.columns([4, 1])
         with col_conf:
             def format_pattern(idx): return PATTERN_NAMES.get(idx, f"Pattern {idx+1}")
@@ -375,15 +521,17 @@ if df is not None:
         st.markdown("<div style='margin-bottom: 10px;'></div>", unsafe_allow_html=True)
 
         b_search, b_reset = st.columns([3, 1])
-        with b_search: run_search = st.button("Search", type="primary")
-        with b_reset: reset_btn = st.button("Reset")
+        with b_search: 
+            run_search = st.button("Search", type="primary")
+        with b_reset: 
+            reset_btn = st.button("Reset")
         
         if reset_btn:
             st.session_state['search_done'] = False
             st.session_state['selected_match'] = None
             st.rerun()
 
-    # --- Search Logic ---
+    # --- SEARCH LOGIC ---
     found_matches = []
     if (run_search or st.session_state.get('search_done', False)) and len(selected_cards) == 3:
         st.session_state['search_done'] = True
@@ -419,49 +567,29 @@ if df is not None:
             m['id'] = i + 1; m['color'] = colors[i % len(colors)]
             found_matches.append(m)
 
-    # --- TABS ---
-    tab_matches, tab_sleep = st.tabs(["📋 MATCHES", "💤 SLEEPING"])
+    # --- 2. TABS ---
     
-    selected_match_ids = None 
+    # >>> NEW: ADDED PAIRS TAB <<<
+    tab_matches, tab_sleep, tab_pairs = st.tabs(["📋 MATCHES", "💤 SLEEPING", "❤️♠ PAIRS"])
     
+    selected_match_id = None
+    
+    # --- Tab 1: Matches ---
     with tab_matches:
         if found_matches:
-            # Create a raw dataframe
-            raw_df = pd.DataFrame([
-                {
-                    'Missing Card': m['miss_val'], 
-                    'Row': m['miss_coords'][0], 
-                    'Hidden_ID': m['id']
-                } 
+            df_res = pd.DataFrame([
+                {'Missing Card': m['miss_val'], 'Index': m['miss_coords'][0], 'Hidden_ID': m['id']} 
                 for m in found_matches
             ])
             
-            # --- AGGREGATION & SORTING LOGIC ---
-            grouped_df = raw_df.groupby('Missing Card').agg({
-                'Row': lambda x: sorted(list(x)),
-                'Hidden_ID': list
-            }).reset_index()
+            df_res['Index'] = df_res['Index'].astype(str)
+            display_df = df_res.drop(columns=['Hidden_ID'])
             
-            # Calculate Count
-            grouped_df['Count'] = grouped_df['Hidden_ID'].apply(len)
-            
-            # Sort by Count (Descending)
-            grouped_df = grouped_df.sort_values(by='Count', ascending=False)
-            
-            # *** FIX: Convert Count to String to FORCE Left Alignment in Streamlit ***
-            grouped_df['Count'] = grouped_df['Count'].astype(str)
-            
-            # Format indexes
-            grouped_df['Row Indexes'] = grouped_df['Row'].apply(lambda x: ", ".join(map(str, x)))
-            
-            display_df = grouped_df[['Missing Card', 'Count', 'Row Indexes', 'Hidden_ID']]
-            
-            # Calculate height
             num_rows = len(display_df)
             calc_height = (num_rows + 1) * 35 + 3
             
             event = st.dataframe(
-                display_df.drop(columns=['Hidden_ID']), 
+                display_df, 
                 hide_index=True, 
                 use_container_width=True, 
                 selection_mode="single-row", 
@@ -470,26 +598,28 @@ if df is not None:
             )
             
             if len(event.selection['rows']) > 0:
-                selected_idx = event.selection['rows'][0]
-                # Use iloc to get the correct row after sorting
-                selected_match_ids = display_df.iloc[selected_idx]['Hidden_ID']
-                
+                selected_row_idx = event.selection['rows'][0]
+                selected_match_id = df_res.iloc[selected_row_idx]['Hidden_ID']
         else:
             if st.session_state.get('search_done', False):
                 st.info("No matches found.")
 
+    # --- Tab 2: Sleeping Cards ---
     with tab_sleep:
         sleep_data_lists = {}
+        
         for col_name in required_cols:
             col_idx = required_cols.index(col_name)
             col_data = grid_data[:, col_idx]
             c_unique = np.unique(col_data.astype(str))
+            
             lst = []
             for c in c_unique:
                 if str(c).lower() == 'nan': continue
                 locs = np.where(col_data == c)[0]
                 if len(locs) > 0 and locs[0] > 7:
                     lst.append((c, locs[0]))
+            
             lst.sort(key=lambda x: x[1], reverse=True)
             formatted_list = [f"{item[0]} : {item[1]}" for item in lst]
             sleep_data_lists[col_name] = formatted_list
@@ -500,14 +630,59 @@ if df is not None:
         else:
             st.write("No sleeping cards found.")
 
-    # --- GAME BOARD ---
+    # --- Tab 3: PAIRS (+/-) ---
+    with tab_pairs:
+        pairs_data = analyze_pairs_data(df)
+        if not pairs_data:
+            st.write("Not enough data to analyze pairs.")
+        else:
+            st.markdown("##### Heart (♥) & Spade (♠) Pair Analysis")
+            st.caption("Plus (+): 8, 10, Q, A | Minus (-): 7, 9, J, K")
+            
+            for p in pairs_data:
+                pair_str = p['pair']
+                draws_ago = p['draws_ago']
+                h_card = p['h_card']
+                s_card = p['s_card']
+                
+                # Badges for visual flair
+                def badge(char):
+                    cls = "badge-plus" if char == "+" else "badge-minus"
+                    return f'<span class="pair-badge {cls}">{char}</span>'
+                
+                h_badge = badge(pair_str[0])
+                s_badge = badge(pair_str[1])
+                
+                # Highlight if sleeping (>7 draws)
+                border_cls = "sleeper-alert" if draws_ago >= 7 else ""
+                
+                card_html = f"""
+                <div class="pair-card {border_cls}">
+                    <div class="pair-title">
+                        {h_badge} {s_badge}
+                    </div>
+                    <div style="flex-grow: 1; padding-left: 20px;">
+                        <div style="font-size:12px; color:#888;">Latest Cards</div>
+                        <div style="font-size:14px; font-weight:bold;">
+                            <span style="color:#FF4B4B">♥ {h_card}</span> / <span style="color:#E1E4E8">♠ {s_card}</span>
+                        </div>
+                    </div>
+                    <div class="pair-stat">
+                        <div>Draws Ago</div>
+                        <div class="pair-val">{draws_ago}</div>
+                    </div>
+                </div>
+                """
+                st.markdown(card_html, unsafe_allow_html=True)
+
+    # --- 3. VISUAL BOARD ---
     st.subheader("Game Board")
     
     cell_styles = {}
     
     matches_to_show = found_matches
-    if selected_match_ids is not None:
-        matches_to_show = [m for m in found_matches if m['id'] in selected_match_ids]
+    if selected_match_id is not None:
+        matches_to_show = [m for m in found_matches if m['id'] == selected_match_id]
 
     for m in matches_to_show:
         col = m['color']
@@ -519,10 +694,10 @@ if df is not None:
         
         miss = m['miss_coords']
         if miss not in cell_styles: cell_styles[miss] = ""
-        if "MISSING_MARKER" not in cell_styles[miss]:
-             cell_styles[miss] += "MISSING_MARKER"
+        cell_styles[miss] += "MISSING_MARKER"
 
     html = '<div class="grid-container">'
+    
     headers = [('Clubs', '♣', '#E1E4E8'), ('Diamonds', '♦', '#FF4B4B'), ('Hearts', '♥', '#FF4B4B'), ('Spades', '♠', '#E1E4E8')]
     for name, icon, color in headers:
         html += f'<div class="grid-header"><div class="suit-icon" style="color:{color};">{icon}</div><div class="suit-name">{name}</div></div>'
@@ -539,6 +714,3 @@ if df is not None:
             html += f'<div class="grid-cell">{inner}{content}</div>'
     html += '</div>'
     st.markdown(html, unsafe_allow_html=True)
-
-else:
-    st.info("👋 Upload a CSV file to start.")
