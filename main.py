@@ -138,40 +138,41 @@ st.markdown("""
     [data-testid="stDataFrame"] th { text-align: left !important; }
     [data-testid="stDataFrame"] td { text-align: left !important; }
     
-    /* --- NEW LEGEND STYLING --- */
+    /* --- COMPACT LEGEND STYLING --- */
     .legend-container {
-        display: flex; gap: 10px; margin-bottom: 15px; justify-content: center;
+        display: flex; gap: 8px; margin-bottom: 10px; justify-content: center;
     }
     .legend-box {
-        background: #161B22; border: 1px solid #30363D; border-radius: 8px; padding: 10px 20px;
+        background: #161B22; border: 1px solid #30363D; border-radius: 8px; padding: 6px 15px;
         text-align: center; flex: 1;
     }
-    .legend-title { font-weight: 900; font-size: 16px; margin-bottom: 4px; display: flex; align-items: center; justify-content: center; gap: 6px; }
-    .legend-cards { font-size: 13px; color: #8B949E; letter-spacing: 1px; }
+    .legend-title { font-weight: 900; font-size: 14px; margin-bottom: 2px; display: flex; align-items: center; justify-content: center; gap: 6px; }
+    .legend-cards { font-size: 11px; color: #8B949E; letter-spacing: 0.5px; }
     
     .txt-plus { color: #3FB950; }
     .txt-minus { color: #F85149; }
-    .dot-plus { width: 10px; height: 10px; background: #3FB950; border-radius: 50%; display: inline-block; }
-    .dot-minus { width: 10px; height: 10px; background: #F85149; border-radius: 50%; display: inline-block; }
+    .dot-plus { width: 8px; height: 8px; background: #3FB950; border-radius: 50%; display: inline-block; }
+    .dot-minus { width: 8px; height: 8px; background: #F85149; border-radius: 50%; display: inline-block; }
 
-    /* --- RESULT CARD STYLING --- */
+    /* --- COMPACT RESULT CARD STYLING --- */
     .result-card {
         background: linear-gradient(135deg, #1F2428 0%, #161B22 100%);
-        border: 1px solid #30363D; border-radius: 12px; padding: 15px; text-align: center; margin-top: 5px;
+        border: 1px solid #30363D; border-radius: 12px; padding: 12px; text-align: center; margin-top: 5px;
     }
     .result-split {
-        display: flex; justify-content: space-around; align-items: center; margin-bottom: 15px;
-        border-bottom: 1px solid #30363D; padding-bottom: 15px;
+        display: flex; justify-content: space-around; align-items: center; margin-bottom: 10px;
+        border-bottom: 1px solid #30363D; padding-bottom: 10px;
     }
     .result-part { text-align: center; }
-    .res-suit { font-size: 12px; color: #8B949E; text-transform: uppercase; font-weight: bold; margin-bottom: 2px;}
-    .res-val { font-size: 22px; font-weight: 900; }
+    .res-suit { font-size: 11px; color: #8B949E; text-transform: uppercase; font-weight: bold; margin-bottom: 0px;}
+    .res-val { font-size: 18px; font-weight: 900; } /* Reduced Font Size */
     
-    .main-stat { font-size: 42px; font-weight: 900; color: #58A6FF; line-height: 1; margin: 5px 0; }
-    .sub-stat { font-size: 12px; color: #8B949E; text-transform: uppercase; letter-spacing: 1px; }
+    .main-stat { font-size: 38px; font-weight: 900; color: #58A6FF; line-height: 1; margin: 2px 0; }
+    .sub-stat { font-size: 11px; color: #8B949E; text-transform: uppercase; letter-spacing: 0.5px; }
 
     /* Compact Selectors */
     div[data-testid="stVerticalBlock"] > div { gap: 0.2rem; }
+    div[data-testid="stHorizontalBlock"] { align-items: center; }
 
 </style>
 """, unsafe_allow_html=True)
