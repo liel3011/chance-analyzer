@@ -154,21 +154,24 @@ st.markdown("""
     .dot-plus { width: 8px; height: 8px; background: #3FB950; border-radius: 50%; display: inline-block; }
     .dot-minus { width: 8px; height: 8px; background: #F85149; border-radius: 50%; display: inline-block; }
 
-    /* --- COMPACT RESULT CARD STYLING --- */
+    /* --- COMPACT RESULT CARD STYLING (REDUCED SIZES) --- */
     .result-card {
         background: linear-gradient(135deg, #1F2428 0%, #161B22 100%);
         border: 1px solid #30363D; border-radius: 12px; padding: 12px; text-align: center; margin-top: 5px;
     }
     .result-split {
-        display: flex; justify-content: space-around; align-items: center; margin-bottom: 10px;
-        border-bottom: 1px solid #30363D; padding-bottom: 10px;
+        display: flex; justify-content: space-around; align-items: center; margin-bottom: 8px;
+        border-bottom: 1px solid #30363D; padding-bottom: 8px;
     }
     .result-part { text-align: center; }
     .res-suit { font-size: 11px; color: #8B949E; text-transform: uppercase; font-weight: bold; margin-bottom: 0px;}
-    .res-val { font-size: 18px; font-weight: 900; } /* Reduced Font Size */
     
-    .main-stat { font-size: 38px; font-weight: 900; color: #58A6FF; line-height: 1; margin: 2px 0; }
-    .sub-stat { font-size: 11px; color: #8B949E; text-transform: uppercase; letter-spacing: 0.5px; }
+    /* Reduced font size for PLUS/MINUS text */
+    .res-val { font-size: 16px; font-weight: 900; } 
+    
+    /* Reduced font size for the Number result */
+    .main-stat { font-size: 30px; font-weight: 900; color: #58A6FF; line-height: 1; margin: 2px 0; }
+    .sub-stat { font-size: 10px; color: #8B949E; text-transform: uppercase; letter-spacing: 0.5px; }
 
     /* Compact Selectors */
     div[data-testid="stVerticalBlock"] > div { gap: 0.2rem; }
@@ -322,6 +325,33 @@ def create_sleeping_html_table(data_dict, required_cols):
     parts.append("</tbody></table></div>")
     return "".join(parts)
 
+# --- BOARD GENERATOR FUNCTION (Shared Logic) ---
+def generate_board_html(grid_data, row_limit, cell_styles):
+    html = '<div class="grid-container">'
+    headers = [('Clubs', '♣', '#E1E4E8'), ('Diamonds', '♦', '#FF4B4B'), ('Hearts', '♥', '#FF4B4B'), ('Spades', '♠', '#E1E4E8')]
+    for name, icon, color in headers:
+        html += f'<div class="grid-header"><div class="suit-icon" style="color:{color};">{icon}</div><div class="suit-name">{name}</div></div>'
+    
+    for r in range(min(len(grid_data), row_limit)):
+        for c in range(4):
+            val = str(grid_data[r, c]); 
+            if val == 'nan': val = ''
+            
+            style_extra = cell_styles.get((r, c), "")
+            inner = val
+            
+            if "MISSING_MARKER" in style_extra:
+                inner = f'<div class="missing-circle">{val}</div>'
+                style_extra = style_extra.replace("MISSING_MARKER", "")
+            
+            if style_extra.strip().startswith("cell-"):
+                 html += f'<div class="grid-cell {style_extra}">{inner}</div>'
+            else:
+                 html += f'<div class="grid-cell">{inner}{style_extra}</div>'
+                 
+    html += '</div>'
+    return html
+
 # --- Main Interface ---
 
 st.title("Chance Analyzer")
@@ -430,6 +460,7 @@ if df is not None:
     
     selected_match_ids = None 
     
+    # ------------------ TAB 1: MATCHES ------------------
     with tab_matches:
         if found_matches:
             raw_df = pd.DataFrame([
@@ -451,7 +482,28 @@ if df is not None:
                 selected_match_ids = display_df.iloc[event.selection['rows'][0]]['Hidden_ID']
         else:
             if st.session_state.get('search_done', False): st.info("No matches found.")
+            
+        # Board (Matches Style)
+        st.subheader("Game Board")
+        cell_styles = {}
+        matches_to_show = found_matches
+        if selected_match_ids is not None:
+            matches_to_show = [m for m in found_matches if m['id'] in selected_match_ids]
 
+        for m in matches_to_show:
+            col = m['color']
+            for coord in m['full_coords_list']:
+                if coord != m['miss_coords']:
+                    if coord not in cell_styles: cell_styles[coord] = ""
+                    count = cell_styles[coord].count("frame-box"); inset = count * 3
+                    cell_styles[coord] += f'<div class="frame-box" style="border-width: 2px; border-color: {col}; top: {inset}px; left: {inset}px; right: {inset}px; bottom: {inset}px;"></div>'
+            miss = m['miss_coords']
+            if miss not in cell_styles: cell_styles[miss] = ""
+            if "MISSING_MARKER" not in cell_styles[miss]: cell_styles[miss] += "MISSING_MARKER"
+            
+        st.markdown(generate_board_html(grid_data, ROW_LIMIT, cell_styles), unsafe_allow_html=True)
+
+    # ------------------ TAB 2: SLEEPING ------------------
     with tab_sleep:
         sleep_data_lists = {}
         for col_name in required_cols:
@@ -470,8 +522,12 @@ if df is not None:
             st.markdown(create_sleeping_html_table(sleep_data_lists, required_cols), unsafe_allow_html=True)
         else:
             st.write("No sleeping cards found.")
+            
+        # Board (Clean)
+        st.subheader("Game Board")
+        st.markdown(generate_board_html(grid_data, ROW_LIMIT, {}), unsafe_allow_html=True)
 
-    # --- TAB 3: PAIRS (+/-) ---
+    # ------------------ TAB 3: PAIRS (+/-) ------------------
     with tab_pairs:
         # 1. Legend
         st.markdown("""
@@ -540,59 +596,19 @@ if df is not None:
             for i, other in enumerate(res[1:]):
                 with [mc1, mc2, mc3][i]:
                     st.caption(f"{other['pair']} : {other['ago']} ago")
-
-    # --- GAME BOARD ---
-    st.subheader("Game Board")
-    
-    cell_styles = {}
-    
-    if color_board:
-        for r in range(min(len(grid_data), ROW_LIMIT)):
-            for c in range(4):
-                val = str(grid_data[r, c])
-                sign = get_card_sign(val)
-                if sign == "+": cell_styles[(r, c)] = " cell-plus"
-                elif sign == "-": cell_styles[(r, c)] = " cell-minus"
-    else:
-        matches_to_show = found_matches
-        if selected_match_ids is not None:
-            matches_to_show = [m for m in found_matches if m['id'] in selected_match_ids]
-
-        for m in matches_to_show:
-            col = m['color']
-            for coord in m['full_coords_list']:
-                if coord != m['miss_coords']:
-                    if coord not in cell_styles: cell_styles[coord] = ""
-                    count = cell_styles[coord].count("frame-box"); inset = count * 3
-                    cell_styles[coord] += f'<div class="frame-box" style="border-width: 2px; border-color: {col}; top: {inset}px; left: {inset}px; right: {inset}px; bottom: {inset}px;"></div>'
-            
-            miss = m['miss_coords']
-            if miss not in cell_styles: cell_styles[miss] = ""
-            if "MISSING_MARKER" not in cell_styles[miss]:
-                 cell_styles[miss] += "MISSING_MARKER"
-
-    html = '<div class="grid-container">'
-    headers = [('Clubs', '♣', '#E1E4E8'), ('Diamonds', '♦', '#FF4B4B'), ('Hearts', '♥', '#FF4B4B'), ('Spades', '♠', '#E1E4E8')]
-    for name, icon, color in headers:
-        html += f'<div class="grid-header"><div class="suit-icon" style="color:{color};">{icon}</div><div class="suit-name">{name}</div></div>'
-    
-    for r in range(min(len(grid_data), ROW_LIMIT)):
-        for c in range(4):
-            val = str(grid_data[r, c]); 
-            if val == 'nan': val = ''
-            style_extra = cell_styles.get((r, c), "")
-            inner = val
-            if "MISSING_MARKER" in style_extra:
-                inner = f'<div class="missing-circle">{val}</div>'
-                style_extra = style_extra.replace("MISSING_MARKER", "")
-            
-            if style_extra.strip().startswith("cell-"):
-                 html += f'<div class="grid-cell {style_extra}">{inner}</div>'
-            else:
-                 html += f'<div class="grid-cell">{inner}{style_extra}</div>'
-                 
-    html += '</div>'
-    st.markdown(html, unsafe_allow_html=True)
+                    
+        # Board (Color Style if checked)
+        st.subheader("Game Board")
+        cell_styles = {}
+        if color_board:
+            for r in range(min(len(grid_data), ROW_LIMIT)):
+                for c in range(4):
+                    val = str(grid_data[r, c])
+                    sign = get_card_sign(val)
+                    if sign == "+": cell_styles[(r, c)] = " cell-plus"
+                    elif sign == "-": cell_styles[(r, c)] = " cell-minus"
+        
+        st.markdown(generate_board_html(grid_data, ROW_LIMIT, cell_styles), unsafe_allow_html=True)
 
 else:
     st.info("👋 Upload a CSV file to start.")
