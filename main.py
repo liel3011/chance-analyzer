@@ -74,57 +74,32 @@ def get_card_sign(card_val):
     if val in MINUS_SET: return "-"
     return "?"
 
-def analyze_specific_pair(df, col1, col2, draw_col='Draw'):
+def analyze_pair_gap(df, col1, col2):
     """
-    Analyzes a specific pair of columns (e.g. 'Hearts' and 'Clubs').
-    Returns a list of 4 dicts (one for each combo: ++, --, +-, -+)
+    Finds which combo (++, --, +-, -+) is sleeping the longest.
     """
-    results = []
-    
-    # Calculate signs
     s1 = df[col1].apply(get_card_sign)
     s2 = df[col2].apply(get_card_sign)
     pairs_series = s1 + s2 # e.g. "++", "-+"
 
     target_pairs = ["++", "--", "+-", "-+"]
-    
+    results = []
+
     for p in target_pairs:
         matches = (pairs_series == p)
         if matches.any():
-            last_idx = matches.idxmax() # Assuming df sorted descending (0 is latest) or finding first match
-            
-            # Since matches is boolean series, idxmax gives the index of the first True.
-            # We need to calculate "Draws Ago".
-            # If df index is reset 0..N where 0 is latest:
-            draws_ago = last_idx 
-            
-            row = df.iloc[last_idx]
-            d_num = row[draw_col] if draw_col in df.columns else "-"
-            
-            results.append({
-                "pair_code": p,
-                "suit1": col1,
-                "suit2": col2,
-                "draws_ago": draws_ago,
-                "draw_num": d_num,
-                "card1": row[col1],
-                "card2": row[col2]
-            })
+            last_idx = matches.idxmax() # 0 is latest
+            results.append({'pair': p, 'ago': last_idx})
         else:
-             results.append({
-                "pair_code": p,
-                "suit1": col1,
-                "suit2": col2,
-                "draws_ago": 9999,
-                "draw_num": "-",
-                "card1": "-",
-                "card2": "-"
-            })
+            results.append({'pair': p, 'ago': 9999}) # Never seen
+            
+    # Sort descending
+    results.sort(key=lambda x: x['ago'], reverse=True)
     return results
 
 # ==========================================
-
-# --- CSS Styling ---
+# CSS Styling
+# ==========================================
 st.markdown("""
 <style>
     /* Global Settings */
@@ -146,6 +121,11 @@ st.markdown("""
         height: 40px; display: flex; align-items: center; justify-content: center; font-weight: 500; position: relative;
         border: 1px solid #30363D;
     }
+    
+    /* Colors for +/- Mode */
+    .cell-plus { color: #3FB950 !important; font-weight: 900 !important; } /* Green */
+    .cell-minus { color: #F85149 !important; font-weight: 900 !important; } /* Red */
+    
     .missing-circle { 
         background-color: #F0F6FC; color: #0D1117; font-weight: 800; border-radius: 6px; 
         width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; 
@@ -164,42 +144,27 @@ st.markdown("""
     [data-testid="stDataFrame"] th { text-align: left !important; }
     [data-testid="stDataFrame"] td { text-align: left !important; }
     
-    /* --- PAIR CARDS STYLING --- */
-    .pair-card {
-        background-color: #161B22;
-        border: 1px solid #30363D;
-        border-radius: 10px;
-        padding: 15px;
-        margin-bottom: 10px;
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        transition: all 0.2s ease;
+    /* --- LEGEND STYLING --- */
+    .legend-box {
+        background: #161B22; border: 1px solid #30363D; border-radius: 8px; padding: 10px;
+        display: flex; gap: 20px; align-items: center; justify-content: center; margin-bottom: 20px;
     }
-    .pair-card:hover {
-        border-color: #58A6FF;
-        transform: translateY(-2px);
+    .legend-item { display: flex; align-items: center; gap: 8px; font-weight: bold; }
+    .dot-plus { width: 12px; height: 12px; background: #3FB950; border-radius: 50%; display: inline-block; }
+    .dot-minus { width: 12px; height: 12px; background: #F85149; border-radius: 50%; display: inline-block; }
+
+    /* --- RESULT CARD STYLING --- */
+    .result-card {
+        background: linear-gradient(135deg, #1F2428 0%, #161B22 100%);
+        border: 1px solid #30363D; border-radius: 12px; padding: 20px; text-align: center; margin-top: 10px;
     }
-    .pair-title { font-size: 18px; font-weight: bold; color: #E6EDF3; display: flex; align-items: center; gap: 8px; }
-    .pair-badge { padding: 4px 10px; border-radius: 6px; font-size: 16px; font-weight: 900; line-height: 1; min-width: 30px; text-align: center; }
-    .badge-plus { background-color: rgba(35, 134, 54, 0.2); color: #3FB950; border: 1px solid #238636; }
-    .badge-minus { background-color: rgba(218, 54, 51, 0.2); color: #F85149; border: 1px solid #DA3633; }
-    
-    .pair-stat { text-align: right; font-size: 13px; color: #8B949E; }
-    .pair-val { font-size: 24px; font-weight: bold; color: #58A6FF; line-height: 1.2; }
-    .sleeper-alert { border: 1px solid #D29922 !important; box-shadow: 0 0 15px rgba(210, 153, 34, 0.1); }
-    .sleeper-text { color: #D29922 !important; }
-    
-    /* History Map Styling */
-    .hist-cell {
-        width: 100%; height: 30px; 
-        display: flex; align-items: center; justify-content: center;
-        border-radius: 4px; font-weight: bold; font-size: 14px;
-        margin-bottom: 2px;
+    .main-stat { font-size: 36px; font-weight: 900; color: #58A6FF; margin: 5px 0; }
+    .sub-stat { font-size: 14px; color: #8B949E; text-transform: uppercase; letter-spacing: 1px; }
+    .combo-badge { 
+        background: #21262D; border: 1px solid #30363D; padding: 5px 12px; 
+        border-radius: 20px; font-size: 18px; font-weight: bold; color: #E6EDF3;
+        display: inline-block; margin-bottom: 10px;
     }
-    .hist-plus { background-color: rgba(35, 134, 54, 0.8); color: white; }
-    .hist-minus { background-color: rgba(218, 54, 51, 0.8); color: white; }
-    .hist-header { text-align: center; font-size: 12px; color: #8B949E; margin-bottom: 5px; font-weight: bold; text-transform: uppercase; }
 
 </style>
 """, unsafe_allow_html=True)
@@ -453,7 +418,7 @@ if df is not None:
             found_matches.append(m)
 
     # --- TABS ---
-    tab_matches, tab_sleep, tab_pairs = st.tabs(["📋 MATCHES", "💤 SLEEPING", "⚖️ PATTERNS"])
+    tab_matches, tab_sleep, tab_pairs = st.tabs(["📋 MATCHES", "💤 SLEEPING", "⚖️ PAIRS"])
     
     selected_match_ids = None 
     
@@ -498,123 +463,87 @@ if df is not None:
         else:
             st.write("No sleeping cards found.")
 
-    # --- TAB 3: PAIRS & PATTERNS ---
+    # --- TAB 3: PAIRS (+/-) ---
     with tab_pairs:
-        # Prepare Data
-        vis_rows = 20
-        df_vis = df.head(vis_rows).copy()
-        draw_col = None
-        for c in df.columns:
-            if 'Draw' in c or 'הגרלה' in c: draw_col = c; break
-            
-        # 1. VISUAL HISTORY MAP
-        st.caption("Visual History (Last 20 Draws) | 🟩 Plus | 🟥 Minus")
-        cols_vis = st.columns(4)
-        suit_order = ['Clubs', 'Diamonds', 'Hearts', 'Spades']
-        suit_icons = {'Clubs': '♣', 'Diamonds': '♦', 'Hearts': '♥', 'Spades': '♠'}
+        # 1. Legend
+        st.markdown("""
+        <div class="legend-box">
+            <div class="legend-item"><span class="dot-plus"></span> PLUS (8, 10, Q, A)</div>
+            <div class="legend-item"><span class="dot-minus"></span> MINUS (7, 9, J, K)</div>
+        </div>
+        """, unsafe_allow_html=True)
         
-        for idx, s in enumerate(suit_order):
-            if s not in df.columns: continue
-            with cols_vis[idx]:
-                st.markdown(f"<div class='hist-header'>{suit_icons[s]} {s.upper()}</div>", unsafe_allow_html=True)
-                for val in df_vis[s]:
-                    sign = get_card_sign(val)
-                    cls = "hist-plus" if sign == "+" else ("hist-minus" if sign == "-" else "")
-                    st.markdown(f"<div class='hist-cell {cls}'>{sign}</div>", unsafe_allow_html=True)
+        # 2. Controls
+        all_suits = [c for c in required_cols if c in df.columns]
+        sc1, sc2, sc3 = st.columns([2, 2, 2])
+        with sc1: s_choice1 = st.selectbox("Suit 1", all_suits, index=2) # Heart
+        with sc2: s_choice2 = st.selectbox("Suit 2", all_suits, index=3) # Spade
+        with sc3: 
+            st.write("") 
+            st.write("") 
+            color_board = st.checkbox("🎨 Color Board by +/-", value=False)
         
-        st.divider()
-        
-        # 2. GLOBAL SCANNER (Find best sleepers across ALL suits)
-        all_suits = [c for c in suit_order if c in df.columns]
-        all_combos = []
-        for i in range(len(all_suits)):
-            for j in range(i + 1, len(all_suits)):
-                s1, s2 = all_suits[i], all_suits[j]
-                res = analyze_specific_pair(df, s1, s2, draw_col)
-                for r in res:
-                    r['combo_name'] = f"{suit_icons[s1]} {suit_icons[s2]}"
-                    all_combos.append(r)
-        
-        # Sort by age descending
-        all_combos.sort(key=lambda x: x['draws_ago'], reverse=True)
-        top_3 = all_combos[:3]
-        
-        st.markdown("#### 🔭 Opportunity Scanner (Top 3 Sleepers)")
-        if top_3:
-            c1, c2, c3 = st.columns(3)
-            for i, item in enumerate(top_3):
-                with [c1, c2, c3][i]:
-                    st.info(f"**{item['combo_name']}** ({item['pair_code']})\n\nSleeping for **{item['draws_ago']}** draws")
-        
-        st.divider()
-
-        # 3. CUSTOM PAIR ANALYZER
-        st.markdown("#### 🔍 Custom Pair Analyzer")
-        sc1, sc2 = st.columns(2)
-        with sc1: s_choice1 = st.selectbox("Suit 1", all_suits, index=2) # Default Heart
-        with sc2: s_choice2 = st.selectbox("Suit 2", all_suits, index=3) # Default Spade
-        
+        # 3. Calculation & Display
         if s_choice1 == s_choice2:
-            st.warning("Please select two different suits.")
+            st.warning("Select two different suits.")
         else:
-            pairs_data = analyze_specific_pair(df, s_choice1, s_choice2, draw_col)
+            res = analyze_pair_gap(df, s_choice1, s_choice2)
+            best_sleeper = res[0]
             
-            # Display Cards
-            for p in pairs_data:
-                pair_str = p['pair_code']
-                draws_ago = p['draws_ago']
-                h_card = p['card1']
-                s_card = p['card2']
-                
-                def badge(char):
-                    cls = "badge-plus" if char == "+" else "badge-minus"
-                    return f'<span class="pair-badge {cls}">{char}</span>'
-                
-                b1 = badge(pair_str[0])
-                b2 = badge(pair_str[1])
-                border_cls = "sleeper-alert" if draws_ago >= 7 else ""
-                val_cls = "sleeper-text" if draws_ago >= 7 else ""
-                
-                card_html = f"""
-                <div class="pair-card {border_cls}">
-                    <div class="pair-title">
-                        {b1} {b2}
-                    </div>
-                    <div style="flex-grow: 1; padding-left: 20px;">
-                        <div style="font-size:11px; color:#888;">LAST SEEN</div>
-                        <div style="font-size:13px; font-weight:bold;">
-                            {s_choice1[0]}:{h_card} &nbsp; {s_choice2[0]}:{s_card}
-                        </div>
-                    </div>
-                    <div class="pair-stat">
-                        <div>Draws Ago</div>
-                        <div class="pair-val {val_cls}">{draws_ago}</div>
-                    </div>
-                </div>
-                """
-                st.markdown(card_html, unsafe_allow_html=True)
+            # Format text (e.g., replace ++ with Plus / Plus)
+            def nice_fmt(p):
+                return p.replace("+", " PLUS ").replace("-", " MINUS ")
+            
+            st.markdown(f"""
+            <div class="result-card">
+                <div class="combo-badge">{nice_fmt(best_sleeper['pair'])}</div>
+                <div class="sub-stat">HAS NOT APPEARED FOR</div>
+                <div class="main-stat">{best_sleeper['ago']}</div>
+                <div class="sub-stat">DRAWS</div>
+            </div>
+            """, unsafe_allow_html=True)
+            
+            # Small details for others
+            st.markdown("<br>", unsafe_allow_html=True)
+            c1, c2, c3 = st.columns(3)
+            for i, other in enumerate(res[1:]):
+                with [c1, c2, c3][i]:
+                    st.caption(f"{other['pair']} : {other['ago']} draws ago")
 
     # --- GAME BOARD ---
     st.subheader("Game Board")
     
     cell_styles = {}
     
-    matches_to_show = found_matches
-    if selected_match_ids is not None:
-        matches_to_show = [m for m in found_matches if m['id'] in selected_match_ids]
+    # Logic: If we are in "Color Board" mode (from Tab 3), we color EVERYTHING
+    # Else, we do the standard match highlighting
+    
+    if color_board:
+        # We iterate over every cell and assign class based on value
+        for r in range(min(len(grid_data), ROW_LIMIT)):
+            for c in range(4):
+                val = str(grid_data[r, c])
+                sign = get_card_sign(val)
+                if sign == "+": cell_styles[(r, c)] = " cell-plus"
+                elif sign == "-": cell_styles[(r, c)] = " cell-minus"
+    else:
+        # Standard Matches Highlight
+        matches_to_show = found_matches
+        if selected_match_ids is not None:
+            matches_to_show = [m for m in found_matches if m['id'] in selected_match_ids]
 
-    for m in matches_to_show:
-        col = m['color']
-        for coord in m['full_coords_list']:
-            if coord != m['miss_coords']:
-                if coord not in cell_styles: cell_styles[coord] = ""
-                count = cell_styles[coord].count("frame-box"); inset = count * 3
-                cell_styles[coord] += f'<div class="frame-box" style="border-width: 2px; border-color: {col}; top: {inset}px; left: {inset}px; right: {inset}px; bottom: {inset}px;"></div>'
-        
-        miss = m['miss_coords']
-        if miss not in cell_styles: cell_styles[miss] = ""
-        if "MISSING_MARKER" not in cell_styles[miss]:
-             cell_styles[miss] += "MISSING_MARKER"
+        for m in matches_to_show:
+            col = m['color']
+            for coord in m['full_coords_list']:
+                if coord != m['miss_coords']:
+                    if coord not in cell_styles: cell_styles[coord] = ""
+                    count = cell_styles[coord].count("frame-box"); inset = count * 3
+                    cell_styles[coord] += f'<div class="frame-box" style="border-width: 2px; border-color: {col}; top: {inset}px; left: {inset}px; right: {inset}px; bottom: {inset}px;"></div>'
+            
+            miss = m['miss_coords']
+            if miss not in cell_styles: cell_styles[miss] = ""
+            if "MISSING_MARKER" not in cell_styles[miss]:
+                 cell_styles[miss] += "MISSING_MARKER"
 
     html = '<div class="grid-container">'
     headers = [('Clubs', '♣', '#E1E4E8'), ('Diamonds', '♦', '#FF4B4B'), ('Hearts', '♥', '#FF4B4B'), ('Spades', '♠', '#E1E4E8')]
@@ -625,12 +554,21 @@ if df is not None:
         for c in range(4):
             val = str(grid_data[r, c]); 
             if val == 'nan': val = ''
-            content = cell_styles.get((r, c), "")
+            
+            # Get style (either matches frames OR plus/minus text color)
+            style_extra = cell_styles.get((r, c), "")
+            
             inner = val
-            if "MISSING_MARKER" in content:
+            if "MISSING_MARKER" in style_extra:
                 inner = f'<div class="missing-circle">{val}</div>'
-                content = content.replace("MISSING_MARKER", "")
-            html += f'<div class="grid-cell">{inner}{content}</div>'
+                style_extra = style_extra.replace("MISSING_MARKER", "")
+            
+            # If style_extra starts with space, it's a class (cell-plus/minus), otherwise it's divs
+            if style_extra.strip().startswith("cell-"):
+                 html += f'<div class="grid-cell {style_extra}">{inner}</div>'
+            else:
+                 html += f'<div class="grid-cell">{inner}{style_extra}</div>'
+                 
     html += '</div>'
     st.markdown(html, unsafe_allow_html=True)
 
