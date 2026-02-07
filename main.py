@@ -66,7 +66,6 @@ PATTERN_NAMES = {
 # ==========================================
 PLUS_SET = {"8", "10", "Q", "A"}
 MINUS_SET = {"7", "9", "J", "K"}
-CARD_ORDER = ["7", "8", "9", "10", "J", "Q", "K", "A"]
 
 def get_card_sign(card_val):
     val = str(card_val).strip().upper()
@@ -94,56 +93,6 @@ def analyze_pair_gap(df, col1, col2):
     return results
 
 # ==========================================
-# Recommendation Logic (New)
-# ==========================================
-def get_recommendations(df, required_cols):
-    """
-    Generates smart recommendations based on sleeping time and sign balancing.
-    """
-    recs = {}
-    
-    # 1. Analyze each suit
-    for col in required_cols:
-        col_data = df[col].astype(str).tolist()
-        
-        # A. Calculate Sleep Time for each card
-        card_sleep = {}
-        for card in CARD_ORDER:
-            try:
-                # Find first index of card
-                idx = col_data.index(card)
-                card_sleep[card] = idx
-            except ValueError:
-                card_sleep[card] = 999  # Never seen (or very old)
-        
-        # B. Analyze Sign Trend (Last 10 draws)
-        last_10 = col_data[:10]
-        plus_count = sum(1 for c in last_10 if c in PLUS_SET)
-        minus_count = sum(1 for c in last_10 if c in MINUS_SET)
-        
-        # If one sign is dominant (>70%), the other gets a bonus
-        bonus_sign = None
-        if plus_count >= 7: bonus_sign = "-"
-        elif minus_count >= 7: bonus_sign = "+"
-        
-        # C. Calculate Final Score
-        # Score = Sleep Time + Bonus (if applicable)
-        card_scores = []
-        for card, sleep in card_sleep.items():
-            sign = get_card_sign(card)
-            score = sleep
-            if bonus_sign and sign == bonus_sign:
-                score += 15 # Boost score to prioritize this card
-            
-            card_scores.append({'card': card, 'score': score, 'sleep': sleep, 'sign': sign})
-        
-        # Sort by Score
-        card_scores.sort(key=lambda x: x['score'], reverse=True)
-        recs[col] = card_scores
-        
-    return recs
-
-# ==========================================
 # CSS Styling
 # ==========================================
 st.markdown("""
@@ -168,11 +117,17 @@ st.markdown("""
         border: 1px solid #30363D;
     }
     
-    /* Colors */
+    /* Colors for +/- Mode */
     .cell-plus { color: #3FB950 !important; font-weight: 900 !important; } 
     .cell-minus { color: #F85149 !important; font-weight: 900 !important; } 
-    .missing-circle { background-color: #F0F6FC; color: #0D1117; font-weight: 800; border-radius: 6px; width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; }
+    
+    .missing-circle { 
+        background-color: #F0F6FC; color: #0D1117; font-weight: 800; border-radius: 6px; 
+        width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; 
+    }
     .frame-box { position: absolute; top: 0; left: 0; right: 0; bottom: 0; border-style: solid; border-color: transparent; pointer-events: none; border-radius: 6px; }
+    
+    /* Headers & Icons */
     .grid-header { text-align: center; padding-bottom: 6px; display: flex; flex-direction: column; align-items: center; justify-content: center; }
     .suit-icon { font-size: 22px; line-height: 1; margin-bottom: 2px; }
     
@@ -183,42 +138,42 @@ st.markdown("""
     [data-testid="stDataFrame"] th { text-align: left !important; }
     [data-testid="stDataFrame"] td { text-align: left !important; }
     
-    /* Compact Legend */
-    .legend-container { display: flex; gap: 8px; margin-bottom: 10px; justify-content: center; }
-    .legend-box { background: #161B22; border: 1px solid #30363D; border-radius: 8px; padding: 6px 15px; text-align: center; flex: 1; }
+    /* --- COMPACT LEGEND STYLING --- */
+    .legend-container {
+        display: flex; gap: 8px; margin-bottom: 10px; justify-content: center;
+    }
+    .legend-box {
+        background: #161B22; border: 1px solid #30363D; border-radius: 8px; padding: 6px 15px;
+        text-align: center; flex: 1;
+    }
     .legend-title { font-weight: 900; font-size: 14px; margin-bottom: 2px; display: flex; align-items: center; justify-content: center; gap: 6px; }
     .legend-cards { font-size: 11px; color: #8B949E; letter-spacing: 0.5px; }
     
     .txt-plus { color: #3FB950; }
     .txt-minus { color: #F85149; }
+    .dot-plus { width: 8px; height: 8px; background: #3FB950; border-radius: 50%; display: inline-block; }
+    .dot-minus { width: 8px; height: 8px; background: #F85149; border-radius: 50%; display: inline-block; }
 
-    /* Result Card */
-    .result-card { background: linear-gradient(135deg, #1F2428 0%, #161B22 100%); border: 1px solid #30363D; border-radius: 12px; padding: 12px; text-align: center; margin-top: 5px; }
-    .result-split { display: flex; justify-content: space-around; align-items: center; margin-bottom: 8px; border-bottom: 1px solid #30363D; padding-bottom: 8px; }
+    /* --- COMPACT RESULT CARD STYLING (REDUCED SIZES) --- */
+    .result-card {
+        background: linear-gradient(135deg, #1F2428 0%, #161B22 100%);
+        border: 1px solid #30363D; border-radius: 12px; padding: 12px; text-align: center; margin-top: 5px;
+    }
+    .result-split {
+        display: flex; justify-content: space-around; align-items: center; margin-bottom: 8px;
+        border-bottom: 1px solid #30363D; padding-bottom: 8px;
+    }
+    .result-part { text-align: center; }
     .res-suit { font-size: 11px; color: #8B949E; text-transform: uppercase; font-weight: bold; margin-bottom: 0px;}
+    
+    /* Reduced font size for PLUS/MINUS text */
     .res-val { font-size: 16px; font-weight: 900; } 
+    
+    /* Reduced font size for the Number result */
     .main-stat { font-size: 30px; font-weight: 900; color: #58A6FF; line-height: 1; margin: 2px 0; }
     .sub-stat { font-size: 10px; color: #8B949E; text-transform: uppercase; letter-spacing: 0.5px; }
 
-    /* --- RECOMMENDATION CARD STYLING --- */
-    .rec-container {
-        display: flex; gap: 10px; justify-content: center; margin-top: 15px; flex-wrap: wrap;
-    }
-    .rec-card {
-        background-color: #161B22; border: 1px solid #30363D; border-radius: 10px;
-        width: 80px; text-align: center; padding: 10px 5px;
-        position: relative;
-    }
-    .rec-suit-icon { font-size: 18px; margin-bottom: 5px; }
-    .rec-val { font-size: 24px; font-weight: 900; color: #FAFAFA; line-height: 1; }
-    .rec-sign { font-size: 12px; font-weight: bold; margin-top: 5px; }
-    .rec-sleep { font-size: 10px; color: #8B949E; margin-top: 5px; border-top: 1px solid #30363D; padding-top: 4px;}
-    
-    .rec-title-box { text-align: center; margin-bottom: 10px; margin-top: 20px;}
-    .rec-main-title { font-size: 20px; font-weight: bold; color: #D29922; }
-    .rec-sub { font-size: 12px; color: #8B949E; }
-    
-    /* Layout Fixes */
+    /* Compact Selectors */
     div[data-testid="stVerticalBlock"] > div { gap: 0.2rem; }
     div[data-testid="stHorizontalBlock"] { align-items: center; }
 
@@ -370,7 +325,7 @@ def create_sleeping_html_table(data_dict, required_cols):
     parts.append("</tbody></table></div>")
     return "".join(parts)
 
-# --- BOARD GENERATOR ---
+# --- BOARD GENERATOR FUNCTION (Shared Logic) ---
 def generate_board_html(grid_data, row_limit, cell_styles):
     html = '<div class="grid-container">'
     headers = [('Clubs', '♣', '#E1E4E8'), ('Diamonds', '♦', '#FF4B4B'), ('Hearts', '♥', '#FF4B4B'), ('Spades', '♠', '#E1E4E8')]
@@ -501,7 +456,7 @@ if df is not None:
             found_matches.append(m)
 
     # --- TABS ---
-    tab_matches, tab_sleep, tab_pairs, tab_rec = st.tabs(["📋 MATCHES", "💤 SLEEPING", "⚖️ PAIRS", "🏆 REC"])
+    tab_matches, tab_sleep, tab_pairs = st.tabs(["📋 MATCHES", "💤 SLEEPING", "⚖️ PAIRS"])
     
     selected_match_ids = None 
     
@@ -528,6 +483,7 @@ if df is not None:
         else:
             if st.session_state.get('search_done', False): st.info("No matches found.")
             
+        # Board (Matches Style)
         st.subheader("Game Board")
         cell_styles = {}
         matches_to_show = found_matches
@@ -567,6 +523,7 @@ if df is not None:
         else:
             st.write("No sleeping cards found.")
             
+        # Board (Clean)
         st.subheader("Game Board")
         st.markdown(generate_board_html(grid_data, ROW_LIMIT, {}), unsafe_allow_html=True)
 
@@ -599,15 +556,17 @@ if df is not None:
             st.warning("Select different suits")
         else:
             res = analyze_pair_gap(df, s_choice1, s_choice2)
-            best_sleeper = res[0] 
-            pair_code = best_sleeper['pair'] 
+            best_sleeper = res[0] # The one with biggest gap
+            pair_code = best_sleeper['pair'] # e.g. "+-"
             
+            # Determine specific sign for each suit based on the pair code
             s1_sign = "PLUS" if pair_code[0] == "+" else "MINUS"
             s1_cls = "txt-plus" if pair_code[0] == "+" else "txt-minus"
             
             s2_sign = "PLUS" if pair_code[1] == "+" else "MINUS"
             s2_cls = "txt-plus" if pair_code[1] == "+" else "txt-minus"
             
+            # Icons
             s_icons = {'Clubs': '♣', 'Diamonds': '♦', 'Hearts': '♥', 'Spades': '♠'}
             ic1 = s_icons.get(s_choice1, "")
             ic2 = s_icons.get(s_choice2, "")
@@ -650,75 +609,6 @@ if df is not None:
                     elif sign == "-": cell_styles[(r, c)] = " cell-minus"
         
         st.markdown(generate_board_html(grid_data, ROW_LIMIT, cell_styles), unsafe_allow_html=True)
-
-    # ------------------ TAB 4: RECOMMENDATIONS (NEW) ------------------
-    with tab_rec:
-        recs = get_recommendations(df, required_cols)
-        
-        st.markdown("""
-        <div class="rec-title-box">
-            <div class="rec-main-title">SMART COMBINATIONS</div>
-            <div class="rec-sub">WEIGHTED BY SLEEP TIME & SIGN TRENDS</div>
-        </div>
-        """, unsafe_allow_html=True)
-        
-        # Display Top 1 Combo
-        suit_icons = {'Clubs': '♣', 'Diamonds': '♦', 'Hearts': '♥', 'Spades': '♠'}
-        suit_colors = {'Clubs': '#E1E4E8', 'Diamonds': '#FF4B4B', 'Hearts': '#FF4B4B', 'Spades': '#E1E4E8'}
-        
-        # Build the HTML for the 4 cards
-        cards_html = ""
-        for suit in required_cols:
-            best_card_obj = recs[suit][0] # Top 1
-            card_val = best_card_obj['card']
-            sleep = best_card_obj['sleep']
-            sign = best_card_obj['sign']
-            sign_cls = "txt-plus" if sign == "+" else "txt-minus"
-            sign_txt = "PLUS" if sign == "+" else "MINUS"
-            
-            icon = suit_icons.get(suit, "")
-            col = suit_colors.get(suit, "#fff")
-            
-            cards_html += f"""
-            <div class="rec-card">
-                <div class="rec-suit-icon" style="color: {col};">{icon}</div>
-                <div class="rec-val">{card_val}</div>
-                <div class="rec-sign {sign_cls}">{sign_txt}</div>
-                <div class="rec-sleep">{sleep} AGO</div>
-            </div>
-            """
-            
-        st.markdown(f'<div class="rec-container">{cards_html}</div>', unsafe_allow_html=True)
-        
-        # Show "Runner up" (Sleepers only)
-        st.markdown("<br><hr><br>", unsafe_allow_html=True)
-        st.caption("Alternative: Pure Sleepers (No Sign Weighting)")
-        
-        # Pure sleep is just sleep, no score boost
-        cards_html_2 = ""
-        for suit in required_cols:
-            # Sort by pure sleep
-            pure_sleepers = sorted(recs[suit], key=lambda x: x['sleep'], reverse=True)
-            best_card_obj = pure_sleepers[0]
-            
-            card_val = best_card_obj['card']
-            sleep = best_card_obj['sleep']
-            
-            icon = suit_icons.get(suit, "")
-            col = suit_colors.get(suit, "#fff")
-            
-            cards_html_2 += f"""
-            <div class="rec-card" style="border-color: #30363D; opacity: 0.7;">
-                <div class="rec-suit-icon" style="color: {col};">{icon}</div>
-                <div class="rec-val" style="font-size: 18px;">{card_val}</div>
-                <div class="rec-sleep" style="border:none; margin-top:0;">{sleep}</div>
-            </div>
-            """
-        st.markdown(f'<div class="rec-container">{cards_html_2}</div>', unsafe_allow_html=True)
-        
-        # Board
-        st.subheader("Game Board")
-        st.markdown(generate_board_html(grid_data, ROW_LIMIT, {}), unsafe_allow_html=True)
 
 else:
     st.info("👋 Upload a CSV file to start.")
