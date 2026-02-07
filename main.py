@@ -551,7 +551,7 @@ if df is not None:
         all_suits = [c for c in required_cols if c in df.columns]
         sc1, sc2, sc3 = st.columns([1.5, 1.5, 1])
         with sc1: s_choice1 = st.selectbox("S1", all_suits, index=0, label_visibility="collapsed") # Spade (index 0)
-        with sc2: s_choice2 = st.selectbox("S2", all_suits, index=2, label_visibility="collapsed") # Heart (index 2)
+        with sc2: s_choice2 = st.selectbox("S2", all_suits, index=1, label_visibility="collapsed") # Diamond (index 1)
         with sc3: 
             color_board = st.checkbox("🎨 Color", value=False)
         
@@ -616,4 +616,3 @@ if df is not None:
 
 else:
     st.info("👋 Upload a CSV file to start.")
-
