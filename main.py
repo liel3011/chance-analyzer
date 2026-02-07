@@ -62,55 +62,144 @@ PATTERN_NAMES = {
 }
 
 # ==========================================
-# Plus / Minus Logic Config
+# Logic for Pairs (+/-)
 # ==========================================
 PLUS_SET = {"8", "10", "Q", "A"}
 MINUS_SET = {"7", "9", "J", "K"}
 
-def get_pm_sign(card_val):
-    """Convert card value to + or - sign."""
-    s = str(card_val).strip().upper()
-    if s in PLUS_SET: return "+"
-    if s in MINUS_SET: return "-"
+def get_card_sign(card_val):
+    """Returns '+' or '-' for a card."""
+    val = str(card_val).strip().upper()
+    if val in PLUS_SET: return "+"
+    if val in MINUS_SET: return "-"
     return "?"
 
+def analyze_pairs_data(df):
+    """
+    Analyzes the Heart-Spade pairs in the dataframe.
+    Assumes df is sorted with the LATEST draw at index 0.
+    """
+    results = []
+    required = ['Hearts', 'Spades']
+    if not all(col in df.columns for col in required):
+        return results
+
+    # Identify Draw Number column (usually contains 'הגרלה' or 'Draw')
+    draw_col = None
+    for c in df.columns:
+        if 'הגרלה' in str(c) or 'Draw' in str(c):
+            draw_col = c
+            break
+
+    # Calculate signs
+    h_signs = df['Hearts'].apply(get_card_sign)
+    s_signs = df['Spades'].apply(get_card_sign)
+    pairs_series = h_signs + s_signs # e.g. "++", "-+"
+
+    target_pairs = ["++", "--", "+-", "-+"]
+    
+    for p in target_pairs:
+        # Find the first index (closest to 0) where this pair appears
+        matches = (pairs_series == p)
+        if matches.any():
+            last_seen_idx = matches.idxmax() # returns the first occurrence index
+            
+            # Get details
+            draw_num = df.iloc[last_seen_idx][draw_col] if draw_col else f"#{last_seen_idx}"
+            h_card = df.iloc[last_seen_idx]['Hearts']
+            s_card = df.iloc[last_seen_idx]['Spades']
+            
+            results.append({
+                "pair": p,
+                "draws_ago": last_seen_idx, # Index 0 means 0 draws ago
+                "draw_num": draw_num,
+                "h_card": h_card,
+                "s_card": s_card
+            })
+    
+    # Sort by 'draws_ago' descending (Sleeping longest first)
+    results.sort(key=lambda x: x['draws_ago'], reverse=True)
+    return results
+
 # ==========================================
-# CSS Styling
-# ==========================================
+
+# --- CSS Styling ---
 st.markdown("""
 <style>
     /* Global Settings */
     .stApp { direction: ltr; text-align: left; background-color: #0E1117; color: #FAFAFA; }
     
-    /* Reduce Top Spacing */
-    .block-container { padding-top: 1.5rem !important; padding-bottom: 2rem !important; }
-    h1 { margin-bottom: -0.5rem !important; padding-bottom: 0rem !important; }
+    /* --- REDUCE TOP SPACING --- */
+    .block-container {
+        padding-top: 1.5rem !important;
+        padding-bottom: 1rem !important;
+    }
+    h1 {
+        margin-bottom: -0.5rem !important;
+        padding-bottom: 0rem !important;
+    }
     
-    /* Inputs */
-    .stSelectbox, .stMultiSelect, div[data-testid="stExpander"] { direction: ltr; text-align: left; }
-    div.stButton > button { width: 100%; border-radius: 8px; height: 2.8rem; font-weight: 600; }
+    /* Clean Inputs */
+    .stSelectbox, .stMultiSelect, div[data-testid="stExpander"] { 
+        direction: ltr; text-align: left; 
+    }
     
-    /* --- Grid Layout (Game Board) --- */
+    /* Buttons */
+    div.stButton > button { 
+        width: 100%; 
+        border-radius: 8px; 
+        height: 2.8rem; 
+        font-weight: 600;
+    }
+    
+    /* Custom Grid Layout */
     .grid-container { 
-        display: grid; grid-template-columns: repeat(4, 1fr); gap: 4px; 
-        background-color: #161B22; padding: 8px; border-radius: 12px; 
-        margin-top: 10px; border: 1px solid #30363D;
+        display: grid; 
+        grid-template-columns: repeat(4, 1fr); 
+        gap: 4px; 
+        background-color: #161B22; 
+        padding: 8px; 
+        border-radius: 12px; 
+        margin-top: 10px; 
+        border: 1px solid #30363D;
     }
+    
     .grid-cell { 
-        background-color: #21262D; color: #C9D1D9; padding: 0; text-align: center; 
-        border-radius: 6px; font-family: 'Segoe UI', Roboto, sans-serif; font-size: 15px; 
-        position: relative; border: 1px solid #30363D; height: 40px; 
-        display: flex; align-items: center; justify-content: center; font-weight: 500;
+        background-color: #21262D; 
+        color: #C9D1D9; 
+        padding: 0; 
+        text-align: center; 
+        border-radius: 6px; 
+        font-family: 'Segoe UI', Roboto, sans-serif; 
+        font-size: 15px; 
+        position: relative; 
+        border: 1px solid #30363D; 
+        height: 40px; 
+        display: flex; 
+        align-items: center; 
+        justify-content: center; 
+        font-weight: 500;
     }
+    
+    /* Missing Card Highlight */
     .missing-circle { 
-        background-color: #F0F6FC; color: #0D1117; font-weight: 800; border-radius: 6px; 
-        width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; 
+        background-color: #F0F6FC; 
+        color: #0D1117; 
+        font-weight: 800; 
+        border-radius: 6px; 
+        width: 100%; height: 100%; 
+        display: flex; align-items: center; justify-content: center; 
         box-shadow: inset 0 0 8px rgba(0,0,0,0.2);
     }
+    
+    /* Frame Overlays */
     .frame-box { 
         position: absolute; top: 0; left: 0; right: 0; bottom: 0; 
-        border-style: solid; border-color: transparent; pointer-events: none; border-radius: 6px;
+        border-style: solid; border-color: transparent; 
+        pointer-events: none; border-radius: 6px;
     }
+    
+    /* Grid Headers (Game Board) */
     .grid-header { 
         text-align: center; padding-bottom: 6px; 
         display: flex; flex-direction: column; align-items: center; justify-content: center;
@@ -118,76 +207,92 @@ st.markdown("""
     .suit-icon { font-size: 22px; line-height: 1; margin-bottom: 2px; }
     .suit-name { font-size: 10px; color: #8B949E; font-weight: bold; text-transform: uppercase; }
     
-    /* Shape Preview */
+    /* Shape Preview Box */
     .shape-preview-wrapper {
-        background-color: #0D1117; border: 1px solid #30363D; border-radius: 8px;
-        padding: 10px; display: flex; justify-content: center; align-items: center; height: 100%;
+        background-color: #0D1117;
+        border: 1px solid #30363D;
+        border-radius: 8px;
+        padding: 10px;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        height: 100%;
     }
     
-    /* Tables Alignment */
+    /* FORCE LEFT ALIGNMENT ON DATAFRAMES (Matches Table) */
     [data-testid="stDataFrame"] th { text-align: left !important; }
     [data-testid="stDataFrame"] td { text-align: left !important; }
 
-    /* --- PAIR CARDS STYLING (New Feature) --- */
+    /* Remove input labels spacing */
+    div[data-testid="stVerticalBlock"] > div {
+        gap: 0.5rem;
+    }
+
+    /* --- PAIR CARDS STYLING --- */
     .pair-card {
         background-color: #161B22;
         border: 1px solid #30363D;
         border-radius: 10px;
         padding: 15px;
-        text-align: center;
-        transition: transform 0.2s;
-        height: 100%;
+        margin-bottom: 10px;
         display: flex;
-        flex-direction: column;
         justify-content: space-between;
+        align-items: center;
     }
-    .pair-card.alert {
-        border-color: #FF4B4B;
-        box-shadow: 0 0 10px rgba(255, 75, 75, 0.2);
+    .pair-title {
+        font-size: 18px;
+        font-weight: bold;
+        color: #E6EDF3;
+        display: flex;
+        align-items: center;
+        gap: 10px;
     }
-    .pair-title { font-size: 32px; font-weight: 900; letter-spacing: 4px; margin-bottom: 5px; }
-    .pair-subtitle { color: #8B949E; font-size: 12px; text-transform: uppercase; font-weight: bold; margin-bottom: 15px; }
-    .pair-age { font-size: 24px; font-weight: bold; color: #FAFAFA; }
-    .pair-age-label { font-size: 12px; color: #8B949E; margin-bottom: 10px; }
-    .pair-footer { font-size: 11px; color: #58A6FF; border-top: 1px solid #30363D; padding-top: 8px; margin-top: 10px; }
+    .pair-badge {
+        padding: 2px 8px;
+        border-radius: 4px;
+        font-size: 14px;
+        font-weight: bold;
+    }
+    .badge-plus { background-color: #238636; color: white; }
+    .badge-minus { background-color: #DA3633; color: white; }
     
+    .pair-stat {
+        text-align: right;
+        font-size: 13px;
+        color: #8B949E;
+    }
+    .pair-val {
+        font-size: 20px;
+        font-weight: bold;
+        color: #58A6FF;
+    }
+    .sleeper-alert {
+        border: 1px solid #D29922; /* Yellow border for sleepers */
+    }
+
 </style>
 """, unsafe_allow_html=True)
 
-# ==========================================
-# Logic Functions
-# ==========================================
+# --- Logic Functions ---
 
 @st.cache_data
 def load_data_robust(uploaded_file):
     if uploaded_file is None: return None, "No file"
     try:
         uploaded_file.seek(0)
-        # Try loading
-        try:
-            df = pd.read_csv(uploaded_file)
-        except:
-            uploaded_file.seek(0)
-            df = pd.read_csv(uploaded_file, encoding='cp1255')
-            
-        # Extended Mapping (Hebrew -> English) including the long names from your file
-        hebrew_map = {
-            'קלף תלתן עלה בגורל': 'Clubs',
-            'קלף מלתן עלה בגורל': 'Clubs', # Just in case
-            'קלף יהלום עלה בגורל': 'Diamonds',
-            'קלף לב עלה בגורל': 'Hearts',
-            'קלף עלה זכה בהגרלה': 'Spades',
-            'קלף עלה עלה בגורל': 'Spades',
-            'מספר הגרלה': 'Draw',
-            'תאריך': 'Date',
-            # Short versions fallback
-            'תלתן': 'Clubs', 'יהלום': 'Diamonds', 'לב': 'Hearts', 'עלה': 'Spades'
-        }
-        
+        df = pd.read_csv(uploaded_file)
+        hebrew_map = {'תלתן': 'Clubs', 'יהלום': 'Diamonds', 'לב': 'Hearts', 'עלה': 'Spades'}
         df.rename(columns=hebrew_map, inplace=True)
         return df, "ok"
-    except Exception as e:
-        return None, f"Error loading file: {str(e)}"
+    except:
+        try:
+            uploaded_file.seek(0)
+            df = pd.read_csv(uploaded_file, encoding='cp1255')
+            hebrew_map = {'תלתן': 'Clubs', 'יהלום': 'Diamonds', 'לב': 'Hearts', 'עלה': 'Spades'}
+            df.rename(columns=hebrew_map, inplace=True)
+            return df, "ok"
+        except:
+            return None, "Error loading file"
 
 def parse_shapes_strict(text):
     shapes = []
@@ -267,6 +372,7 @@ def draw_preview_html(shape_coords):
     grid_html += '</div>'
     return f'<div class="shape-preview-wrapper">{grid_html}</div>'
 
+# --- Custom HTML Table Generator ---
 def create_sleeping_html_table(data_dict, required_cols):
     meta = {
         'Clubs': {'icon': '♣', 'color': '#E1E4E8'},
@@ -312,9 +418,7 @@ def create_sleeping_html_table(data_dict, required_cols):
     parts.append("</tbody></table></div>")
     return "".join(parts)
 
-# ==========================================
-# Main Interface
-# ==========================================
+# --- Main Interface ---
 
 st.title("Chance Analyzer")
 
@@ -341,11 +445,9 @@ df = st.session_state['uploaded_df']
 if df is not None:
     required_cols = ['Clubs', 'Diamonds', 'Hearts', 'Spades']
     df.columns = df.columns.str.strip()
-    
-    # Check for missing suit columns
     missing = [c for c in required_cols if c not in df.columns]
     if missing:
-        st.error(f"Missing suit columns: {missing}")
+        st.error(f"Missing columns: {missing}")
         st.stop()
 
     grid_data = df[required_cols].values
@@ -419,37 +521,57 @@ if df is not None:
             m['id'] = i + 1; m['color'] = colors[i % len(colors)]
             found_matches.append(m)
 
-    # ==========================================
-    # TABS (Including New Feature)
-    # ==========================================
-    tab_matches, tab_sleep, tab_pairs = st.tabs(["📋 MATCHES", "💤 SLEEPING", "⚖️ PAIRS"])
+    # --- TABS ---
+    
+    # NEW TAB ADDED: "❤️♠ PAIRS"
+    tab_matches, tab_sleep, tab_pairs = st.tabs(["📋 MATCHES", "💤 SLEEPING", "❤️♠ PAIRS"])
     
     selected_match_ids = None 
     
-    # --- Tab 1: Matches ---
     with tab_matches:
         if found_matches:
             raw_df = pd.DataFrame([
-                {'Missing Card': m['miss_val'], 'Row': m['miss_coords'][0], 'Hidden_ID': m['id']} 
+                {
+                    'Missing Card': m['miss_val'], 
+                    'Row': m['miss_coords'][0], 
+                    'Hidden_ID': m['id']
+                } 
                 for m in found_matches
             ])
             
-            grouped_df = raw_df.groupby('Missing Card').agg({'Row': lambda x: sorted(list(x)), 'Hidden_ID': list}).reset_index()
+            # Group by Missing Card
+            grouped_df = raw_df.groupby('Missing Card').agg({
+                'Row': lambda x: sorted(list(x)),
+                'Hidden_ID': list
+            }).reset_index()
+            
             grouped_df['Count'] = grouped_df['Hidden_ID'].apply(len)
             grouped_df = grouped_df.sort_values(by='Count', ascending=False)
             grouped_df['Count'] = grouped_df['Count'].astype(str)
             grouped_df['Row Indexes'] = grouped_df['Row'].apply(lambda x: ", ".join(map(str, x)))
             
             display_df = grouped_df[['Missing Card', 'Count', 'Row Indexes', 'Hidden_ID']]
-            num_rows = len(display_df); calc_height = (num_rows + 1) * 35 + 3
             
-            event = st.dataframe(display_df.drop(columns=['Hidden_ID']), hide_index=True, use_container_width=True, selection_mode="single-row", on_select="rerun", height=calc_height)
+            num_rows = len(display_df)
+            calc_height = (num_rows + 1) * 35 + 3
+            
+            event = st.dataframe(
+                display_df.drop(columns=['Hidden_ID']), 
+                hide_index=True, 
+                use_container_width=True, 
+                selection_mode="single-row", 
+                on_select="rerun",
+                height=calc_height
+            )
+            
             if len(event.selection['rows']) > 0:
-                selected_match_ids = display_df.iloc[event.selection['rows'][0]]['Hidden_ID']
+                selected_idx = event.selection['rows'][0]
+                selected_match_ids = display_df.iloc[selected_idx]['Hidden_ID']
+                
         else:
-            if st.session_state.get('search_done', False): st.info("No matches found.")
+            if st.session_state.get('search_done', False):
+                st.info("No matches found.")
 
-    # --- Tab 2: Sleeping ---
     with tab_sleep:
         sleep_data_lists = {}
         for col_name in required_cols:
@@ -460,121 +582,68 @@ if df is not None:
             for c in c_unique:
                 if str(c).lower() == 'nan': continue
                 locs = np.where(col_data == c)[0]
-                if len(locs) > 0 and locs[0] > 7: lst.append((c, locs[0]))
+                if len(locs) > 0 and locs[0] > 7:
+                    lst.append((c, locs[0]))
             lst.sort(key=lambda x: x[1], reverse=True)
-            sleep_data_lists[col_name] = [f"{item[0]} : {item[1]}" for item in lst]
+            formatted_list = [f"{item[0]} : {item[1]}" for item in lst]
+            sleep_data_lists[col_name] = formatted_list
 
         if any(sleep_data_lists.values()):
-            st.markdown(create_sleeping_html_table(sleep_data_lists, required_cols), unsafe_allow_html=True)
+            html_table = create_sleeping_html_table(sleep_data_lists, required_cols)
+            st.markdown(html_table, unsafe_allow_html=True)
         else:
             st.write("No sleeping cards found.")
 
-    # --- Tab 3: Oldest Pairs (NEW FEATURE) ---
+    # --- TAB 3: PAIRS (+/-) ---
     with tab_pairs:
-        st.markdown("#### Plus / Minus Analysis (Hearts & Spades)")
-        
-        # 1. Config for this tab
-        col_inp, col_legend = st.columns([1, 2])
-        with col_inp:
-            min_draw_age = st.number_input("Minimum Draws Ago", min_value=1, value=7, step=1, key="min_age_input")
-        with col_legend:
-            st.caption("➕ **PLUS**: 8, 10, Q, A  |  ➖ **MINUS**: 7, 9, J, K")
-            st.caption("Analyzes the 'Heart' & 'Spade' pair for each draw.")
-
-        # 2. Process Data
-        if 'Draw' in df.columns and 'Hearts' in df.columns and 'Spades' in df.columns:
-            # Create working copy, sort by Draw
-            pair_df = df[['Draw', 'Date', 'Hearts', 'Spades']].copy()
-            # Ensure sorting
-            try:
-                pair_df['Draw'] = pd.to_numeric(pair_df['Draw'], errors='coerce')
-                pair_df = pair_df.sort_values('Draw', ascending=True).reset_index(drop=True)
-            except:
-                pass # Already sorted hopefully
+        pairs_data = analyze_pairs_data(df)
+        if not pairs_data:
+            st.write("Not enough data to analyze pairs.")
+        else:
+            st.markdown("##### Heart (♥) & Spade (♠) Pair Analysis")
+            st.caption("Plus (+): 8, 10, Q, A | Minus (-): 7, 9, J, K")
             
-            # Map +/-
-            pair_df['H_Sign'] = pair_df['Hearts'].apply(get_pm_sign)
-            pair_df['S_Sign'] = pair_df['Spades'].apply(get_pm_sign)
-            pair_df['Combo'] = pair_df['H_Sign'] + pair_df['S_Sign']
-            
-            # Find Last Seen
-            all_combos = ["++", "--", "+-", "-+"]
-            last_seen_stats = []
-            
-            total_draws = len(pair_df)
-            
-            for combo in all_combos:
-                # Find occurrences
-                locs = pair_df.index[pair_df['Combo'] == combo].tolist()
+            for p in pairs_data:
+                pair_str = p['pair']
+                draws_ago = p['draws_ago']
+                h_card = p['h_card']
+                s_card = p['s_card']
                 
-                if locs:
-                    last_idx = locs[-1]
-                    draws_ago = (total_draws - 1) - last_idx
-                    row_data = pair_df.iloc[last_idx]
-                    
-                    last_seen_stats.append({
-                        'pair': combo,
-                        'age': draws_ago,
-                        'draw_num': row_data['Draw'],
-                        'date': row_data['Date'],
-                        'h_card': row_data['Hearts'],
-                        's_card': row_data['Spades']
-                    })
-                else:
-                    # Never seen (unlikely but handled)
-                    last_seen_stats.append({
-                        'pair': combo, 'age': 9999, 'draw_num': '-', 'date': '-', 'h_card': '-', 's_card': '-'
-                    })
-            
-            # 3. Display Cards
-            st.markdown("<br>", unsafe_allow_html=True)
-            cols = st.columns(4)
-            
-            for i, stat in enumerate(last_seen_stats):
-                is_alert = stat['age'] >= min_draw_age
-                alert_class = "alert" if is_alert else ""
-                alert_color = "#FF4B4B" if is_alert else "#58A6FF"
+                # Badges for visual flair
+                def badge(char):
+                    cls = "badge-plus" if char == "+" else "badge-minus"
+                    return f'<span class="pair-badge {cls}">{char}</span>'
                 
-                # Format Combo Title (e.g. "++")
-                combo_display = stat['pair'].replace("+", "＋").replace("-", "－")
+                h_badge = badge(pair_str[0])
+                s_badge = badge(pair_str[1])
                 
-                html_card = f"""
-                <div class="pair-card {alert_class}">
-                    <div>
-                        <div class="pair-title" style="color: {alert_color};">{combo_display}</div>
-                        <div class="pair-subtitle">HEART{stat['pair'][0]} &nbsp; SPADE{stat['pair'][1]}</div>
+                # Highlight if sleeping (>7 draws)
+                border_cls = "sleeper-alert" if draws_ago >= 7 else ""
+                
+                card_html = f"""
+                <div class="pair-card {border_cls}">
+                    <div class="pair-title">
+                        {h_badge} {s_badge}
                     </div>
-                    <div>
-                        <div class="pair-age">{stat['age']}</div>
-                        <div class="pair-age-label">DRAWS AGO</div>
+                    <div style="flex-grow: 1; padding-left: 20px;">
+                        <div style="font-size:12px; color:#888;">Latest Cards</div>
+                        <div style="font-size:14px; font-weight:bold;">
+                            <span style="color:#FF4B4B">♥ {h_card}</span> / <span style="color:#E1E4E8">♠ {s_card}</span>
+                        </div>
                     </div>
-                    <div class="pair-footer">
-                        Draw #{stat['draw_num']}<br>
-                        {stat['date']}<br>
-                        <span style="color: #C9D1D9;">{stat['h_card']}</span> &nbsp;|&nbsp; <span style="color: #C9D1D9;">{stat['s_card']}</span>
+                    <div class="pair-stat">
+                        <div>Draws Ago</div>
+                        <div class="pair-val">{draws_ago}</div>
                     </div>
                 </div>
                 """
-                with cols[i]:
-                    st.markdown(html_card, unsafe_allow_html=True)
-            
-            # 4. Oldest Highlight
-            st.markdown("<hr style='border-color: #30363D; margin: 25px 0;'>", unsafe_allow_html=True)
-            valid_stats = [s for s in last_seen_stats if s['age'] < 9000]
-            if valid_stats:
-                oldest = max(valid_stats, key=lambda x: x['age'])
-                if oldest['age'] >= min_draw_age:
-                    st.error(f"🔥 **Oldest Pair Alert:** The pair **{oldest['pair']}** hasn't appeared for **{oldest['age']}** draws!")
-                else:
-                    st.success(f"All pairs have appeared recently (within {min_draw_age} draws). Oldest is {oldest['pair']} ({oldest['age']} ago).")
-            
-        else:
-            st.warning("Dataframe missing required columns (Draw, Date, Hearts, Spades) for Pair Analysis.")
+                st.markdown(card_html, unsafe_allow_html=True)
 
     # --- GAME BOARD ---
     st.subheader("Game Board")
     
     cell_styles = {}
+    
     matches_to_show = found_matches
     if selected_match_ids is not None:
         matches_to_show = [m for m in found_matches if m['id'] in selected_match_ids]
