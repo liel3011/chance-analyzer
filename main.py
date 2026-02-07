@@ -1,8 +1,6 @@
 import streamlit as st
 import pandas as pd
 import numpy as np
-import cloudscraper
-from io import StringIO
 
 # --- Page Configuration ---
 st.set_page_config(
@@ -122,13 +120,13 @@ def analyze_full_4suit_pattern(df, cols):
     Finds the sleeping combination across ALL 4 suits.
     """
     if not all(c in df.columns for c in cols):
-        return None
+        return None, 0
         
     # Create signature column: e.g., "++-+"
-    df['sig'] = df[cols[0]].apply(get_card_sign) + \
-                df[cols[1]].apply(get_card_sign) + \
-                df[cols[2]].apply(get_card_sign) + \
-                df[cols[3]].apply(get_card_sign)
+    sig_series = df[cols[0]].apply(get_card_sign) + \
+                 df[cols[1]].apply(get_card_sign) + \
+                 df[cols[2]].apply(get_card_sign) + \
+                 df[cols[3]].apply(get_card_sign)
                 
     # Generate all 16 binaries
     import itertools
@@ -136,7 +134,7 @@ def analyze_full_4suit_pattern(df, cols):
     
     sleeping_stats = []
     for combo in combinations:
-        matches = (df['sig'] == combo)
+        matches = (sig_series == combo)
         if matches.any():
             last_seen = matches.idxmax()
         else:
@@ -209,35 +207,6 @@ def load_data_robust(uploaded_file):
             return df, "ok"
         except:
             return None, "Error loading file"
-
-@st.cache_data(ttl=3600)
-def load_data_from_web():
-    url = "https://www.pais.co.il/chance/archive.aspx"
-    try:
-        scraper = cloudscraper.create_scraper()
-        response = scraper.get(url, timeout=20)
-        response.raise_for_status()
-        dfs = pd.read_html(StringIO(response.text), flavor='html5lib')
-        target_df = None
-        for df in dfs:
-            cols = [str(c) for c in df.columns]
-            if any("הגרלה" in c for c in cols) and len(df) > 1:
-                target_df = df; break
-        if target_df is None: return None, "No tables found"
-        
-        target_df.rename(columns=lambda x: str(x).strip(), inplace=True)
-        hebrew_map = {'תלתן': 'Clubs', 'יהלום': 'Diamonds', 'לב': 'Hearts', 'עלה': 'Spades'}
-        new_cols = {}
-        for col in target_df.columns:
-            for heb, eng in hebrew_map.items():
-                if heb in col: new_cols[col] = eng
-        target_df.rename(columns=new_cols, inplace=True)
-        
-        required = ['Clubs', 'Diamonds', 'Hearts', 'Spades']
-        if not all(c in target_df.columns for c in required): return None, "Missing columns"
-        return target_df, "ok"
-    except Exception as e:
-        return None, str(e)
 
 def parse_shapes_strict(text):
     shapes = []
@@ -402,11 +371,7 @@ df = None
 base_shapes = parse_shapes_strict(FIXED_COMBOS_TXT)
 
 with st.sidebar:
-    st.header("Data Source")
-    if st.button("🔄 Reload Web"):
-        st.cache_data.clear()
-        st.rerun()
-    st.markdown("---")
+    st.header("Upload Data")
     manual_file = st.file_uploader("Upload CSV", type=None)
 
 if manual_file:
@@ -416,12 +381,6 @@ if manual_file:
         hebrew_map = {'תלתן': 'Clubs', 'יהלום': 'Diamonds', 'לב': 'Hearts', 'עלה': 'Spades'}
         df.rename(columns=hebrew_map, inplace=True)
     except: df = None
-
-if df is None:
-    with st.spinner("Fetching data..."):
-        df, msg = load_data_from_web()
-    if df is None:
-        st.warning(f"Web blocked ({msg}). Please upload CSV manually.")
 
 if df is not None:
     required_cols = ['Clubs', 'Diamonds', 'Hearts', 'Spades']
