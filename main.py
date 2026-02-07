@@ -325,11 +325,11 @@ def create_sleeping_html_table(data_dict, required_cols):
 # --- BOARD GENERATOR FUNCTION ---
 def generate_board_html(grid_data, row_limit, cell_styles):
     html = '<div class="grid-container">'
-    # UPDATED ORDER: Spades, Diamonds, Hearts, Clubs
+    # UPDATED ORDER: Spades, Hearts, Diamonds, Clubs
     headers = [
         ('Spades', '♠', '#E1E4E8'),
-        ('Diamonds', '♦', '#FF4B4B'),
         ('Hearts', '♥', '#FF4B4B'),
+        ('Diamonds', '♦', '#FF4B4B'),
         ('Clubs', '♣', '#E1E4E8')
     ]
     for name, icon, color in headers:
@@ -380,8 +380,8 @@ if csv_file:
 df = st.session_state['uploaded_df']
 
 if df is not None:
-    # UPDATED ORDER: Spades, Diamonds, Hearts, Clubs
-    required_cols = ['Spades', 'Diamonds', 'Hearts', 'Clubs']
+    # UPDATED ORDER: Spades, Hearts, Diamonds, Clubs
+    required_cols = ['Spades', 'Hearts', 'Diamonds', 'Clubs']
     df.columns = df.columns.str.strip()
     missing = [c for c in required_cols if c not in df.columns]
     if missing:
@@ -550,8 +550,8 @@ if df is not None:
         # 2. Controls
         all_suits = [c for c in required_cols if c in df.columns]
         sc1, sc2, sc3 = st.columns([1.5, 1.5, 1])
-        with sc1: s_choice1 = st.selectbox("S1", all_suits, index=0, label_visibility="collapsed") # Spade (index 0)
-        with sc2: s_choice2 = st.selectbox("S2", all_suits, index=1, label_visibility="collapsed") # Diamond (index 1)
+        with sc1: s_choice1 = st.selectbox("S1", all_suits, index=0, label_visibility="collapsed") # Spade
+        with sc2: s_choice2 = st.selectbox("S2", all_suits, index=1, label_visibility="collapsed") # Heart
         with sc3: 
             color_board = st.checkbox("🎨 Color", value=False)
         
@@ -616,3 +616,4 @@ if df is not None:
 
 else:
     st.info("👋 Upload a CSV file to start.")
+
