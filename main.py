@@ -228,6 +228,8 @@ def parse_shapes_strict(text):
 
 def generate_variations_strict(shape_idx, base_shape):
     variations = set()
+    if not base_shape: return []
+    
     if shape_idx == 0: variations.add(tuple(sorted(base_shape))) 
     elif shape_idx == 1: variations.add(tuple(sorted(base_shape)))
     elif shape_idx == 2:
@@ -236,26 +238,32 @@ def generate_variations_strict(shape_idx, base_shape):
         mirror = [(r, max_c-c) for r,c in base_shape]
         variations.add(tuple(sorted(mirror)))
     elif shape_idx == 3:
-        # Full Geometrical Engine for the specific Pattern 3
-        # Generates all 8 geometrical symmetries (rotations & reflections)
-        syms = [
-            [(r, c) for r, c in base_shape],
-            [(-r, c) for r, c in base_shape],
-            [(r, -c) for r, c in base_shape],
-            [(-r, -c) for r, c in base_shape],
-            [(c, r) for r, c in base_shape],
-            [(-c, r) for r, c in base_shape],
-            [(c, -r) for r, c in base_shape],
-            [(-c, -r) for r, c in base_shape],
-        ]
-        for s in syms:
-            if not s: continue
-            min_r = min(r for r,c in s)
-            min_c = min(c for r,c in s)
-            norm = tuple(sorted((r - min_r, c - min_c) for r, c in s))
-            # Keep only the variations that fit within the 4-column board
-            if max(c for r,c in norm) < 4:
-                variations.add(norm)
+        # Full Geometrical Engine for Pattern 3 (Diagonal with Skips)
+        # We explicitly inject both scenarios requested by the user:
+        b1 = [(0,0), (1,1), (2,1), (3,3)] # Skip after 2nd card
+        b2 = [(0,0), (2,2), (3,2), (3,3)] # Skip after 1st card
+        
+        for b in [b1, b2]:
+            # Generate 8 symmetries (all rotations & reflections)
+            syms = [
+                [(r, c) for r, c in b],
+                [(-r, c) for r, c in b],
+                [(r, -c) for r, c in b],
+                [(-r, -c) for r, c in b],
+                [(c, r) for r, c in b],
+                [(-c, r) for r, c in b],
+                [(c, -r) for r, c in b],
+                [(-c, -r) for r, c in b],
+            ]
+            for s in syms:
+                if not s: continue
+                min_r = min(r for r,c in s)
+                min_c = min(c for r,c in s)
+                # Normalize coordinates to top-left (0,0)
+                norm = tuple(sorted((r - min_r, c - min_c) for r, c in s))
+                # Only keep patterns that fit within the 4 columns
+                if max(c for r,c in norm) < 4:
+                    variations.add(norm)
     elif shape_idx == 4:
         base = [(0,0), (0,1), (0,3), (1,1)]
         variations.add(tuple(sorted(base)))
@@ -276,6 +284,7 @@ def generate_variations_strict(shape_idx, base_shape):
         variations.add(tuple(flip_v))
         flip_hv = sorted([(max_r - r, w - c) for r, c in base_shape])
         variations.add(tuple(flip_hv))
+    
     return [list(v) for v in variations]
 
 def draw_preview_html(shape_coords):
