@@ -25,9 +25,9 @@ A
   A
    A
 
-A A
+A
  A
-  S
+ A S
    A
 
 A A S A
@@ -54,7 +54,7 @@ PATTERN_NAMES = {
     0: "1. Row (Horizontal)",
     1: "2. Column (Vertical)",
     2: "3. Diagonal",
-    3: "4. ZigZag",
+    3: "4. Custom Shape",
     4: "5. Bridge",
     5: "6. Square (2x2)",
     6: "7. Parallel Gaps",
@@ -228,8 +228,6 @@ def parse_shapes_strict(text):
 
 def generate_variations_strict(shape_idx, base_shape):
     variations = set()
-    if not base_shape: return []
-    
     if shape_idx == 0: variations.add(tuple(sorted(base_shape))) 
     elif shape_idx == 1: variations.add(tuple(sorted(base_shape)))
     elif shape_idx == 2:
@@ -238,18 +236,8 @@ def generate_variations_strict(shape_idx, base_shape):
         mirror = [(r, max_c-c) for r,c in base_shape]
         variations.add(tuple(sorted(mirror)))
     elif shape_idx == 3:
-        # חוקיות קשיחה ומדויקת רק עבור הצורה החדשה (ללא היפוכים שהופכים למעלה-למטה)
-        # b1 = אלכסון עם דילוג אחרי השני, וקלף *מעל* השני
-        b1 = [(0,0), (0,1), (1,1), (3,3)] 
-        # b2 = אלכסון עם דילוג אחרי הראשון, וקלף *מעל* השני
-        b2 = [(0,0), (1,2), (2,2), (3,3)] 
-        
-        for b in [b1, b2]:
-            w = max(c for r,c in b)
-            # רגיל (ימינה למטה)
-            variations.add(tuple(sorted(b))) 
-            # היפוך אופקי בלבד (שמאלה למטה) - כך הקלף נשאר תמיד *מעל* הקלף השני!
-            variations.add(tuple(sorted([(r, w - c) for r, c in b])))
+        # הצורה החדשה המותאמת אישית - חיפוש במבנה הנוקשה שהוגדר בלבד
+        variations.add(tuple(sorted(base_shape)))
     elif shape_idx == 4:
         base = [(0,0), (0,1), (0,3), (1,1)]
         variations.add(tuple(sorted(base)))
@@ -336,11 +324,11 @@ def create_sleeping_html_table(data_dict, required_cols):
 # --- BOARD GENERATOR FUNCTION ---
 def generate_board_html(grid_data, row_limit, cell_styles):
     html = '<div class="grid-container">'
-    # UPDATED ORDER: Spades, Diamonds, Hearts, Clubs
+    # UPDATED ORDER: Spades, Hearts, Diamonds, Clubs
     headers = [
         ('Spades', '♠', '#E1E4E8'),
-        ('Diamonds', '♦', '#FF4B4B'),
         ('Hearts', '♥', '#FF4B4B'),
+        ('Diamonds', '♦', '#FF4B4B'),
         ('Clubs', '♣', '#E1E4E8')
     ]
     for name, icon, color in headers:
@@ -391,8 +379,8 @@ if csv_file:
 df = st.session_state['uploaded_df']
 
 if df is not None:
-    # UPDATED ORDER: Spades, Diamonds, Hearts, Clubs
-    required_cols = ['Spades', 'Diamonds', 'Hearts', 'Clubs']
+    # UPDATED ORDER: Spades, Hearts, Diamonds, Clubs
+    required_cols = ['Spades', 'Hearts', 'Diamonds', 'Clubs']
     df.columns = df.columns.str.strip()
     missing = [c for c in required_cols if c not in df.columns]
     if missing:
@@ -561,8 +549,8 @@ if df is not None:
         # 2. Controls
         all_suits = [c for c in required_cols if c in df.columns]
         sc1, sc2, sc3 = st.columns([1.5, 1.5, 1])
-        with sc1: s_choice1 = st.selectbox("S1", all_suits, index=0, label_visibility="collapsed") # Spade (index 0)
-        with sc2: s_choice2 = st.selectbox("S2", all_suits, index=1, label_visibility="collapsed") # Diamond (index 1)
+        with sc1: s_choice1 = st.selectbox("S1", all_suits, index=0, label_visibility="collapsed") # Spade
+        with sc2: s_choice2 = st.selectbox("S2", all_suits, index=1, label_visibility="collapsed") # Heart
         with sc3: 
             color_board = st.checkbox("🎨 Color", value=False)
         
@@ -627,3 +615,4 @@ if df is not None:
 
 else:
     st.info("👋 Upload a CSV file to start.")
+
