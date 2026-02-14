@@ -235,11 +235,7 @@ def generate_variations_strict(shape_idx, base_shape):
         max_c = max(c for r,c in base_shape)
         mirror = [(r, max_c-c) for r,c in base_shape]
         variations.add(tuple(sorted(mirror)))
-    elif shape_idx == 3:
-        variations.add(tuple(sorted([(0,0), (1,1), (2,2), (1,2)])))
-        variations.add(tuple(sorted([(0,0), (1,1), (2,2), (1,0)])))
-        variations.add(tuple(sorted([(0,2), (1,1), (2,0), (1,2)])))
-        variations.add(tuple(sorted([(0,2), (1,1), (2,0), (1,0)])))
+    # (הורדנו את shape_idx == 3 המקובע כדי שישתמש ב-else החכם ויעשה היפוכים אוטומטיים לצורה החדשה)
     elif shape_idx == 4:
         base = [(0,0), (0,1), (0,3), (1,1)]
         variations.add(tuple(sorted(base)))
@@ -326,11 +322,11 @@ def create_sleeping_html_table(data_dict, required_cols):
 # --- BOARD GENERATOR FUNCTION ---
 def generate_board_html(grid_data, row_limit, cell_styles):
     html = '<div class="grid-container">'
-    # UPDATED ORDER: Spades, Hearts, Diamonds, Clubs
+    # UPDATED ORDER: Spades, Diamonds, Hearts, Clubs
     headers = [
         ('Spades', '♠', '#E1E4E8'),
-        ('Hearts', '♥', '#FF4B4B'),
         ('Diamonds', '♦', '#FF4B4B'),
+        ('Hearts', '♥', '#FF4B4B'),
         ('Clubs', '♣', '#E1E4E8')
     ]
     for name, icon, color in headers:
@@ -381,8 +377,8 @@ if csv_file:
 df = st.session_state['uploaded_df']
 
 if df is not None:
-    # UPDATED ORDER: Spades, Hearts, Diamonds, Clubs
-    required_cols = ['Spades', 'Hearts', 'Diamonds', 'Clubs']
+    # ORDER: Spades, Diamonds, Hearts, Clubs
+    required_cols = ['Spades', 'Diamonds', 'Hearts', 'Clubs']
     df.columns = df.columns.str.strip()
     missing = [c for c in required_cols if c not in df.columns]
     if missing:
@@ -552,7 +548,7 @@ if df is not None:
         all_suits = [c for c in required_cols if c in df.columns]
         sc1, sc2, sc3 = st.columns([1.5, 1.5, 1])
         with sc1: s_choice1 = st.selectbox("S1", all_suits, index=0, label_visibility="collapsed") # Spade
-        with sc2: s_choice2 = st.selectbox("S2", all_suits, index=1, label_visibility="collapsed") # Heart
+        with sc2: s_choice2 = st.selectbox("S2", all_suits, index=2, label_visibility="collapsed") # Heart
         with sc3: 
             color_board = st.checkbox("🎨 Color", value=False)
         
@@ -617,5 +613,3 @@ if df is not None:
 
 else:
     st.info("👋 Upload a CSV file to start.")
-
-
