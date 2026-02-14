@@ -4,7 +4,7 @@ import numpy as np
 
 # --- Page Configuration ---
 st.set_page_config(
-    page_title="Chance Analyzer",
+    page_title="Chance Analyzer Pro",
     layout="wide",
     initial_sidebar_state="collapsed"
 )
@@ -49,7 +49,6 @@ S S S S
 A S S A
 """
 
-# Pattern Names
 PATTERN_NAMES = {
     0: "1. Row (Horizontal)",
     1: "2. Column (Vertical)",
@@ -63,118 +62,129 @@ PATTERN_NAMES = {
 }
 
 # ==========================================
-# Logic for Pairs (+/-)
+# Logic for Pairs & Signs (+/-)
 # ==========================================
 PLUS_SET = {"8", "10", "Q", "A"}
 MINUS_SET = {"7", "9", "J", "K"}
 
 def get_card_sign(card_val):
+    """Returns '+' or '-' for a card."""
     val = str(card_val).strip().upper()
     if val in PLUS_SET: return "+"
     if val in MINUS_SET: return "-"
     return "?"
 
-def analyze_pair_gap(df, col1, col2):
-    s1 = df[col1].apply(get_card_sign)
-    s2 = df[col2].apply(get_card_sign)
-    pairs_series = s1 + s2 
+def analyze_custom_pair(df, suit1, suit2):
+    """
+    Analyzes any two given suits.
+    """
+    results = []
+    # Find Draw Col
+    draw_col = None
+    for c in df.columns:
+        if 'הגרלה' in str(c) or 'Draw' in str(c):
+            draw_col = c
+            break
+            
+    if suit1 not in df.columns or suit2 not in df.columns:
+        return []
+
+    # Calculate signs
+    s1_signs = df[suit1].apply(get_card_sign)
+    s2_signs = df[suit2].apply(get_card_sign)
+    pairs_series = s1_signs + s2_signs # e.g. "++", "-+"
 
     target_pairs = ["++", "--", "+-", "-+"]
-    results = []
-
+    
     for p in target_pairs:
         matches = (pairs_series == p)
         if matches.any():
-            last_idx = matches.idxmax() # 0 is latest
-            results.append({'pair': p, 'ago': last_idx})
-        else:
-            results.append({'pair': p, 'ago': 9999})
+            last_seen_idx = matches.idxmax() # first True index
             
-    results.sort(key=lambda x: x['ago'], reverse=True)
+            draw_num = df.iloc[last_seen_idx][draw_col] if draw_col else f"#{last_seen_idx}"
+            c1_val = df.iloc[last_seen_idx][suit1]
+            c2_val = df.iloc[last_seen_idx][suit2]
+            
+            results.append({
+                "pair": p,
+                "draws_ago": last_seen_idx,
+                "draw_num": draw_num,
+                "c1_val": c1_val,
+                "c2_val": c2_val
+            })
+    
+    results.sort(key=lambda x: x['draws_ago'], reverse=True)
     return results
 
+def analyze_full_4suit_pattern(df, cols):
+    """
+    Finds the sleeping combination across ALL 4 suits.
+    """
+    if not all(c in df.columns for c in cols):
+        return None, 0
+        
+    # Create signature column: e.g., "++-+"
+    sig_series = df[cols[0]].apply(get_card_sign) + \
+                 df[cols[1]].apply(get_card_sign) + \
+                 df[cols[2]].apply(get_card_sign) + \
+                 df[cols[3]].apply(get_card_sign)
+                
+    # Generate all 16 binaries
+    import itertools
+    combinations = ["".join(p) for p in itertools.product(["+", "-"], repeat=4)]
+    
+    sleeping_stats = []
+    for combo in combinations:
+        matches = (sig_series == combo)
+        if matches.any():
+            last_seen = matches.idxmax()
+        else:
+            last_seen = len(df) # Never seen (or very old)
+            
+        sleeping_stats.append((combo, last_seen))
+        
+    # Sort by oldest
+    sleeping_stats.sort(key=lambda x: x[1], reverse=True)
+    return sleeping_stats[0] # Return tuple (combo, draws_ago)
+
 # ==========================================
-# CSS Styling
-# ==========================================
+
+# --- CSS Styling ---
 st.markdown("""
 <style>
-    /* Global Settings */
     .stApp { direction: ltr; text-align: left; background-color: #0E1117; color: #FAFAFA; }
+    .block-container { padding-top: 1.5rem !important; padding-bottom: 1rem !important; }
+    h1 { margin-bottom: -0.5rem !important; }
     
-    .block-container { padding-top: 1rem !important; padding-bottom: 2rem !important; }
-    
-    /* Clean Inputs */
-    .stSelectbox, .stMultiSelect, div[data-testid="stExpander"] { direction: ltr; text-align: left; }
     div.stButton > button { width: 100%; border-radius: 8px; height: 2.8rem; font-weight: 600; }
     
-    /* Grid Layouts */
-    .grid-container { 
-        display: grid; grid-template-columns: repeat(4, 1fr); gap: 4px; 
-        background-color: #161B22; padding: 8px; border-radius: 12px; margin-top: 10px; border: 1px solid #30363D;
-    }
-    .grid-cell { 
-        background-color: #21262D; color: #C9D1D9; padding: 0; text-align: center; border-radius: 6px; 
-        height: 40px; display: flex; align-items: center; justify-content: center; font-weight: 500; position: relative;
-        border: 1px solid #30363D;
-    }
-    
-    /* Colors for +/- Mode */
-    .cell-plus { color: #3FB950 !important; font-weight: 900 !important; } 
-    .cell-minus { color: #F85149 !important; font-weight: 900 !important; } 
-    
-    .missing-circle { 
-        background-color: #F0F6FC; color: #0D1117; font-weight: 800; border-radius: 6px; 
-        width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; 
-    }
+    /* Grid & Tables */
+    .grid-container { display: grid; grid-template-columns: repeat(4, 1fr); gap: 4px; background-color: #161B22; padding: 8px; border-radius: 12px; margin-top: 10px; border: 1px solid #30363D; }
+    .grid-cell { background-color: #21262D; color: #C9D1D9; padding: 0; text-align: center; border-radius: 6px; position: relative; border: 1px solid #30363D; height: 40px; display: flex; align-items: center; justify-content: center; font-weight: 500; font-family: 'Segoe UI', sans-serif; }
+    .missing-circle { background-color: #F0F6FC; color: #0D1117; font-weight: 800; border-radius: 6px; width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; box-shadow: inset 0 0 8px rgba(0,0,0,0.2); }
     .frame-box { position: absolute; top: 0; left: 0; right: 0; bottom: 0; border-style: solid; border-color: transparent; pointer-events: none; border-radius: 6px; }
-    
-    /* Headers & Icons */
     .grid-header { text-align: center; padding-bottom: 6px; display: flex; flex-direction: column; align-items: center; justify-content: center; }
     .suit-icon { font-size: 22px; line-height: 1; margin-bottom: 2px; }
-    
-    /* Preview */
+    .suit-name { font-size: 10px; color: #8B949E; font-weight: bold; text-transform: uppercase; }
     .shape-preview-wrapper { background-color: #0D1117; border: 1px solid #30363D; border-radius: 8px; padding: 10px; display: flex; justify-content: center; align-items: center; height: 100%; }
     
-    /* Tables */
+    /* Plus/Minus Styling */
+    .pm-plus { color: #238636; font-weight: 900; font-size: 18px; } /* Green */
+    .pm-minus { color: #DA3633; font-weight: 900; font-size: 18px; } /* Red */
+    .pm-cell { text-align: center; border-bottom: 1px solid #30363D; padding: 8px; }
+    
+    /* Pair Card */
+    .pair-card { background-color: #161B22; border: 1px solid #30363D; border-radius: 10px; padding: 15px; margin-bottom: 10px; display: flex; justify-content: space-between; align-items: center; }
+    .pair-title { font-size: 18px; font-weight: bold; color: #E6EDF3; display: flex; align-items: center; gap: 10px; }
+    .pair-badge { padding: 2px 8px; border-radius: 4px; font-size: 14px; font-weight: bold; }
+    .badge-plus { background-color: #238636; color: white; }
+    .badge-minus { background-color: #DA3633; color: white; }
+    .pair-stat { text-align: right; font-size: 13px; color: #8B949E; }
+    .pair-val { font-size: 20px; font-weight: bold; color: #58A6FF; }
+    .sleeper-alert { border: 1px solid #D29922; }
+    
     [data-testid="stDataFrame"] th { text-align: left !important; }
     [data-testid="stDataFrame"] td { text-align: left !important; }
-    
-    /* --- COMPACT LEGEND STYLING --- */
-    .legend-container {
-        display: flex; gap: 8px; margin-bottom: 10px; justify-content: center;
-    }
-    .legend-box {
-        background: #161B22; border: 1px solid #30363D; border-radius: 8px; padding: 6px 15px;
-        text-align: center; flex: 1;
-    }
-    .legend-title { font-weight: 900; font-size: 14px; margin-bottom: 2px; display: flex; align-items: center; justify-content: center; gap: 6px; }
-    .legend-cards { font-size: 11px; color: #8B949E; letter-spacing: 0.5px; }
-    
-    .txt-plus { color: #3FB950; }
-    .txt-minus { color: #F85149; }
-    .dot-plus { width: 8px; height: 8px; background: #3FB950; border-radius: 50%; display: inline-block; }
-    .dot-minus { width: 8px; height: 8px; background: #F85149; border-radius: 50%; display: inline-block; }
-
-    /* --- COMPACT RESULT CARD STYLING --- */
-    .result-card {
-        background: linear-gradient(135deg, #1F2428 0%, #161B22 100%);
-        border: 1px solid #30363D; border-radius: 12px; padding: 12px; text-align: center; margin-top: 5px;
-    }
-    .result-split {
-        display: flex; justify-content: space-around; align-items: center; margin-bottom: 8px;
-        border-bottom: 1px solid #30363D; padding-bottom: 8px;
-    }
-    .result-part { text-align: center; }
-    .res-suit { font-size: 11px; color: #8B949E; text-transform: uppercase; font-weight: bold; margin-bottom: 0px;}
-    .res-val { font-size: 16px; font-weight: 900; } 
-    
-    .main-stat { font-size: 30px; font-weight: 900; color: #58A6FF; line-height: 1; margin: 2px 0; }
-    .sub-stat { font-size: 10px; color: #8B949E; text-transform: uppercase; letter-spacing: 0.5px; }
-
-    /* Compact Selectors */
-    div[data-testid="stVerticalBlock"] > div { gap: 0.2rem; }
-    div[data-testid="stHorizontalBlock"] { align-items: center; }
-
 </style>
 """, unsafe_allow_html=True)
 
@@ -208,12 +218,10 @@ def parse_shapes_strict(text):
         lines = [l for l in block.split('\n')]
         coords = []
         for r, line in enumerate(lines):
-            c_idx = 0
-            i = 0
+            c_idx = 0; i = 0
             while i < len(line):
                 char = line[i]
-                if char == 'A':
-                    coords.append((r, c_idx)); c_idx += 1
+                if char == 'A': coords.append((r, c_idx)); c_idx += 1
                 elif char == 'S': c_idx += 1 
                 elif char == ' ':
                     prev = line[i-1] if i > 0 else None
@@ -228,36 +236,18 @@ def parse_shapes_strict(text):
 
 def generate_variations_strict(shape_idx, base_shape):
     variations = set()
-    if shape_idx == 0: variations.add(tuple(sorted(base_shape))) 
-    elif shape_idx == 1: variations.add(tuple(sorted(base_shape)))
+    if shape_idx in [0, 1]: 
+        variations.add(tuple(sorted(base_shape))) 
     elif shape_idx == 2:
         variations.add(tuple(sorted(base_shape))) 
         max_c = max(c for r,c in base_shape)
         mirror = [(r, max_c-c) for r,c in base_shape]
         variations.add(tuple(sorted(mirror)))
     elif shape_idx == 3:
-        # חושב את כל 8 הכיוונים האפשריים (כולל היפוכים לכל צד)
-        w = max(c for r,c in base_shape)
-        h = max(r for r,c in base_shape)
-        syms = [
-            base_shape,
-            [(r, w - c) for r, c in base_shape],
-            [(h - r, c) for r, c in base_shape],
-            [(h - r, w - c) for r, c in base_shape]
-        ]
-        # Transpose (Swap rows and columns) for exact 90-degree rotations behavior
-        transpose = [(c, r) for r, c in base_shape]
-        t_w = h
-        t_h = w
-        syms.extend([
-            transpose,
-            [(r, t_w - c) for r, c in transpose],
-            [(t_h - r, c) for r, c in transpose],
-            [(t_h - r, t_w - c) for r, c in transpose]
-        ])
-        for s in syms:
-            variations.add(tuple(sorted(s)))
-            
+        # אופקי בלבד: הצורה המקורית + מראה אופקית (ימינה-שמאלה) ללא סיבובים
+        variations.add(tuple(sorted(base_shape)))
+        max_c = max(c for r,c in base_shape)
+        variations.add(tuple(sorted([(r, max_c - c) for r, c in base_shape])))
     elif shape_idx == 4:
         base = [(0,0), (0,1), (0,3), (1,1)]
         variations.add(tuple(sorted(base)))
@@ -295,7 +285,6 @@ def draw_preview_html(shape_coords):
     grid_html += '</div>'
     return f'<div class="shape-preview-wrapper">{grid_html}</div>'
 
-# --- Custom HTML Table Generator ---
 def create_sleeping_html_table(data_dict, required_cols):
     meta = {
         'Clubs': {'icon': '♣', 'color': '#E1E4E8'},
@@ -303,32 +292,23 @@ def create_sleeping_html_table(data_dict, required_cols):
         'Hearts': {'icon': '♥', 'color': '#FF4B4B'},
         'Spades': {'icon': '♠', 'color': '#E1E4E8'}
     }
-    
     max_rows = 0
     clean_data = {}
     for col in required_cols:
         clean_data[col] = data_dict.get(col, [])
-        if len(clean_data[col]) > max_rows:
-            max_rows = len(clean_data[col])
+        if len(clean_data[col]) > max_rows: max_rows = len(clean_data[col])
             
     parts = []
     parts.append('<div style="overflow-x: auto; border: 1px solid #30363D; border-radius: 6px;">')
     parts.append('<table style="width: 100%; border-collapse: collapse; font-family: sans-serif; font-size: 14px;">')
-    parts.append('<thead>')
-    parts.append('<tr style="background-color: #161B22; border-bottom: 1px solid #30363D;">')
+    parts.append('<thead><tr style="background-color: #161B22; border-bottom: 1px solid #30363D;">')
     
     for col in required_cols:
         c_meta = meta.get(col, {'icon': '', 'color': '#fff'})
-        header_content = f"""
-        <div style="display: flex; flex-direction: column; align-items: center; justify-content: center;">
-            <div style="font-size: 24px; line-height: 1; margin-bottom: 2px;">{c_meta['icon']}</div>
-            <div style="font-size: 11px; text-transform: uppercase;">{col}</div>
-        </div>
-        """
-        parts.append(f'<th style="padding: 10px; text-align: center; color: {c_meta["color"]}; font-weight: bold; border-right: 1px solid #30363D; width: 25%; vertical-align: middle;">{header_content}</th>')
+        header_content = f"""<div style="display: flex; flex-direction: column; align-items: center;"><div style="font-size: 24px; line-height: 1;">{c_meta['icon']}</div><div style="font-size: 11px; text-transform: uppercase;">{col}</div></div>"""
+        parts.append(f'<th style="padding: 10px; text-align: center; color: {c_meta["color"]}; font-weight: bold; border-right: 1px solid #30363D;">{header_content}</th>')
     
     parts.append('</tr></thead><tbody>')
-    
     for i in range(max_rows):
         bg_color = "#0D1117" if i % 2 == 0 else "#161B22"
         parts.append(f'<tr style="background-color: {bg_color};">')
@@ -337,75 +317,82 @@ def create_sleeping_html_table(data_dict, required_cols):
             text_color = meta[col]['color'] if val != "" else "transparent"
             parts.append(f'<td style="padding: 8px; text-align: center; border-right: 1px solid #30363D; color: {text_color};">{val}</td>')
         parts.append("</tr>")
+    parts.append("</tbody></table></div>")
+    return "".join(parts)
+
+# --- Full Matrix Generator ---
+def create_plus_minus_matrix(df, required_cols):
+    # Take last 20 rows
+    rows_to_show = 20
+    mini_df = df.head(rows_to_show).copy()
+    
+    parts = []
+    parts.append('<div style="overflow-x: auto; border: 1px solid #30363D; border-radius: 6px;">')
+    parts.append('<table style="width: 100%; border-collapse: collapse; font-family: sans-serif; font-size: 14px;">')
+    
+    # Header
+    parts.append('<thead><tr style="background-color: #161B22; border-bottom: 1px solid #30363D;">')
+    parts.append('<th style="padding: 10px; text-align: center; color: #8B949E;">#</th>') # Draw Num
+    
+    meta = {
+        'Clubs': {'icon': '♣', 'color': '#E1E4E8'},
+        'Diamonds': {'icon': '♦', 'color': '#FF4B4B'},
+        'Hearts': {'icon': '♥', 'color': '#FF4B4B'},
+        'Spades': {'icon': '♠', 'color': '#E1E4E8'}
+    }
+    
+    for col in required_cols:
+        c_meta = meta.get(col, {'icon': '', 'color': '#fff'})
+        parts.append(f'<th style="padding: 10px; text-align: center; color: {c_meta["color"]}; font-size: 18px;">{c_meta["icon"]}</th>')
+    parts.append('</tr></thead><tbody>')
+    
+    for idx, row in mini_df.iterrows():
+        bg_color = "#0D1117" if idx % 2 == 0 else "#161B22"
+        parts.append(f'<tr style="background-color: {bg_color};">')
+        # Index column
+        parts.append(f'<td style="padding: 8px; text-align: center; color: #8B949E; font-size: 12px;">{idx}</td>')
+        
+        for col in required_cols:
+            val = row[col]
+            sign = get_card_sign(val)
+            sign_html = ""
+            if sign == "+":
+                sign_html = '<span class="pm-plus">+</span>'
+            elif sign == "-":
+                sign_html = '<span class="pm-minus">-</span>'
+            else:
+                sign_html = '<span style="color:#555;">?</span>'
+            
+            parts.append(f'<td class="pm-cell">{sign_html}</td>')
+        parts.append('</tr>')
         
     parts.append("</tbody></table></div>")
     return "".join(parts)
 
-# --- BOARD GENERATOR FUNCTION ---
-def generate_board_html(grid_data, row_limit, cell_styles):
-    html = '<div class="grid-container">'
-    # UPDATED ORDER: Spades, Hearts, Diamonds, Clubs
-    headers = [
-        ('Spades', '♠', '#E1E4E8'),
-        ('Hearts', '♥', '#FF4B4B'),
-        ('Diamonds', '♦', '#FF4B4B'),
-        ('Clubs', '♣', '#E1E4E8')
-    ]
-    for name, icon, color in headers:
-        html += f'<div class="grid-header"><div class="suit-icon" style="color:{color};">{icon}</div><div class="suit-name">{name}</div></div>'
-    
-    for r in range(min(len(grid_data), row_limit)):
-        for c in range(4):
-            val = str(grid_data[r, c]); 
-            if val == 'nan': val = ''
-            
-            style_extra = cell_styles.get((r, c), "")
-            inner = val
-            
-            if "MISSING_MARKER" in style_extra:
-                inner = f'<div class="missing-circle">{val}</div>'
-                style_extra = style_extra.replace("MISSING_MARKER", "")
-            
-            if style_extra.strip().startswith("cell-"):
-                 html += f'<div class="grid-cell {style_extra}">{inner}</div>'
-            else:
-                 html += f'<div class="grid-cell">{inner}{style_extra}</div>'
-                 
-    html += '</div>'
-    return html
-
-# --- Main Interface ---
+# --- Main App ---
 
 st.title("Chance Analyzer")
 
-# Sidebar
-with st.sidebar:
-    st.header("Upload Data")
-    csv_file = st.file_uploader("Choose a CSV file", type=None)
-
-# --- SESSION STATE & FILE HANDLING ---
-if 'uploaded_df' not in st.session_state:
-    st.session_state['uploaded_df'] = None
-
+# --- Load Logic ---
+df = None
 base_shapes = parse_shapes_strict(FIXED_COMBOS_TXT)
 
-if csv_file:
-    temp_df, msg = load_data_robust(csv_file)
-    if temp_df is not None:
-        st.session_state['uploaded_df'] = temp_df
-    elif msg != "ok":
-        st.error(f"Error: {msg}")
+with st.sidebar:
+    st.header("Upload Data")
+    manual_file = st.file_uploader("Upload CSV", type=None)
 
-df = st.session_state['uploaded_df']
+if manual_file:
+    try:
+        manual_file.seek(0)
+        df = pd.read_csv(manual_file)
+        hebrew_map = {'תלתן': 'Clubs', 'יהלום': 'Diamonds', 'לב': 'Hearts', 'עלה': 'Spades'}
+        df.rename(columns=hebrew_map, inplace=True)
+    except: df = None
 
 if df is not None:
-    # UPDATED ORDER: Spades, Hearts, Diamonds, Clubs
-    required_cols = ['Spades', 'Hearts', 'Diamonds', 'Clubs']
-    df.columns = df.columns.str.strip()
-    missing = [c for c in required_cols if c not in df.columns]
-    if missing:
-        st.error(f"Missing columns: {missing}")
-        st.stop()
+    required_cols = ['Clubs', 'Diamonds', 'Hearts', 'Spades']
+    if not all(c in df.columns for c in required_cols):
+        st.error("Missing columns."); st.stop()
 
     grid_data = df[required_cols].values
     ROW_LIMIT = 51
@@ -415,42 +402,38 @@ if df is not None:
         col_conf, col_prev = st.columns([4, 1])
         with col_conf:
             def format_pattern(idx): return PATTERN_NAMES.get(idx, f"Pattern {idx+1}")
-            shape_idx = st.selectbox("Search Pattern", range(len(base_shapes)), format_func=format_pattern, label_visibility="collapsed")
+            shape_idx = st.selectbox("Pattern", range(len(base_shapes)), format_func=format_pattern)
         with col_prev:
             st.markdown(draw_preview_html(base_shapes[shape_idx]), unsafe_allow_html=True)
         
-        st.markdown("<div style='height: 18px;'></div>", unsafe_allow_html=True)
+        st.markdown("<div style='height: 10px;'></div>", unsafe_allow_html=True)
         
         raw_cards = np.unique(grid_data.astype(str))
         clean_cards = sorted([c for c in raw_cards if str(c).lower() != 'nan' and str(c).strip() != ''])
         
         c1, c2, c3 = st.columns(3)
-        with c1: card1 = st.selectbox("C1", [""] + clean_cards, key="c1", label_visibility="collapsed")
-        with c2: card2 = st.selectbox("C2", [""] + clean_cards, key="c2", label_visibility="collapsed")
-        with c3: card3 = st.selectbox("C3", [""] + clean_cards, key="c3", label_visibility="collapsed")
+        with c1: card1 = st.selectbox("C1", [""] + clean_cards)
+        with c2: card2 = st.selectbox("C2", [""] + clean_cards)
+        with c3: card3 = st.selectbox("C3", [""] + clean_cards)
         
         selected_cards = [c for c in [card1, card2, card3] if c != ""]
         
-        st.markdown("<div style='margin-bottom: 10px;'></div>", unsafe_allow_html=True)
-
-        b_search, b_reset = st.columns([3, 1])
-        with b_search: run_search = st.button("Search", type="primary")
-        with b_reset: reset_btn = st.button("Reset")
+        st.markdown("<div style='height: 10px;'></div>", unsafe_allow_html=True)
+        b1, b2 = st.columns([3, 1])
+        with b1: run_search = st.button("Search", type="primary")
+        with b2: reset_btn = st.button("Reset")
         
         if reset_btn:
             st.session_state['search_done'] = False
-            st.session_state['selected_match'] = None
             st.rerun()
 
-    # --- Search Logic ---
+    # --- Calculations ---
     found_matches = []
     if (run_search or st.session_state.get('search_done', False)) and len(selected_cards) == 3:
         st.session_state['search_done'] = True
-        
         variations = generate_variations_strict(shape_idx, base_shapes[shape_idx])
         rows = min(len(grid_data), ROW_LIMIT)
         colors = ['#FF7B72', '#D2A8FF', '#79C0FF', '#7EE787', '#FFA657']
-        
         raw_matches = []
         for shape in variations:
             sh_h = max(r for r,c in shape)+1; sh_w = max(c for r,c in shape)+1
@@ -470,63 +453,34 @@ if df is not None:
                     if matched == 3:
                         miss_i = [i for i in range(4) if i not in used][0]
                         m_data = {'coords': tuple(sorted(coords)), 'miss_coords': coords[miss_i], 'miss_val': vals[miss_i], 'full_coords_list': coords}
-                        if not any(x['coords'] == m_data['coords'] for x in raw_matches):
-                            raw_matches.append(m_data)
-        
+                        if not any(x['coords'] == m_data['coords'] for x in raw_matches): raw_matches.append(m_data)
         raw_matches.sort(key=lambda x: x['miss_coords'][0])
         for i, m in enumerate(raw_matches):
             m['id'] = i + 1; m['color'] = colors[i % len(colors)]
             found_matches.append(m)
 
     # --- TABS ---
-    tab_matches, tab_sleep, tab_pairs = st.tabs(["📋 MATCHES", "💤 SLEEPING", "⚖️ PAIRS"])
+    tab_matches, tab_sleep, tab_plus_minus = st.tabs(["📋 MATCHES", "💤 SLEEPING", "➕➖ ANALYSIS"])
     
     selected_match_ids = None 
     
-    # ------------------ TAB 1: MATCHES ------------------
     with tab_matches:
         if found_matches:
-            raw_df = pd.DataFrame([
-                {'Missing Card': m['miss_val'], 'Row': m['miss_coords'][0], 'Hidden_ID': m['id']} 
-                for m in found_matches
-            ])
-            
-            grouped_df = raw_df.groupby('Missing Card').agg({'Row': lambda x: sorted(list(x)), 'Hidden_ID': list}).reset_index()
+            raw_df = pd.DataFrame([{'Missing': m['miss_val'], 'Row': m['miss_coords'][0], 'Hidden_ID': m['id']} for m in found_matches])
+            grouped_df = raw_df.groupby('Missing').agg({'Row': lambda x: sorted(list(x)), 'Hidden_ID': list}).reset_index()
             grouped_df['Count'] = grouped_df['Hidden_ID'].apply(len)
             grouped_df = grouped_df.sort_values(by='Count', ascending=False)
             grouped_df['Count'] = grouped_df['Count'].astype(str)
-            grouped_df['Row Indexes'] = grouped_df['Row'].apply(lambda x: ", ".join(map(str, x)))
+            grouped_df['Indexes'] = grouped_df['Row'].apply(lambda x: ", ".join(map(str, x)))
+            display_df = grouped_df[['Missing', 'Count', 'Indexes', 'Hidden_ID']]
             
-            display_df = grouped_df[['Missing Card', 'Count', 'Row Indexes', 'Hidden_ID']]
-            num_rows = len(display_df); calc_height = (num_rows + 1) * 35 + 3
-            
+            calc_height = (len(display_df) + 1) * 35 + 3
             event = st.dataframe(display_df.drop(columns=['Hidden_ID']), hide_index=True, use_container_width=True, selection_mode="single-row", on_select="rerun", height=calc_height)
             if len(event.selection['rows']) > 0:
                 selected_match_ids = display_df.iloc[event.selection['rows'][0]]['Hidden_ID']
         else:
             if st.session_state.get('search_done', False): st.info("No matches found.")
-            
-        # Board (Matches Style)
-        st.subheader("Game Board")
-        cell_styles = {}
-        matches_to_show = found_matches
-        if selected_match_ids is not None:
-            matches_to_show = [m for m in found_matches if m['id'] in selected_match_ids]
 
-        for m in matches_to_show:
-            col = m['color']
-            for coord in m['full_coords_list']:
-                if coord != m['miss_coords']:
-                    if coord not in cell_styles: cell_styles[coord] = ""
-                    count = cell_styles[coord].count("frame-box"); inset = count * 3
-                    cell_styles[coord] += f'<div class="frame-box" style="border-width: 2px; border-color: {col}; top: {inset}px; left: {inset}px; right: {inset}px; bottom: {inset}px;"></div>'
-            miss = m['miss_coords']
-            if miss not in cell_styles: cell_styles[miss] = ""
-            if "MISSING_MARKER" not in cell_styles[miss]: cell_styles[miss] += "MISSING_MARKER"
-            
-        st.markdown(generate_board_html(grid_data, ROW_LIMIT, cell_styles), unsafe_allow_html=True)
-
-    # ------------------ TAB 2: SLEEPING ------------------
     with tab_sleep:
         sleep_data_lists = {}
         for col_name in required_cols:
@@ -540,98 +494,116 @@ if df is not None:
                 if len(locs) > 0 and locs[0] > 7: lst.append((c, locs[0]))
             lst.sort(key=lambda x: x[1], reverse=True)
             sleep_data_lists[col_name] = [f"{item[0]} : {item[1]}" for item in lst]
-
+        
         if any(sleep_data_lists.values()):
             st.markdown(create_sleeping_html_table(sleep_data_lists, required_cols), unsafe_allow_html=True)
-        else:
-            st.write("No sleeping cards found.")
-            
-        # Board (Clean)
-        st.subheader("Game Board")
-        st.markdown(generate_board_html(grid_data, ROW_LIMIT, {}), unsafe_allow_html=True)
+        else: st.write("No sleeping cards found.")
 
-    # ------------------ TAB 3: PAIRS (+/-) ------------------
-    with tab_pairs:
-        # 1. Legend
-        st.markdown("""
-        <div class="legend-container">
-            <div class="legend-box">
-                <div class="legend-title txt-plus">PLUS</div>
-                <div class="legend-cards">8, 10, Q, A</div>
-            </div>
-            <div class="legend-box">
-                <div class="legend-title txt-minus">MINUS</div>
-                <div class="legend-cards">7, 9, J, K</div>
+    # --- TAB 3: PLUS / MINUS ANALYSIS ---
+    with tab_plus_minus:
+        # 1. Custom Pair Selector
+        st.markdown("##### 🔍 Custom Pair Analysis")
+        c_sel1, c_sel2 = st.columns(2)
+        with c_sel1:
+            suit1 = st.selectbox("Suit 1", required_cols, index=2) # Default Heart
+        with c_sel2:
+            suit2 = st.selectbox("Suit 2", required_cols, index=3) # Default Spade
+            
+        pairs_data = analyze_custom_pair(df, suit1, suit2)
+        
+        if pairs_data:
+            # Display Cards for pairs
+            for p in pairs_data:
+                pair_str = p['pair']
+                draws_ago = p['draws_ago']
+                
+                # HTML Badge Logic
+                def badge(char):
+                    cls = "badge-plus" if char == "+" else "badge-minus"
+                    return f'<span class="pair-badge {cls}">{char}</span>'
+                
+                border_cls = "sleeper-alert" if draws_ago >= 7 else ""
+                
+                card_html = f"""
+                <div class="pair-card {border_cls}">
+                    <div class="pair-title">{badge(pair_str[0])} {badge(pair_str[1])}</div>
+                    <div style="flex-grow:1; padding-left:20px; font-size:14px; font-weight:bold;">
+                        {p['c1_val']} / {p['c2_val']}
+                    </div>
+                    <div class="pair-stat">
+                        <div>Draws Ago</div>
+                        <div class="pair-val">{draws_ago}</div>
+                    </div>
+                </div>
+                """
+                st.markdown(card_html, unsafe_allow_html=True)
+        
+        st.divider()
+        
+        # 2. Global 4-Suit Sleeper
+        st.markdown("##### 😴 Deepest Sleeper (All 4 Suits)")
+        sleeper_combo, sleeper_draws = analyze_full_4suit_pattern(df, required_cols)
+        
+        # Format the combo string (e.g. "+-+-") into badges
+        combo_html = ""
+        suits_icons = ['♣','♦','♥','♠']
+        for i, char in enumerate(sleeper_combo):
+            cls = "badge-plus" if char == "+" else "badge-minus"
+            combo_html += f'<span style="margin-right:5px; font-size:16px;">{suits_icons[i]}</span><span class="pair-badge {cls}" style="margin-right:15px;">{char}</span>'
+            
+        st.markdown(f"""
+        <div style="background:#21262D; padding:10px; border-radius:8px; border:1px solid #30363D; display:flex; justify-content:space-between; align-items:center;">
+            <div>{combo_html}</div>
+            <div style="text-align:right;">
+                <div style="font-size:12px; color:#888;">Not seen for</div>
+                <div style="font-size:24px; font-weight:bold; color:#D29922;">{sleeper_draws} <span style="font-size:14px;">draws</span></div>
             </div>
         </div>
         """, unsafe_allow_html=True)
         
-        # 2. Controls
-        all_suits = [c for c in required_cols if c in df.columns]
-        sc1, sc2, sc3 = st.columns([1.5, 1.5, 1])
-        with sc1: s_choice1 = st.selectbox("S1", all_suits, index=0, label_visibility="collapsed") # Spade
-        with sc2: s_choice2 = st.selectbox("S2", all_suits, index=1, label_visibility="collapsed") # Heart
-        with sc3: 
-            color_board = st.checkbox("🎨 Color", value=False)
-        
-        # 3. Calculation & Display
-        if s_choice1 == s_choice2:
-            st.warning("Select different suits")
-        else:
-            res = analyze_pair_gap(df, s_choice1, s_choice2)
-            best_sleeper = res[0] # The one with biggest gap
-            pair_code = best_sleeper['pair'] # e.g. "+-"
-            
-            # Determine specific sign for each suit based on the pair code
-            s1_sign = "PLUS" if pair_code[0] == "+" else "MINUS"
-            s1_cls = "txt-plus" if pair_code[0] == "+" else "txt-minus"
-            
-            s2_sign = "PLUS" if pair_code[1] == "+" else "MINUS"
-            s2_cls = "txt-plus" if pair_code[1] == "+" else "txt-minus"
-            
-            # Icons
-            s_icons = {'Clubs': '♣', 'Diamonds': '♦', 'Hearts': '♥', 'Spades': '♠'}
-            ic1 = s_icons.get(s_choice1, "")
-            ic2 = s_icons.get(s_choice2, "")
+        st.divider()
 
-            # Result Card HTML
-            st.markdown(f"""
-            <div class="result-card">
-                <div class="result-split">
-                    <div class="result-part">
-                        <div class="res-suit">{ic1} {s_choice1}</div>
-                        <div class="res-val {s1_cls}">{s1_sign}</div>
-                    </div>
-                    <div class="result-part">
-                        <div class="res-suit">{ic2} {s_choice2}</div>
-                        <div class="res-val {s2_cls}">{s2_sign}</div>
-                    </div>
-                </div>
-                <div class="sub-stat">HAS NOT APPEARED FOR</div>
-                <div class="main-stat">{best_sleeper['ago']}</div>
-                <div class="sub-stat">DRAWS</div>
-            </div>
-            """, unsafe_allow_html=True)
-            
-            # Mini details for other combos
-            st.markdown("<br>", unsafe_allow_html=True)
-            mc1, mc2, mc3 = st.columns(3)
-            for i, other in enumerate(res[1:]):
-                with [mc1, mc2, mc3][i]:
-                    st.caption(f"{other['pair']} : {other['ago']} ago")
-                    
-        # Board (Color Style if checked)
-        st.subheader("Game Board")
-        cell_styles = {}
-        if color_board:
-            for r in range(min(len(grid_data), ROW_LIMIT)):
-                for c in range(4):
-                    val = str(grid_data[r, c])
-                    sign = get_card_sign(val)
-                    if sign == "+": cell_styles[(r, c)] = " cell-plus"
-                    elif sign == "-": cell_styles[(r, c)] = " cell-minus"
+        # 3. Full Matrix
+        st.markdown("##### 📊 Last 20 Draws Matrix")
+        st.markdown(create_plus_minus_matrix(df, required_cols), unsafe_allow_html=True)
+
+    # --- GAME BOARD ---
+    st.subheader("Game Board")
+    cell_styles = {}
+    matches_to_show = found_matches
+    if selected_match_ids is not None:
+        matches_to_show = [m for m in found_matches if m['id'] in selected_match_ids]
+
+    for m in matches_to_show:
+        col = m['color']
+        for coord in m['full_coords_list']:
+            if coord != m['miss_coords']:
+                if coord not in cell_styles: cell_styles[coord] = ""
+                count = cell_styles[coord].count("frame-box"); inset = count * 3
+                cell_styles[coord] += f'<div class="frame-box" style="border-width: 2px; border-color: {col}; top: {inset}px; left: {inset}px; right: {inset}px; bottom: {inset}px;"></div>'
         
-        st.markdown(generate_board_html(grid_data, ROW_LIMIT, cell_styles), unsafe_allow_html=True)
+        miss = m['miss_coords']
+        if miss not in cell_styles: cell_styles[miss] = ""
+        if "MISSING_MARKER" not in cell_styles[miss]:
+             cell_styles[miss] += "MISSING_MARKER"
+
+    html = '<div class="grid-container">'
+    headers = [('Clubs', '♣', '#E1E4E8'), ('Diamonds', '♦', '#FF4B4B'), ('Hearts', '♥', '#FF4B4B'), ('Spades', '♠', '#E1E4E8')]
+    for name, icon, color in headers:
+        html += f'<div class="grid-header"><div class="suit-icon" style="color:{color};">{icon}</div><div class="suit-name">{name}</div></div>'
+    
+    for r in range(min(len(grid_data), ROW_LIMIT)):
+        for c in range(4):
+            val = str(grid_data[r, c]); 
+            if val == 'nan': val = ''
+            content = cell_styles.get((r, c), "")
+            inner = val
+            if "MISSING_MARKER" in content:
+                inner = f'<div class="missing-circle">{val}</div>'
+                content = content.replace("MISSING_MARKER", "")
+            html += f'<div class="grid-cell">{inner}{content}</div>'
+    html += '</div>'
+    st.markdown(html, unsafe_allow_html=True)
 
 else:
     st.info("👋 Upload a CSV file to start.")
