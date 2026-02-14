@@ -235,7 +235,6 @@ def generate_variations_strict(shape_idx, base_shape):
         max_c = max(c for r,c in base_shape)
         mirror = [(r, max_c-c) for r,c in base_shape]
         variations.add(tuple(sorted(mirror)))
-    # (הורדנו את shape_idx == 3 המקובע כדי שישתמש ב-else החכם ויעשה היפוכים אוטומטיים לצורה החדשה)
     elif shape_idx == 4:
         base = [(0,0), (0,1), (0,3), (1,1)]
         variations.add(tuple(sorted(base)))
@@ -247,6 +246,7 @@ def generate_variations_strict(shape_idx, base_shape):
             mirror = [(r, w-c) for r,c in v]
             variations.add(tuple(sorted(mirror)))
     else:
+        # Fallback לכל התבניות (כולל הצורה החדשה באינדקס 3 שמאפשרת חופש פעולה)
         variations.add(tuple(sorted(base_shape)))
         w = max(c for r,c in base_shape)
         mirror_h = sorted([(r, w - c) for r, c in base_shape])
@@ -547,8 +547,8 @@ if df is not None:
         # 2. Controls
         all_suits = [c for c in required_cols if c in df.columns]
         sc1, sc2, sc3 = st.columns([1.5, 1.5, 1])
-        with sc1: s_choice1 = st.selectbox("S1", all_suits, index=0, label_visibility="collapsed") # Spade
-        with sc2: s_choice2 = st.selectbox("S2", all_suits, index=2, label_visibility="collapsed") # Heart
+        with sc1: s_choice1 = st.selectbox("S1", all_suits, index=0, label_visibility="collapsed") # Spade (index 0)
+        with sc2: s_choice2 = st.selectbox("S2", all_suits, index=1, label_visibility="collapsed") # Diamond (index 1)
         with sc3: 
             color_board = st.checkbox("🎨 Color", value=False)
         
