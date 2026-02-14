@@ -26,8 +26,9 @@ A
    A
 
 A
- A A
-  A
+ A
+ A S
+   A
 
 A A S A
  A
@@ -616,4 +617,5 @@ if df is not None:
 
 else:
     st.info("👋 Upload a CSV file to start.")
+
 
