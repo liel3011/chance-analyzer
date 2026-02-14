@@ -4,7 +4,7 @@ import numpy as np
 
 # --- Page Configuration ---
 st.set_page_config(
-    page_title="Chance Analyzer Pro",
+    page_title="Chance Analyzer",
     layout="wide",
     initial_sidebar_state="collapsed"
 )
@@ -49,6 +49,7 @@ S S S S
 A S S A
 """
 
+# Pattern Names
 PATTERN_NAMES = {
     0: "1. Row (Horizontal)",
     1: "2. Column (Vertical)",
@@ -62,7 +63,7 @@ PATTERN_NAMES = {
 }
 
 # ==========================================
-# Logic for Pairs & Signs (+/-)
+# Logic for Pairs (+/-)
 # ==========================================
 PLUS_SET = {"8", "10", "Q", "A"}
 MINUS_SET = {"7", "9", "J", "K"}
@@ -73,102 +74,107 @@ def get_card_sign(card_val):
     if val in MINUS_SET: return "-"
     return "?"
 
-def analyze_custom_pair(df, suit1, suit2):
-    results = []
-    draw_col = None
-    for c in df.columns:
-        if 'הגרלה' in str(c) or 'Draw' in str(c):
-            draw_col = c
-            break
-            
-    if suit1 not in df.columns or suit2 not in df.columns:
-        return []
-
-    s1_signs = df[suit1].apply(get_card_sign)
-    s2_signs = df[suit2].apply(get_card_sign)
-    pairs_series = s1_signs + s2_signs 
+def analyze_pair_gap(df, col1, col2):
+    s1 = df[col1].apply(get_card_sign)
+    s2 = df[col2].apply(get_card_sign)
+    pairs_series = s1 + s2 
 
     target_pairs = ["++", "--", "+-", "-+"]
-    
+    results = []
+
     for p in target_pairs:
         matches = (pairs_series == p)
         if matches.any():
-            last_seen_idx = matches.idxmax() 
-            draw_num = df.iloc[last_seen_idx][draw_col] if draw_col else f"#{last_seen_idx}"
-            c1_val = df.iloc[last_seen_idx][suit1]
-            c2_val = df.iloc[last_seen_idx][suit2]
-            
-            results.append({
-                "pair": p,
-                "draws_ago": last_seen_idx,
-                "draw_num": draw_num,
-                "c1_val": c1_val,
-                "c2_val": c2_val
-            })
-    
-    results.sort(key=lambda x: x['draws_ago'], reverse=True)
-    return results
-
-def analyze_full_4suit_pattern(df, cols):
-    if not all(c in df.columns for c in cols):
-        return None, 0
-        
-    sig_series = df[cols[0]].apply(get_card_sign) + \
-                 df[cols[1]].apply(get_card_sign) + \
-                 df[cols[2]].apply(get_card_sign) + \
-                 df[cols[3]].apply(get_card_sign)
-                
-    import itertools
-    combinations = ["".join(p) for p in itertools.product(["+", "-"], repeat=4)]
-    
-    sleeping_stats = []
-    for combo in combinations:
-        matches = (sig_series == combo)
-        if matches.any():
-            last_seen = matches.idxmax()
+            last_idx = matches.idxmax() # 0 is latest
+            results.append({'pair': p, 'ago': last_idx})
         else:
-            last_seen = len(df) 
+            results.append({'pair': p, 'ago': 9999})
             
-        sleeping_stats.append((combo, last_seen))
-        
-    sleeping_stats.sort(key=lambda x: x[1], reverse=True)
-    return sleeping_stats[0] 
+    results.sort(key=lambda x: x['ago'], reverse=True)
+    return results
 
 # ==========================================
 # CSS Styling
 # ==========================================
 st.markdown("""
 <style>
+    /* Global Settings */
     .stApp { direction: ltr; text-align: left; background-color: #0E1117; color: #FAFAFA; }
-    .block-container { padding-top: 1.5rem !important; padding-bottom: 1rem !important; }
-    h1 { margin-bottom: -0.5rem !important; }
     
+    .block-container { padding-top: 1rem !important; padding-bottom: 2rem !important; }
+    
+    /* Clean Inputs */
+    .stSelectbox, .stMultiSelect, div[data-testid="stExpander"] { direction: ltr; text-align: left; }
     div.stButton > button { width: 100%; border-radius: 8px; height: 2.8rem; font-weight: 600; }
     
-    .grid-container { display: grid; grid-template-columns: repeat(4, 1fr); gap: 4px; background-color: #161B22; padding: 8px; border-radius: 12px; margin-top: 10px; border: 1px solid #30363D; }
-    .grid-cell { background-color: #21262D; color: #C9D1D9; padding: 0; text-align: center; border-radius: 6px; position: relative; border: 1px solid #30363D; height: 40px; display: flex; align-items: center; justify-content: center; font-weight: 500; font-family: 'Segoe UI', sans-serif; }
-    .missing-circle { background-color: #F0F6FC; color: #0D1117; font-weight: 800; border-radius: 6px; width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; box-shadow: inset 0 0 8px rgba(0,0,0,0.2); }
+    /* Grid Layouts */
+    .grid-container { 
+        display: grid; grid-template-columns: repeat(4, 1fr); gap: 4px; 
+        background-color: #161B22; padding: 8px; border-radius: 12px; margin-top: 10px; border: 1px solid #30363D;
+    }
+    .grid-cell { 
+        background-color: #21262D; color: #C9D1D9; padding: 0; text-align: center; border-radius: 6px; 
+        height: 40px; display: flex; align-items: center; justify-content: center; font-weight: 500; position: relative;
+        border: 1px solid #30363D;
+    }
+    
+    /* Colors for +/- Mode */
+    .cell-plus { color: #3FB950 !important; font-weight: 900 !important; } 
+    .cell-minus { color: #F85149 !important; font-weight: 900 !important; } 
+    
+    .missing-circle { 
+        background-color: #F0F6FC; color: #0D1117; font-weight: 800; border-radius: 6px; 
+        width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; 
+    }
     .frame-box { position: absolute; top: 0; left: 0; right: 0; bottom: 0; border-style: solid; border-color: transparent; pointer-events: none; border-radius: 6px; }
+    
+    /* Headers & Icons */
     .grid-header { text-align: center; padding-bottom: 6px; display: flex; flex-direction: column; align-items: center; justify-content: center; }
     .suit-icon { font-size: 22px; line-height: 1; margin-bottom: 2px; }
-    .suit-name { font-size: 10px; color: #8B949E; font-weight: bold; text-transform: uppercase; }
+    
+    /* Preview */
     .shape-preview-wrapper { background-color: #0D1117; border: 1px solid #30363D; border-radius: 8px; padding: 10px; display: flex; justify-content: center; align-items: center; height: 100%; }
     
-    .pm-plus { color: #238636; font-weight: 900; font-size: 18px; } 
-    .pm-minus { color: #DA3633; font-weight: 900; font-size: 18px; } 
-    .pm-cell { text-align: center; border-bottom: 1px solid #30363D; padding: 8px; }
-    
-    .pair-card { background-color: #161B22; border: 1px solid #30363D; border-radius: 10px; padding: 15px; margin-bottom: 10px; display: flex; justify-content: space-between; align-items: center; }
-    .pair-title { font-size: 18px; font-weight: bold; color: #E6EDF3; display: flex; align-items: center; gap: 10px; }
-    .pair-badge { padding: 2px 8px; border-radius: 4px; font-size: 14px; font-weight: bold; }
-    .badge-plus { background-color: #238636; color: white; }
-    .badge-minus { background-color: #DA3633; color: white; }
-    .pair-stat { text-align: right; font-size: 13px; color: #8B949E; }
-    .pair-val { font-size: 20px; font-weight: bold; color: #58A6FF; }
-    .sleeper-alert { border: 1px solid #D29922; }
-    
+    /* Tables */
     [data-testid="stDataFrame"] th { text-align: left !important; }
     [data-testid="stDataFrame"] td { text-align: left !important; }
+    
+    /* --- COMPACT LEGEND STYLING --- */
+    .legend-container {
+        display: flex; gap: 8px; margin-bottom: 10px; justify-content: center;
+    }
+    .legend-box {
+        background: #161B22; border: 1px solid #30363D; border-radius: 8px; padding: 6px 15px;
+        text-align: center; flex: 1;
+    }
+    .legend-title { font-weight: 900; font-size: 14px; margin-bottom: 2px; display: flex; align-items: center; justify-content: center; gap: 6px; }
+    .legend-cards { font-size: 11px; color: #8B949E; letter-spacing: 0.5px; }
+    
+    .txt-plus { color: #3FB950; }
+    .txt-minus { color: #F85149; }
+    .dot-plus { width: 8px; height: 8px; background: #3FB950; border-radius: 50%; display: inline-block; }
+    .dot-minus { width: 8px; height: 8px; background: #F85149; border-radius: 50%; display: inline-block; }
+
+    /* --- COMPACT RESULT CARD STYLING --- */
+    .result-card {
+        background: linear-gradient(135deg, #1F2428 0%, #161B22 100%);
+        border: 1px solid #30363D; border-radius: 12px; padding: 12px; text-align: center; margin-top: 5px;
+    }
+    .result-split {
+        display: flex; justify-content: space-around; align-items: center; margin-bottom: 8px;
+        border-bottom: 1px solid #30363D; padding-bottom: 8px;
+    }
+    .result-part { text-align: center; }
+    .res-suit { font-size: 11px; color: #8B949E; text-transform: uppercase; font-weight: bold; margin-bottom: 0px;}
+    .res-val { font-size: 16px; font-weight: 900; } 
+    
+    .main-stat { font-size: 30px; font-weight: 900; color: #58A6FF; line-height: 1; margin: 2px 0; }
+    .sub-stat { font-size: 10px; color: #8B949E; text-transform: uppercase; letter-spacing: 0.5px; }
+
+    /* Compact Selectors */
+    div[data-testid="stVerticalBlock"] > div { gap: 0.2rem; }
+    div[data-testid="stHorizontalBlock"] { align-items: center; }
+
 </style>
 """, unsafe_allow_html=True)
 
@@ -176,33 +182,22 @@ st.markdown("""
 
 @st.cache_data
 def load_data_robust(uploaded_file):
-    """Robust CSV loader that handles Pais file structure and Hebrew encoding."""
     if uploaded_file is None: return None, "No file"
-    
-    def rename_cols(df):
-        # Includes the "מלתן" typo from the original Pais files!
-        hebrew_map = {'תלתן': 'Clubs', 'מלתן': 'Clubs', 'יהלום': 'Diamonds', 'לב': 'Hearts', 'עלה': 'Spades'}
-        new_cols = {}
-        for col in df.columns:
-            for heb, eng in hebrew_map.items():
-                if heb in col: # Check if the word is *inside* the column name
-                    new_cols[col] = eng
-        df.rename(columns=new_cols, inplace=True)
-        return df
-
     try:
         uploaded_file.seek(0)
         df = pd.read_csv(uploaded_file)
-        df = rename_cols(df)
+        hebrew_map = {'תלתן': 'Clubs', 'יהלום': 'Diamonds', 'לב': 'Hearts', 'עלה': 'Spades'}
+        df.rename(columns=hebrew_map, inplace=True)
         return df, "ok"
-    except Exception:
+    except:
         try:
             uploaded_file.seek(0)
             df = pd.read_csv(uploaded_file, encoding='cp1255')
-            df = rename_cols(df)
+            hebrew_map = {'תלתן': 'Clubs', 'יהלום': 'Diamonds', 'לב': 'Hearts', 'עלה': 'Spades'}
+            df.rename(columns=hebrew_map, inplace=True)
             return df, "ok"
-        except Exception as e2:
-            return None, f"שגיאה בקריאת הקובץ: לא ניתן לפענח את הקידוד."
+        except:
+            return None, "Error loading file"
 
 def parse_shapes_strict(text):
     shapes = []
@@ -213,10 +208,12 @@ def parse_shapes_strict(text):
         lines = [l for l in block.split('\n')]
         coords = []
         for r, line in enumerate(lines):
-            c_idx = 0; i = 0
+            c_idx = 0
+            i = 0
             while i < len(line):
                 char = line[i]
-                if char == 'A': coords.append((r, c_idx)); c_idx += 1
+                if char == 'A':
+                    coords.append((r, c_idx)); c_idx += 1
                 elif char == 'S': c_idx += 1 
                 elif char == ' ':
                     prev = line[i-1] if i > 0 else None
@@ -233,16 +230,12 @@ def generate_variations_strict(shape_idx, base_shape):
     variations = set()
     if shape_idx in [0, 1]: 
         variations.add(tuple(sorted(base_shape))) 
-    elif shape_idx == 2:
+    elif shape_idx in [2, 3]:
+        # אינדקס 3 (צורת האלכסון החדשה) עכשיו פועל פה - אופקי בלבד: מקורי + תמונת מראה ימינה/שמאלה
         variations.add(tuple(sorted(base_shape))) 
         max_c = max(c for r,c in base_shape)
         mirror = [(r, max_c-c) for r,c in base_shape]
         variations.add(tuple(sorted(mirror)))
-    elif shape_idx == 3:
-        # אופקי בלבד: הצורה המקורית + מראה אופקית (ימינה-שמאלה) ללא סיבובים
-        variations.add(tuple(sorted(base_shape)))
-        max_c = max(c for r,c in base_shape)
-        variations.add(tuple(sorted([(r, max_c - c) for r, c in base_shape])))
     elif shape_idx == 4:
         base = [(0,0), (0,1), (0,3), (1,1)]
         variations.add(tuple(sorted(base)))
@@ -280,6 +273,7 @@ def draw_preview_html(shape_coords):
     grid_html += '</div>'
     return f'<div class="shape-preview-wrapper">{grid_html}</div>'
 
+# --- Custom HTML Table Generator ---
 def create_sleeping_html_table(data_dict, required_cols):
     meta = {
         'Clubs': {'icon': '♣', 'color': '#E1E4E8'},
@@ -287,23 +281,32 @@ def create_sleeping_html_table(data_dict, required_cols):
         'Hearts': {'icon': '♥', 'color': '#FF4B4B'},
         'Spades': {'icon': '♠', 'color': '#E1E4E8'}
     }
+    
     max_rows = 0
     clean_data = {}
     for col in required_cols:
         clean_data[col] = data_dict.get(col, [])
-        if len(clean_data[col]) > max_rows: max_rows = len(clean_data[col])
+        if len(clean_data[col]) > max_rows:
+            max_rows = len(clean_data[col])
             
     parts = []
     parts.append('<div style="overflow-x: auto; border: 1px solid #30363D; border-radius: 6px;">')
     parts.append('<table style="width: 100%; border-collapse: collapse; font-family: sans-serif; font-size: 14px;">')
-    parts.append('<thead><tr style="background-color: #161B22; border-bottom: 1px solid #30363D;">')
+    parts.append('<thead>')
+    parts.append('<tr style="background-color: #161B22; border-bottom: 1px solid #30363D;">')
     
     for col in required_cols:
         c_meta = meta.get(col, {'icon': '', 'color': '#fff'})
-        header_content = f"""<div style="display: flex; flex-direction: column; align-items: center;"><div style="font-size: 24px; line-height: 1;">{c_meta['icon']}</div><div style="font-size: 11px; text-transform: uppercase;">{col}</div></div>"""
-        parts.append(f'<th style="padding: 10px; text-align: center; color: {c_meta["color"]}; font-weight: bold; border-right: 1px solid #30363D;">{header_content}</th>')
+        header_content = f"""
+        <div style="display: flex; flex-direction: column; align-items: center; justify-content: center;">
+            <div style="font-size: 24px; line-height: 1; margin-bottom: 2px;">{c_meta['icon']}</div>
+            <div style="font-size: 11px; text-transform: uppercase;">{col}</div>
+        </div>
+        """
+        parts.append(f'<th style="padding: 10px; text-align: center; color: {c_meta["color"]}; font-weight: bold; border-right: 1px solid #30363D; width: 25%; vertical-align: middle;">{header_content}</th>')
     
     parts.append('</tr></thead><tbody>')
+    
     for i in range(max_rows):
         bg_color = "#0D1117" if i % 2 == 0 else "#161B22"
         parts.append(f'<tr style="background-color: {bg_color};">')
@@ -312,57 +315,14 @@ def create_sleeping_html_table(data_dict, required_cols):
             text_color = meta[col]['color'] if val != "" else "transparent"
             parts.append(f'<td style="padding: 8px; text-align: center; border-right: 1px solid #30363D; color: {text_color};">{val}</td>')
         parts.append("</tr>")
-    parts.append("</tbody></table></div>")
-    return "".join(parts)
-
-# --- Full Matrix Generator ---
-def create_plus_minus_matrix(df, required_cols):
-    rows_to_show = 20
-    mini_df = df.head(rows_to_show).copy()
-    
-    parts = []
-    parts.append('<div style="overflow-x: auto; border: 1px solid #30363D; border-radius: 6px;">')
-    parts.append('<table style="width: 100%; border-collapse: collapse; font-family: sans-serif; font-size: 14px;">')
-    
-    parts.append('<thead><tr style="background-color: #161B22; border-bottom: 1px solid #30363D;">')
-    parts.append('<th style="padding: 10px; text-align: center; color: #8B949E;">#</th>') 
-    
-    meta = {
-        'Clubs': {'icon': '♣', 'color': '#E1E4E8'},
-        'Diamonds': {'icon': '♦', 'color': '#FF4B4B'},
-        'Hearts': {'icon': '♥', 'color': '#FF4B4B'},
-        'Spades': {'icon': '♠', 'color': '#E1E4E8'}
-    }
-    
-    for col in required_cols:
-        c_meta = meta.get(col, {'icon': '', 'color': '#fff'})
-        parts.append(f'<th style="padding: 10px; text-align: center; color: {c_meta["color"]}; font-size: 18px;">{c_meta["icon"]}</th>')
-    parts.append('</tr></thead><tbody>')
-    
-    for idx, row in mini_df.iterrows():
-        bg_color = "#0D1117" if idx % 2 == 0 else "#161B22"
-        parts.append(f'<tr style="background-color: {bg_color};">')
-        parts.append(f'<td style="padding: 8px; text-align: center; color: #8B949E; font-size: 12px;">{idx}</td>')
-        
-        for col in required_cols:
-            val = row[col]
-            sign = get_card_sign(val)
-            sign_html = ""
-            if sign == "+":
-                sign_html = '<span class="pm-plus">+</span>'
-            elif sign == "-":
-                sign_html = '<span class="pm-minus">-</span>'
-            else:
-                sign_html = '<span style="color:#555;">?</span>'
-            
-            parts.append(f'<td class="pm-cell">{sign_html}</td>')
-        parts.append('</tr>')
         
     parts.append("</tbody></table></div>")
     return "".join(parts)
 
+# --- BOARD GENERATOR FUNCTION ---
 def generate_board_html(grid_data, row_limit, cell_styles):
     html = '<div class="grid-container">'
+    # UPDATED ORDER: Spades, Hearts, Diamonds, Clubs
     headers = [
         ('Spades', '♠', '#E1E4E8'),
         ('Hearts', '♥', '#FF4B4B'),
@@ -392,28 +352,37 @@ def generate_board_html(grid_data, row_limit, cell_styles):
     html += '</div>'
     return html
 
-# --- Main App ---
+# --- Main Interface ---
 
-st.title("Chance Analyzer Pro")
+st.title("Chance Analyzer")
 
-# --- Load Logic ---
-df = None
-base_shapes = parse_shapes_strict(FIXED_COMBOS_TXT)
-
+# Sidebar
 with st.sidebar:
     st.header("Upload Data")
-    manual_file = st.file_uploader("Upload CSV", type=None)
+    csv_file = st.file_uploader("Choose a CSV file", type=None)
 
-if manual_file:
-    df, msg = load_data_robust(manual_file)
-    if df is None:
-        st.error(msg)
+# --- SESSION STATE & FILE HANDLING ---
+if 'uploaded_df' not in st.session_state:
+    st.session_state['uploaded_df'] = None
+
+base_shapes = parse_shapes_strict(FIXED_COMBOS_TXT)
+
+if csv_file:
+    temp_df, msg = load_data_robust(csv_file)
+    if temp_df is not None:
+        st.session_state['uploaded_df'] = temp_df
+    elif msg != "ok":
+        st.error(f"Error: {msg}")
+
+df = st.session_state['uploaded_df']
 
 if df is not None:
+    # UPDATED ORDER: Spades, Hearts, Diamonds, Clubs
     required_cols = ['Spades', 'Hearts', 'Diamonds', 'Clubs']
+    df.columns = df.columns.str.strip()
     missing = [c for c in required_cols if c not in df.columns]
     if missing:
-        st.error(f"הקובץ נטען אך חסרות העמודות הבאות: {missing}")
+        st.error(f"Missing columns: {missing}")
         st.stop()
 
     grid_data = df[required_cols].values
@@ -591,16 +560,19 @@ if df is not None:
             best_sleeper = res[0] # The one with biggest gap
             pair_code = best_sleeper['pair'] # e.g. "+-"
             
+            # Determine specific sign for each suit based on the pair code
             s1_sign = "PLUS" if pair_code[0] == "+" else "MINUS"
             s1_cls = "txt-plus" if pair_code[0] == "+" else "txt-minus"
             
             s2_sign = "PLUS" if pair_code[1] == "+" else "MINUS"
             s2_cls = "txt-plus" if pair_code[1] == "+" else "txt-minus"
             
+            # Icons
             s_icons = {'Clubs': '♣', 'Diamonds': '♦', 'Hearts': '♥', 'Spades': '♠'}
             ic1 = s_icons.get(s_choice1, "")
             ic2 = s_icons.get(s_choice2, "")
 
+            # Result Card HTML
             st.markdown(f"""
             <div class="result-card">
                 <div class="result-split">
@@ -619,39 +591,13 @@ if df is not None:
             </div>
             """, unsafe_allow_html=True)
             
+            # Mini details for other combos
             st.markdown("<br>", unsafe_allow_html=True)
             mc1, mc2, mc3 = st.columns(3)
             for i, other in enumerate(res[1:]):
                 with [mc1, mc2, mc3][i]:
                     st.caption(f"{other['pair']} : {other['ago']} ago")
                     
-        # 4. Global 4-Suit Sleeper
-        st.divider()
-        st.markdown("##### 😴 Deepest Sleeper (All 4 Suits)")
-        sleeper_combo, sleeper_draws = analyze_full_4suit_pattern(df, required_cols)
-        
-        combo_html = ""
-        suits_icons = [s_icons.get(c, "") for c in required_cols]
-        for i, char in enumerate(sleeper_combo):
-            cls = "badge-plus" if char == "+" else "badge-minus"
-            combo_html += f'<span style="margin-right:5px; font-size:16px;">{suits_icons[i]}</span><span class="pair-badge {cls}" style="margin-right:15px;">{char}</span>'
-            
-        st.markdown(f"""
-        <div style="background:#21262D; padding:10px; border-radius:8px; border:1px solid #30363D; display:flex; justify-content:space-between; align-items:center;">
-            <div>{combo_html}</div>
-            <div style="text-align:right;">
-                <div style="font-size:12px; color:#888;">Not seen for</div>
-                <div style="font-size:24px; font-weight:bold; color:#D29922;">{sleeper_draws} <span style="font-size:14px;">draws</span></div>
-            </div>
-        </div>
-        """, unsafe_allow_html=True)
-        
-        st.divider()
-
-        # 5. Full Matrix
-        st.markdown("##### 📊 Last 20 Draws Matrix")
-        st.markdown(create_plus_minus_matrix(df, required_cols), unsafe_allow_html=True)
-
         # Board (Color Style if checked)
         st.subheader("Game Board")
         cell_styles = {}
