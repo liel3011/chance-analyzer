@@ -228,8 +228,6 @@ def parse_shapes_strict(text):
 
 def generate_variations_strict(shape_idx, base_shape):
     variations = set()
-    if not base_shape: return []
-    
     if shape_idx == 0: variations.add(tuple(sorted(base_shape))) 
     elif shape_idx == 1: variations.add(tuple(sorted(base_shape)))
     elif shape_idx == 2:
@@ -238,16 +236,26 @@ def generate_variations_strict(shape_idx, base_shape):
         mirror = [(r, max_c-c) for r,c in base_shape]
         variations.add(tuple(sorted(mirror)))
     elif shape_idx == 3:
-        # כל 4 הקומבינציות האפשריות לצורת ה"דילוג+מתחת" - רק היפוכים אופקיים כדי לשמור על החוקיות
-        b1 = [(0,0), (1,0), (2,2), (3,3)] # דילוג אחרי הראשון, תוספת מתחת לראשון
-        b2 = [(0,0), (2,2), (3,2), (3,3)] # דילוג אחרי הראשון, תוספת מתחת לשני
-        b3 = [(0,0), (1,0), (1,1), (3,3)] # דילוג אחרי השני, תוספת מתחת לראשון
-        b4 = [(0,0), (1,1), (2,1), (3,3)] # דילוג אחרי השני, תוספת מתחת לשני
-        
-        for b in [b1, b2, b3, b4]:
-            w = max(c for r, c in b)
-            variations.add(tuple(sorted(b))) # כיוון רגיל (שמאלה למטה)
-            variations.add(tuple(sorted([(r, w - c) for r, c in b]))) # כיוון הפוך אופקית (ימינה למטה)
+        # Full Geometrical Engine for the specific Pattern 3
+        # Generates all 8 geometrical symmetries (rotations & reflections)
+        syms = [
+            [(r, c) for r, c in base_shape],
+            [(-r, c) for r, c in base_shape],
+            [(r, -c) for r, c in base_shape],
+            [(-r, -c) for r, c in base_shape],
+            [(c, r) for r, c in base_shape],
+            [(-c, r) for r, c in base_shape],
+            [(c, -r) for r, c in base_shape],
+            [(-c, -r) for r, c in base_shape],
+        ]
+        for s in syms:
+            if not s: continue
+            min_r = min(r for r,c in s)
+            min_c = min(c for r,c in s)
+            norm = tuple(sorted((r - min_r, c - min_c) for r, c in s))
+            # Keep only the variations that fit within the 4-column board
+            if max(c for r,c in norm) < 4:
+                variations.add(norm)
     elif shape_idx == 4:
         base = [(0,0), (0,1), (0,3), (1,1)]
         variations.add(tuple(sorted(base)))
@@ -259,7 +267,6 @@ def generate_variations_strict(shape_idx, base_shape):
             mirror = [(r, w-c) for r,c in v]
             variations.add(tuple(sorted(mirror)))
     else:
-        # שאר הצורות נהנות מכל סוגי ההיפוכים האפשריים (אופקי ואנכי)
         variations.add(tuple(sorted(base_shape)))
         w = max(c for r,c in base_shape)
         mirror_h = sorted([(r, w - c) for r, c in base_shape])
@@ -335,7 +342,7 @@ def create_sleeping_html_table(data_dict, required_cols):
 # --- BOARD GENERATOR FUNCTION ---
 def generate_board_html(grid_data, row_limit, cell_styles):
     html = '<div class="grid-container">'
-    # UPDATED ORDER: Spades, Diamonds, Hearts, Clubs
+    # ORDER: Spades, Diamonds, Hearts, Clubs
     headers = [
         ('Spades', '♠', '#E1E4E8'),
         ('Diamonds', '♦', '#FF4B4B'),
