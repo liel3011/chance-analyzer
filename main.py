@@ -388,7 +388,7 @@ if df is not None:
         st.stop()
 
     grid_data = df[required_cols].values
-    ROW_LIMIT = 51
+    ROW_LIMIT = 71
     
     # --- Settings ---
     with st.expander("⚙️ Settings & Inputs", expanded=not st.session_state.get('search_done', False)):
@@ -615,4 +615,5 @@ if df is not None:
 
 else:
     st.info("👋 Upload a CSV file to start.")
+
 
