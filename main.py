@@ -54,7 +54,7 @@ PATTERN_NAMES = {
     0: "1. Row (Horizontal)",
     1: "2. Column (Vertical)",
     2: "3. Diagonal",
-    3: "4. Custom Shape",
+    3: "4. ZigZag",
     4: "5. Bridge",
     5: "6. Square (2x2)",
     6: "7. Parallel Gaps",
@@ -125,12 +125,14 @@ st.markdown("""
     .missing-circle { 
         background-color: #F0F6FC; color: #0D1117; font-weight: 800; border-radius: 6px; 
         width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; 
+        box-shadow: inset 0 0 8px rgba(0,0,0,0.2);
     }
     .frame-box { position: absolute; top: 0; left: 0; right: 0; bottom: 0; border-style: solid; border-color: transparent; pointer-events: none; border-radius: 6px; }
     
     /* Headers & Icons */
     .grid-header { text-align: center; padding-bottom: 6px; display: flex; flex-direction: column; align-items: center; justify-content: center; }
     .suit-icon { font-size: 22px; line-height: 1; margin-bottom: 2px; }
+    .suit-name { font-size: 10px; color: #8B949E; font-weight: bold; text-transform: uppercase; }
     
     /* Preview */
     .shape-preview-wrapper { background-color: #0D1117; border: 1px solid #30363D; border-radius: 8px; padding: 10px; display: flex; justify-content: center; align-items: center; height: 100%; }
@@ -236,8 +238,16 @@ def generate_variations_strict(shape_idx, base_shape):
         mirror = [(r, max_c-c) for r,c in base_shape]
         variations.add(tuple(sorted(mirror)))
     elif shape_idx == 3:
-        # הצורה החדשה המותאמת אישית - חיפוש במבנה הנוקשה שהוגדר בלבד
-        variations.add(tuple(sorted(base_shape)))
+        # כל ארבעת התרחישים שביקשת (דילוג ראשון/שני + קלף מתחת/מעל לאלכסון)
+        b1 = [(0,0), (1,1), (2,1), (3,3)]
+        b2 = [(0,0), (0,1), (1,1), (3,3)]
+        b3 = [(0,0), (2,2), (3,2), (3,3)]
+        b4 = [(0,0), (1,2), (2,2), (3,3)]
+        for b in [b1, b2, b3, b4]:
+            variations.add(tuple(sorted(b))) # המקורי
+            w = max(c for r, c in b)
+            mirror = [(r, w - c) for r, c in b] # תמונת מראה אופקית (שמאלה/ימינה)
+            variations.add(tuple(sorted(mirror)))
     elif shape_idx == 4:
         base = [(0,0), (0,1), (0,3), (1,1)]
         variations.add(tuple(sorted(base)))
@@ -324,13 +334,8 @@ def create_sleeping_html_table(data_dict, required_cols):
 # --- BOARD GENERATOR FUNCTION ---
 def generate_board_html(grid_data, row_limit, cell_styles):
     html = '<div class="grid-container">'
-    # UPDATED ORDER: Spades, Hearts, Diamonds, Clubs
-    headers = [
-        ('Spades', '♠', '#E1E4E8'),
-        ('Hearts', '♥', '#FF4B4B'),
-        ('Diamonds', '♦', '#FF4B4B'),
-        ('Clubs', '♣', '#E1E4E8')
-    ]
+    # נשאר בדיוק כמו שכתבת
+    headers = [('Clubs', '♣', '#E1E4E8'), ('Diamonds', '♦', '#FF4B4B'), ('Hearts', '♥', '#FF4B4B'), ('Spades', '♠', '#E1E4E8')]
     for name, icon, color in headers:
         html += f'<div class="grid-header"><div class="suit-icon" style="color:{color};">{icon}</div><div class="suit-name">{name}</div></div>'
     
@@ -338,19 +343,16 @@ def generate_board_html(grid_data, row_limit, cell_styles):
         for c in range(4):
             val = str(grid_data[r, c]); 
             if val == 'nan': val = ''
-            
-            style_extra = cell_styles.get((r, c), "")
+            content = cell_styles.get((r, c), "")
             inner = val
-            
-            if "MISSING_MARKER" in style_extra:
+            if "MISSING_MARKER" in content:
                 inner = f'<div class="missing-circle">{val}</div>'
-                style_extra = style_extra.replace("MISSING_MARKER", "")
+                content = content.replace("MISSING_MARKER", "")
             
-            if style_extra.strip().startswith("cell-"):
-                 html += f'<div class="grid-cell {style_extra}">{inner}</div>'
+            if content.strip().startswith("cell-"):
+                html += f'<div class="grid-cell {content}">{inner}</div>'
             else:
-                 html += f'<div class="grid-cell">{inner}{style_extra}</div>'
-                 
+                html += f'<div class="grid-cell">{inner}{content}</div>'
     html += '</div>'
     return html
 
@@ -379,8 +381,7 @@ if csv_file:
 df = st.session_state['uploaded_df']
 
 if df is not None:
-    # UPDATED ORDER: Spades, Hearts, Diamonds, Clubs
-    required_cols = ['Spades', 'Hearts', 'Diamonds', 'Clubs']
+    required_cols = ['Clubs', 'Diamonds', 'Hearts', 'Spades']
     df.columns = df.columns.str.strip()
     missing = [c for c in required_cols if c not in df.columns]
     if missing:
@@ -463,7 +464,6 @@ if df is not None:
     
     selected_match_ids = None 
     
-    # ------------------ TAB 1: MATCHES ------------------
     with tab_matches:
         if found_matches:
             raw_df = pd.DataFrame([
@@ -485,8 +485,7 @@ if df is not None:
                 selected_match_ids = display_df.iloc[event.selection['rows'][0]]['Hidden_ID']
         else:
             if st.session_state.get('search_done', False): st.info("No matches found.")
-            
-        # Board (Matches Style)
+
         st.subheader("Game Board")
         cell_styles = {}
         matches_to_show = found_matches
@@ -503,10 +502,9 @@ if df is not None:
             miss = m['miss_coords']
             if miss not in cell_styles: cell_styles[miss] = ""
             if "MISSING_MARKER" not in cell_styles[miss]: cell_styles[miss] += "MISSING_MARKER"
-            
+
         st.markdown(generate_board_html(grid_data, ROW_LIMIT, cell_styles), unsafe_allow_html=True)
 
-    # ------------------ TAB 2: SLEEPING ------------------
     with tab_sleep:
         sleep_data_lists = {}
         for col_name in required_cols:
@@ -526,13 +524,10 @@ if df is not None:
         else:
             st.write("No sleeping cards found.")
             
-        # Board (Clean)
         st.subheader("Game Board")
         st.markdown(generate_board_html(grid_data, ROW_LIMIT, {}), unsafe_allow_html=True)
 
-    # ------------------ TAB 3: PAIRS (+/-) ------------------
     with tab_pairs:
-        # 1. Legend
         st.markdown("""
         <div class="legend-container">
             <div class="legend-box">
@@ -546,35 +541,29 @@ if df is not None:
         </div>
         """, unsafe_allow_html=True)
         
-        # 2. Controls
         all_suits = [c for c in required_cols if c in df.columns]
         sc1, sc2, sc3 = st.columns([1.5, 1.5, 1])
-        with sc1: s_choice1 = st.selectbox("S1", all_suits, index=0, label_visibility="collapsed") # Spade
-        with sc2: s_choice2 = st.selectbox("S2", all_suits, index=1, label_visibility="collapsed") # Heart
-        with sc3: 
-            color_board = st.checkbox("🎨 Color", value=False)
+        with sc1: s_choice1 = st.selectbox("S1", all_suits, index=0, label_visibility="collapsed")
+        with sc2: s_choice2 = st.selectbox("S2", all_suits, index=1, label_visibility="collapsed")
+        with sc3: color_board = st.checkbox("🎨 Color", value=False)
         
-        # 3. Calculation & Display
         if s_choice1 == s_choice2:
             st.warning("Select different suits")
         else:
             res = analyze_pair_gap(df, s_choice1, s_choice2)
-            best_sleeper = res[0] # The one with biggest gap
-            pair_code = best_sleeper['pair'] # e.g. "+-"
+            best_sleeper = res[0]
+            pair_code = best_sleeper['pair']
             
-            # Determine specific sign for each suit based on the pair code
             s1_sign = "PLUS" if pair_code[0] == "+" else "MINUS"
             s1_cls = "txt-plus" if pair_code[0] == "+" else "txt-minus"
             
             s2_sign = "PLUS" if pair_code[1] == "+" else "MINUS"
             s2_cls = "txt-plus" if pair_code[1] == "+" else "txt-minus"
             
-            # Icons
             s_icons = {'Clubs': '♣', 'Diamonds': '♦', 'Hearts': '♥', 'Spades': '♠'}
             ic1 = s_icons.get(s_choice1, "")
             ic2 = s_icons.get(s_choice2, "")
 
-            # Result Card HTML
             st.markdown(f"""
             <div class="result-card">
                 <div class="result-split">
@@ -593,14 +582,12 @@ if df is not None:
             </div>
             """, unsafe_allow_html=True)
             
-            # Mini details for other combos
             st.markdown("<br>", unsafe_allow_html=True)
             mc1, mc2, mc3 = st.columns(3)
             for i, other in enumerate(res[1:]):
                 with [mc1, mc2, mc3][i]:
                     st.caption(f"{other['pair']} : {other['ago']} ago")
                     
-        # Board (Color Style if checked)
         st.subheader("Game Board")
         cell_styles = {}
         if color_board:
