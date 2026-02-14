@@ -238,32 +238,18 @@ def generate_variations_strict(shape_idx, base_shape):
         mirror = [(r, max_c-c) for r,c in base_shape]
         variations.add(tuple(sorted(mirror)))
     elif shape_idx == 3:
-        # Full Geometrical Engine for Pattern 3 (Diagonal with Skips)
-        # We explicitly inject both scenarios requested by the user:
-        b1 = [(0,0), (1,1), (2,1), (3,3)] # Skip after 2nd card
-        b2 = [(0,0), (2,2), (3,2), (3,3)] # Skip after 1st card
+        # חוקיות קשיחה ומדויקת לצורה ה-4 שביקשת
+        # אנו מכניסים גם דילוג אחרי הראשון וגם דילוג אחרי השני
+        b1 = [(0,0), (1,1), (2,1), (3,3)] # דילוג אחרי הקלף השני באלכסון + קלף מתחתיו
+        b2 = [(0,0), (2,2), (3,2), (3,3)] # דילוג אחרי הקלף הראשון באלכסון + קלף מתחתיו
         
         for b in [b1, b2]:
-            # Generate 8 symmetries (all rotations & reflections)
-            syms = [
-                [(r, c) for r, c in b],
-                [(-r, c) for r, c in b],
-                [(r, -c) for r, c in b],
-                [(-r, -c) for r, c in b],
-                [(c, r) for r, c in b],
-                [(-c, r) for r, c in b],
-                [(c, -r) for r, c in b],
-                [(-c, -r) for r, c in b],
-            ]
-            for s in syms:
-                if not s: continue
-                min_r = min(r for r,c in s)
-                min_c = min(c for r,c in s)
-                # Normalize coordinates to top-left (0,0)
-                norm = tuple(sorted((r - min_r, c - min_c) for r, c in s))
-                # Only keep patterns that fit within the 4 columns
-                if max(c for r,c in norm) < 4:
-                    variations.add(norm)
+            max_r = max(r for r,c in b)
+            max_c = max(c for r,c in b)
+            variations.add(tuple(sorted(b))) # רגיל (שמאלה ולמטה)
+            variations.add(tuple(sorted([(r, max_c - c) for r, c in b]))) # היפוך אופקי
+            variations.add(tuple(sorted([(max_r - r, c) for r, c in b]))) # היפוך אנכי (חיפוש למעלה)
+            variations.add(tuple(sorted([(max_r - r, max_c - c) for r, c in b]))) # היפוך אנכי ואופקי
     elif shape_idx == 4:
         base = [(0,0), (0,1), (0,3), (1,1)]
         variations.add(tuple(sorted(base)))
@@ -284,7 +270,6 @@ def generate_variations_strict(shape_idx, base_shape):
         variations.add(tuple(flip_v))
         flip_hv = sorted([(max_r - r, w - c) for r, c in base_shape])
         variations.add(tuple(flip_hv))
-    
     return [list(v) for v in variations]
 
 def draw_preview_html(shape_coords):
@@ -577,7 +562,7 @@ if df is not None:
         all_suits = [c for c in required_cols if c in df.columns]
         sc1, sc2, sc3 = st.columns([1.5, 1.5, 1])
         with sc1: s_choice1 = st.selectbox("S1", all_suits, index=0, label_visibility="collapsed") # Spade (index 0)
-        with sc2: s_choice2 = st.selectbox("S2", all_suits, index=1, label_visibility="collapsed") # Diamond (index 1)
+        with sc2: s_choice2 = st.selectbox("S2", all_suits, index=2, label_visibility="collapsed") # Heart (index 2)
         with sc3: 
             color_board = st.checkbox("🎨 Color", value=False)
         
