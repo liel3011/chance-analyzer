@@ -66,19 +66,19 @@ A X X X
 
 # Pattern Names Mapping
 PATTERN_NAMES = {
-    0: "1. Row",
-    1: "2. Column",
-    2: "3. Diagonal",
-    3: "4. Custom Shape",
+    0: "1. Row (Horizontal)",
+    1: "2. Column (Vertical)",
+    2: "3. Diagonal (All Dirs)",
+    3: "4. Custom Shape (Up/Down/Horiz)",
     4: "5. Bridge",
-    5: "6. Square",
+    5: "6. Square (2x2)",
     6: "7. Parallel Gaps",
     7: "8. X-Corners",
     8: "9. Large Corners",
-    9: "10. T-Shape",
-    10: "11. T-Spaced",
-    11: "12. Hook",
-    12: "13. C-Shape"
+    9: "10. T-Shape (Up/Down)",
+    10: "11. T-Spaced (Up/Down)",
+    11: "12. Hook (Up/Down)",
+    12: "13. C-Shape (Left/Right)"
 }
 
 # ==========================================
@@ -204,7 +204,7 @@ st.markdown("""
     
     .stSelectbox, .stMultiSelect, div[data-testid="stExpander"] { direction: ltr; text-align: left; }
     div[data-baseweb="select"] > div { background-color: #111827; border: 1px solid #1F2937; border-radius: 8px; }
-
+    
     div.stButton > button { 
         width: 100%; 
         border-radius: 8px; 
@@ -254,25 +254,24 @@ st.markdown("""
         position: relative;
         border: 1px solid #374151;
         box-shadow: inset 0 2px 4px rgba(0,0,0,0.1);
-        transition: all 0.2s ease;
     }
     
     .cell-plus { color: #10B981 !important; font-weight: 800 !important; text-shadow: 0 0 8px rgba(16, 185, 129, 0.4); } 
     .cell-minus { color: #F43F5E !important; font-weight: 800 !important; text-shadow: 0 0 8px rgba(244, 63, 94, 0.4); } 
     
-    .missing-selected {
-        background: linear-gradient(135deg, #F59E0B 0%, #D97706 100%) !important;
-        color: #000 !important;
-        font-weight: 900 !important;
-        border: 2px solid #FFF !important;
-        box-shadow: 0 0 20px 5px rgba(245, 158, 11, 0.8) !important;
-        transform: scale(1.15);
-        z-index: 100;
-    }
-    .missing-subtle {
-        background-color: rgba(245, 158, 11, 0.15) !important;
-        border: 1px dashed #F59E0B !important;
-        color: #FCD34D !important;
+    .missing-circle { 
+        background: linear-gradient(135deg, #F59E0B 0%, #D97706 100%); 
+        color: #FFFFFF; 
+        font-weight: 800; 
+        border-radius: 50%; 
+        width: 32px; 
+        height: 32px; 
+        display: flex; 
+        align-items: center; 
+        justify-content: center; 
+        box-shadow: 0 0 15px rgba(245, 158, 11, 0.7);
+        margin: auto;
+        border: 2px solid #FEF3C7;
     }
     
     .frame-box { 
@@ -363,20 +362,6 @@ st.markdown("""
 
     div[data-testid="stVerticalBlock"] > div { gap: 0.3rem; }
     div[data-testid="stHorizontalBlock"] { align-items: center; }
-    
-    /* Style for the custom pattern text box */
-    .pattern-display {
-        display: flex; 
-        align-items: center; 
-        justify-content: center; 
-        height: 2.8rem; 
-        background-color: #111827; 
-        border: 1px solid #374151; 
-        border-radius: 8px; 
-        font-weight: 800; 
-        color: #60A5FA;
-        font-size: 16px;
-    }
 </style>
 """, unsafe_allow_html=True)
 
@@ -472,15 +457,14 @@ def generate_board_html(grid_data, row_limit, cell_styles):
             style_extra = cell_styles.get((r, c), "")
             inner = val
             
-            if "MISSING_SELECTED" in style_extra:
-                style_extra = style_extra.replace("MISSING_SELECTED", "missing-selected")
-            elif "MISSING_SUBTLE" in style_extra:
-                style_extra = style_extra.replace("MISSING_SUBTLE", "missing-subtle")
+            if "MISSING_MARKER" in style_extra:
+                inner = f'<div class="missing-circle">{val}</div>'
+                style_extra = style_extra.replace("MISSING_MARKER", "")
             
             if style_extra.strip().startswith("cell-"):
                  html += f'<div class="grid-cell {style_extra}">{inner}</div>'
             else:
-                 html += f'<div class="grid-cell">{inner}</div>'
+                 html += f'<div class="grid-cell">{inner}{style_extra}</div>'
                  
     html += '</div>'
     return html
@@ -547,6 +531,7 @@ with st.sidebar:
     st.header("📂 Upload Data")
     csv_file = st.file_uploader("Choose a CSV file", type=None)
     st.markdown("---")
+    st.caption("Powered by Advanced Geometric Pattern Recognition.")
 
 if 'uploaded_df' not in st.session_state: st.session_state['uploaded_df'] = None
 if 'current_shape_idx' not in st.session_state: st.session_state['current_shape_idx'] = 0
@@ -576,27 +561,19 @@ if df is not None:
     
     # --- Settings Expander ---
     with st.expander("⚙️ Configuration & Target Inputs", expanded=not st.session_state.get('search_done', False)):
-        
-        # Completely Custom Navigation to avoid mobile keyboard
-        st.markdown("<label style='font-size: 14px; color: #F3F4F6; font-weight: 600;'>Search Pattern</label>", unsafe_allow_html=True)
-        col_p, col_text, col_n, col_prev = st.columns([0.5, 3, 0.5, 1.5])
-        
-        with col_p:
-            if st.button("◀", key="prev_pat"):
-                st.session_state['current_shape_idx'] = (st.session_state['current_shape_idx'] - 1) % len(PATTERN_NAMES)
-                st.rerun()
-                
-        with col_text:
-            curr_name = PATTERN_NAMES[st.session_state['current_shape_idx']]
-            st.markdown(f"<div class='pattern-display'>{curr_name}</div>", unsafe_allow_html=True)
-            
-        with col_n:
-            if st.button("▶", key="next_pat"):
-                st.session_state['current_shape_idx'] = (st.session_state['current_shape_idx'] + 1) % len(PATTERN_NAMES)
-                st.rerun()
+        col_conf, col_prev = st.columns([4, 1])
+        with col_conf:
+            shape_idx = st.selectbox(
+                "Search Pattern", 
+                range(len(base_shapes)), 
+                index=st.session_state['current_shape_idx'],
+                format_func=lambda x: PATTERN_NAMES.get(x, f"Pattern {x+1}"), 
+                label_visibility="collapsed"
+            )
+            st.session_state['current_shape_idx'] = shape_idx
 
         with col_prev:
-            st.markdown(draw_preview_html(base_shapes[st.session_state['current_shape_idx']]), unsafe_allow_html=True)
+            st.markdown(draw_preview_html(base_shapes[shape_idx]), unsafe_allow_html=True)
         
         st.markdown("<div style='height: 15px;'></div>", unsafe_allow_html=True)
         
@@ -661,7 +638,7 @@ if df is not None:
         if 'winning_msg' in st.session_state:
             st.markdown(st.session_state['winning_msg'], unsafe_allow_html=True)
             
-        current_patt_idx = st.session_state.get('current_shape_idx', 0)
+        current_patt_idx = st.session_state.get('current_shape_idx', shape_idx)
         found_matches = find_matches_for_pattern(current_patt_idx, selected_cards, grid_data, ROW_LIMIT)
 
     tab_matches, tab_sleep, tab_pairs = st.tabs(["📋 PATTERN MATCHES", "💤 SLEEPING CARDS", "⚖️ PAIRS (+/-)"])
@@ -708,11 +685,7 @@ if df is not None:
                     cell_styles[coord] += f'<div class="frame-box" style="color: {col}; top: {inset}px; left: {inset}px; right: {inset}px; bottom: {inset}px; border-width: 2px;"></div>'
             miss = m['miss_coords']
             if miss not in cell_styles: cell_styles[miss] = ""
-            
-            if selected_match_ids is not None:
-                cell_styles[miss] += " MISSING_SELECTED"
-            else:
-                cell_styles[miss] += " MISSING_SUBTLE"
+            if "MISSING_MARKER" not in cell_styles[miss]: cell_styles[miss] += "MISSING_MARKER"
             
         st.markdown(generate_board_html(grid_data, ROW_LIMIT, cell_styles), unsafe_allow_html=True)
 
