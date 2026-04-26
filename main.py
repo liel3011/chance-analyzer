@@ -1,106 +1,178 @@
-import streamlit as st
-import pandas as pd
-import numpy as np
+javascript:(function(){
+    const UI_ID = 'chance-ultimate-en';
+    const existing = document.getElementById(UI_ID);
+    if(existing) existing.remove();
 
-# --- Page Configuration ---
-st.set_page_config(
-    page_title="Chance Analyzer",
-    layout="wide",
-    initial_sidebar_state="collapsed"
-)
-
-# ==========================================
-# Fixed Patterns
-# ==========================================
-FIXED_COMBOS_TXT = """
-A A A A
-
-A
-A
-A
-A
-
-A
- A
-  A
-   A
-
-A
- A
- A S
-   A
-
-A A S A
- A
-
-A A
-A A
-
-A S A
-A S A
-
-A S A
-S S S
-A S A
-
-A S S A
-S S S S
-S S S S
-A S S A
-"""
-
-# Pattern Names
-PATTERN_NAMES = {
-    0: "1. Row (Horizontal)",
-    1: "2. Column (Vertical)",
-    2: "3. Diagonal",
-    3: "4. Custom Shape",
-    4: "5. Bridge",
-    5: "6. Square (2x2)",
-    6: "7. Parallel Gaps",
-    7: "8. X-Corners",
-    8: "9. Large Corners"
-}
-
-# ==========================================
-# Logic for Pairs (+/-)
-# ==========================================
-PLUS_SET = {"8", "10", "Q", "A"}
-MINUS_SET = {"7", "9", "J", "K"}
-
-def get_card_sign(card_val):
-    val = str(card_val).strip().upper()
-    if val in PLUS_SET: return "+"
-    if val in MINUS_SET: return "-"
-    return "?"
-
-def analyze_pair_gap(df, col1, col2):
-    s1 = df[col1].apply(get_card_sign)
-    s2 = df[col2].apply(get_card_sign)
-    pairs_series = s1 + s2 
-
-    target_pairs = ["++", "--", "+-", "-+"]
-    results = []
-
-    for p in target_pairs:
-        matches = (pairs_series == p)
-        if matches.any():
-            last_idx = matches.idxmax() # 0 is latest
-            results.append({'pair': p, 'ago': last_idx})
-        else:
-            results.append({'pair': p, 'ago': 9999})
-            
-    results.sort(key=lambda x: x['ago'], reverse=True)
-    return results
-
-# ==========================================
-# CSS Styling
-# ==========================================
-st.markdown("""
-<style>
-    /* Global Settings */
-    .stApp { direction: ltr; text-align: left; background-color: #0E1117; color: #FAFAFA; }
+    const ui = document.createElement('div');
+    ui.id = UI_ID;
+    ui.style.cssText = 'position:fixed; top:50px; right:50px; background:#222; color:#fff; border:2px solid #fff; padding:15px; z-index:999999; font-family:Arial,sans-serif; direction:ltr; box-shadow:0 0 20px rgba(0,0,0,0.5); border-radius:8px; width:260px; font-size:14px;';
     
+    let html = '<h3 style="margin:0 0 15px; text-align:center; color:#f1c40f; border-bottom:1px solid #555; padding-bottom:10px;">Chance Analyzer</h3>';
+    
+    html += '<div style="display:flex; gap:5px; margin-bottom:10px;">';
+    ['s1','s2','s3'].forEach(id => html += `<select id="${id}" style="flex:1; height:30px; font-weight:bold; color:#000; text-align:center;"></select>`);
+    html += '</div>';
+
+    html += '<select id="pat-select" style="width:100%; height:30px; margin-bottom:15px; color:#000; font-weight:bold;">';
+    html += '<option value="all">🔍 All Shapes</option>';
+    const pNames = ['Row', 'Column', 'Main Diagonal', 'Secondary Diagonal', 'Square 2x2', 'Square 3x3', 'Square 4x4', 'Diamond', 'Bridge', 'Short T (Up/Down)', 'Long T (All Directions)', 'Stairs (All Directions)', 'Arch (Left/Right)'];
+    pNames.forEach((n,i) => html += `<option value="${i}">${n}</option>`);
+    html += '</select>';
+
+    html += '<div style="display:flex; gap:10px;">';
+    html += '<button id="btn-scan" style="flex:2; background:#27ae60; color:white; border:none; padding:8px; border-radius:4px; cursor:pointer; font-weight:bold;">Scan</button>';
+    html += '<button onclick="document.getElementById(\''+UI_ID+'\').remove()" style="flex:1; background:#c0392b; color:#fff; border:none; border-radius:4px; cursor:pointer;">Close</button>';
+    html += '</div>';
+    html += '<div id="status-msg" style="margin-top:10px; text-align:center; color:#ccc; font-size:12px;">Ready.</div>';
+
+    ui.innerHTML = html;
+    document.body.appendChild(ui);
+
+    const cards = ['7', '8', '9', '10', 'J', 'Q', 'K', 'A'];
+    ['s1','s2','s3'].forEach(id => {
+        const el = document.getElementById(id);
+        cards.forEach(c => {
+            const opt = document.createElement('option');
+            opt.value = c; opt.innerText = c;
+            el.appendChild(opt);
+        });
+    });
+
+    const patterns = [
+        [ [[0,0], [0,1], [0,2], [0,3]] ],
+        [ [[0,0], [1,0], [2,0], [3,0]] ],
+        [ [[0,0], [1,1], [2,2], [3,3]] ],
+        [ [[0,3], [1,2], [2,1], [3,0]] ],
+        [ [[0,0], [0,1], [1,0], [1,1]] ],
+        [ [[0,0], [0,2], [2,0], [2,2]] ],
+        [ [[0,0], [0,3], [3,0], [3,3]] ],
+        [ [[0,1], [1,0], [1,2], [2,1]] ],
+        [ [[0,0], [0,2], [0,4], [0,6]] ],
+        [ [[0,0], [0,1], [0,2], [1,1]], [[0,1], [1,0], [1,1], [1,2]] ],
+        [ [[0,0], [0,1], [0,2], [2,1]], [[0,1], [2,0], [2,1], [2,2]], [[0,2], [1,2], [2,2], [1,0]], [[0,0], [1,0], [2,0], [1,2]] ],
+        [
+            [[0,0], [1,1], [2,1], [2,2]],
+            [[0,2], [1,0], [1,1], [2,0]],
+            [[0,0], [0,1], [1,1], [2,2]],
+            [[0,2], [1,1], [1,2], [2,0]],
+            [[0,2], [1,1], [2,0], [2,1]],
+            [[0,1], [0,2], [1,1], [2,0]],
+            [[0,0], [1,1], [1,2], [2,2]],
+            [[0,0], [1,0], [1,1], [2,2]]
+        ],
+        [ [[0,0], [1,0], [1,3], [2,0]], [[0,3], [1,0], [1,3], [2,3]] ]
+    ];
+
+    document.getElementById('btn-scan').onclick = function() {
+        const status = document.getElementById('status-msg');
+        status.innerText = "Scanning...";
+        
+        document.querySelectorAll('*').forEach(el => {
+            if(el.dataset.chk) {
+                el.style.backgroundColor = '';
+                el.style.outline = '';
+                el.style.color = '';
+                delete el.dataset.chk;
+            }
+        });
+
+        const targets = [
+            document.getElementById('s1').value,
+            document.getElementById('s2').value,
+            document.getElementById('s3').value
+        ];
+        
+        const pVal = document.getElementById('pat-select').value;
+        let activeCoords = [];
+        if(pVal === 'all') {
+            patterns.forEach(p => activeCoords.push(...p));
+        } else {
+            activeCoords = patterns[parseInt(pVal)];
+        }
+
+        const grid = [];
+        const rows = document.querySelectorAll('tr');
+        
+        rows.forEach(tr => {
+            const rowData = [];
+            tr.querySelectorAll('td').forEach(td => {
+                const txt = td.innerText || td.textContent;
+                const val = txt.replace(/[^0-9a-zA-Z]/g, '').trim(); 
+                if(cards.includes(val)) {
+                    rowData.push({ v: val, el: td });
+                }
+            });
+            if(rowData.length >= 4) {
+                grid.push(rowData.slice(-4)); 
+            }
+        });
+
+        if(grid.length === 0) {
+            status.innerText = "Valid table not found.";
+            return;
+        }
+
+        let found = 0;
+        
+        for(let r=0; r<grid.length; r++) {
+            for(let c=0; c<4; c++) {
+                activeCoords.forEach(coords => {
+                    let cells = [];
+                    let possible = true;
+
+                    for(let coord of coords) {
+                        let nr = r + coord[0];
+                        let nc = c + coord[1];
+                        
+                        if(nr >= grid.length || nc >= 4) {
+                            possible = false; break;
+                        }
+                        
+                        if(!grid[nr] || !grid[nr][nc]) {
+                            possible = false; break;
+                        }
+
+                        cells.push(grid[nr][nc]);
+                    }
+
+                    if(possible) {
+                        let needed = [...targets];
+                        let matchedIdx = [];
+
+                        cells.forEach((cell, idx) => {
+                            let i = needed.indexOf(cell.v);
+                            if(i !== -1) {
+                                needed.splice(i, 1);
+                                matchedIdx.push(idx);
+                            }
+                        });
+
+                        if(matchedIdx.length === 3) {
+                            found++;
+                            const missingIdx = [0,1,2,3].find(x => !matchedIdx.includes(x));
+                            
+                            matchedIdx.forEach(i => {
+                                cells[i].el.style.backgroundColor = 'yellow';
+                                cells[i].el.style.color = 'black';
+                                cells[i].el.dataset.chk = '1';
+                            });
+
+                            const target = cells[missingIdx].el;
+                            target.style.backgroundColor = 'cyan';
+                            target.style.outline = '3px solid red';
+                            target.style.color = 'black';
+                            target.style.fontWeight = 'bold';
+                            target.dataset.chk = '1';
+
+                            if(found === 1) target.scrollIntoView({behavior:'smooth', block:'center'});
+                        }
+                    }
+                });
+            }
+        }
+        status.innerText = found > 0 ? `Found ${found}!` : 'No matches found.';
+    };
+})();
     .block-container { padding-top: 1rem !important; padding-bottom: 2rem !important; }
     
     /* Clean Inputs */
