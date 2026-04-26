@@ -2,12 +2,16 @@ import streamlit as st
 import pandas as pd
 import numpy as np
 
+# --- Page Configuration ---
 st.set_page_config(
     page_title="Chance Analyzer PRO",
     layout="wide",
     initial_sidebar_state="collapsed"
 )
 
+# ==========================================
+# Fixed Patterns (A = Shape Block, X = Skip/Gap)
+# ==========================================
 FIXED_COMBOS_TXT = """
 A A A A
 
@@ -60,6 +64,7 @@ A X X A
 A X X X
 """
 
+# Pattern Names Mapping
 PATTERN_NAMES = {
     0: "1. Row",
     1: "2. Column",
@@ -76,6 +81,9 @@ PATTERN_NAMES = {
     12: "13. C-Shape"
 }
 
+# ==========================================
+# Logic for Pairs (+/-)
+# ==========================================
 PLUS_SET = {"8", "10", "Q", "A"}
 MINUS_SET = {"7", "9", "J", "K"}
 
@@ -104,6 +112,9 @@ def analyze_pair_gap(df, col1, col2):
     results.sort(key=lambda x: x['ago'], reverse=True)
     return results
 
+# ==========================================
+# Pattern Parsing & Variations Logic
+# ==========================================
 def parse_shapes_strict(text):
     shapes = []
     text = text.replace('\r\n', '\n')
@@ -174,6 +185,9 @@ def generate_variations_strict(shape_idx, base_shape):
             
     return valid_variations
 
+# ==========================================
+# Premium CSS Styling
+# ==========================================
 st.markdown("""
 <style>
     @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&display=swap');
@@ -191,10 +205,12 @@ st.markdown("""
     .stSelectbox, .stMultiSelect, div[data-testid="stExpander"] { direction: ltr; text-align: left; }
     div[data-baseweb="select"] > div { background-color: #111827; border: 1px solid #1F2937; border-radius: 8px; }
     
-    /* DISABLE KEYBOARD FIX */
+    /* DISABLE KEYBOARD FIX (Works on mobile without blocking clicks) */
     div[data-baseweb="select"] input {
-        display: none !important;
-        caret-color: transparent !important;
+        pointer-events: none !important;
+        user-select: none !important;
+        -webkit-user-select: none !important;
+        touch-action: none !important;
     }
 
     div.stButton > button { 
@@ -357,6 +373,9 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
+# ==========================================
+# UI & Render Helpers
+# ==========================================
 @st.cache_data
 def load_data_robust(uploaded_file):
     if uploaded_file is None: return None, "No file"
@@ -453,7 +472,7 @@ def generate_board_html(grid_data, row_limit, cell_styles):
             if style_extra.strip().startswith("cell-"):
                  html += f'<div class="grid-cell {style_extra}">{inner}</div>'
             else:
-                 html += f'<div class="grid-cell">{inner}{style_extra}</div>'
+                 html += f'<div class="grid-cell">{inner}</div>'
                  
     html += '</div>'
     return html
@@ -511,6 +530,9 @@ def find_matches_for_pattern(shape_idx, selected_cards, grid_data, row_limit):
         
     return found
 
+# ==========================================
+# Main Interface
+# ==========================================
 st.title("⚡ Chance Analyzer PRO")
 
 with st.sidebar:
@@ -547,17 +569,14 @@ if df is not None:
     with st.expander("⚙️ Configuration & Target Inputs", expanded=not st.session_state.get('search_done', False)):
         col_conf, col_prev = st.columns([4, 1])
         with col_conf:
-            pattern_list = list(PATTERN_NAMES.values())
-            selected_patt = st.selectbox(
+            shape_idx = st.selectbox(
                 "Search Pattern", 
-                pattern_list, 
+                range(len(base_shapes)), 
                 index=st.session_state['current_shape_idx'],
+                format_func=lambda x: PATTERN_NAMES.get(x, f"Pattern {x+1}"), 
                 label_visibility="collapsed"
             )
-            shape_idx = pattern_list.index(selected_patt)
-            if shape_idx != st.session_state['current_shape_idx']:
-                st.session_state['current_shape_idx'] = shape_idx
-                st.rerun()
+            st.session_state['current_shape_idx'] = shape_idx
 
         with col_prev:
             st.markdown(draw_preview_html(base_shapes[shape_idx]), unsafe_allow_html=True)
@@ -669,7 +688,6 @@ if df is not None:
                     if coord not in cell_styles: cell_styles[coord] = ""
                     count = cell_styles[coord].count("frame-box")
                     inset = count * 3
-                    # FIX: Explicit border-color added back
                     cell_styles[coord] += f'<div class="frame-box" style="border-width: 2px; border-color: {col}; box-shadow: inset 0 0 10px {col}, 0 0 8px {col}; top: {inset}px; left: {inset}px; right: {inset}px; bottom: {inset}px;"></div>'
             miss = m['miss_coords']
             if miss not in cell_styles: cell_styles[miss] = ""
