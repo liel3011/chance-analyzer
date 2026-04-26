@@ -69,7 +69,7 @@ PATTERN_NAMES = {
     0: "1. Row (Horizontal)",
     1: "2. Column (Vertical)",
     2: "3. Diagonal (All Dirs)",
-    3: "4. Custom Shape (8-7-7)",
+    3: "4. Custom Shape (Up/Down/Horiz)",
     4: "5. Bridge",
     5: "6. Square (2x2)",
     6: "7. Parallel Gaps",
@@ -104,7 +104,7 @@ def analyze_pair_gap(df, col1, col2):
     for p in target_pairs:
         matches = (pairs_series == p)
         if matches.any():
-            last_idx = matches.idxmax() # 0 is latest
+            last_idx = matches.idxmax()
             results.append({'pair': p, 'ago': last_idx})
         else:
             results.append({'pair': p, 'ago': 9999})
@@ -167,6 +167,8 @@ def generate_variations_strict(shape_idx, base_shape):
         variations.update([flip_v])
     elif shape_idx == 12:
         variations.update([mirror_h])
+    elif shape_idx == 3:
+        variations.update([mirror_h, flip_v, rot_180])
     else:
         variations.update([mirror_h, flip_v, rot_180, rot_90, rot_270, transp1, transp2])
         
@@ -178,51 +180,195 @@ def generate_variations_strict(shape_idx, base_shape):
     return valid_variations
 
 # ==========================================
-# CSS Styling
+# Premium CSS Styling
 # ==========================================
 st.markdown("""
 <style>
-    .stApp { direction: ltr; text-align: left; background-color: #0E1117; color: #FAFAFA; }
-    .block-container { padding-top: 1rem !important; padding-bottom: 2rem !important; }
-    .stSelectbox, .stMultiSelect, div[data-testid="stExpander"] { direction: ltr; text-align: left; }
-    div.stButton > button { width: 100%; border-radius: 8px; height: 2.8rem; font-weight: 600; }
+    /* Google Fonts */
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&display=swap');
+
+    /* Global Settings */
+    .stApp { 
+        direction: ltr; 
+        text-align: left; 
+        background-color: #0B0F19; /* Deep midnight theme */
+        color: #F3F4F6; 
+        font-family: 'Inter', sans-serif;
+    }
     
+    .block-container { padding-top: 1rem !important; padding-bottom: 3rem !important; }
+    
+    /* Sleeker Inputs */
+    .stSelectbox, .stMultiSelect, div[data-testid="stExpander"] { direction: ltr; text-align: left; }
+    div[data-baseweb="select"] > div { background-color: #111827; border: 1px solid #1F2937; border-radius: 8px; }
+    
+    /* Modern Buttons */
+    div.stButton > button { 
+        width: 100%; 
+        border-radius: 8px; 
+        height: 2.8rem; 
+        font-weight: 600; 
+        transition: all 0.3s ease;
+        border: 1px solid #374151;
+        background: #1F2937;
+        color: #F9FAFB;
+    }
+    div.stButton > button:hover {
+        border-color: #3B82F6;
+        box-shadow: 0 0 10px rgba(59, 130, 246, 0.3);
+    }
+    div.stButton > button[kind="primary"] {
+        background: linear-gradient(135deg, #3B82F6 0%, #2563EB 100%);
+        border: none;
+    }
+    div.stButton > button[kind="primary"]:hover {
+        background: linear-gradient(135deg, #60A5FA 0%, #3B82F6 100%);
+        box-shadow: 0 0 15px rgba(59, 130, 246, 0.5);
+    }
+
+    /* Premium Grid Layouts */
     .grid-container { 
-        display: grid; grid-template-columns: repeat(4, 1fr); gap: 4px; 
-        background-color: #161B22; padding: 8px; border-radius: 12px; margin-top: 10px; border: 1px solid #30363D;
+        display: grid; 
+        grid-template-columns: repeat(4, 1fr); 
+        gap: 6px; 
+        background: #111827; 
+        padding: 12px; 
+        border-radius: 16px; 
+        margin-top: 15px; 
+        border: 1px solid #1F2937;
+        box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.3);
     }
     .grid-cell { 
-        background-color: #21262D; color: #C9D1D9; padding: 0; text-align: center; border-radius: 6px; 
-        height: 40px; display: flex; align-items: center; justify-content: center; font-weight: 500; position: relative;
-        border: 1px solid #30363D;
+        background-color: #1F2937; 
+        color: #D1D5DB; 
+        padding: 0; 
+        text-align: center; 
+        border-radius: 8px; 
+        height: 42px; 
+        display: flex; 
+        align-items: center; 
+        justify-content: center; 
+        font-weight: 600; 
+        font-size: 15px;
+        position: relative;
+        border: 1px solid #374151;
+        box-shadow: inset 0 2px 4px rgba(0,0,0,0.1);
     }
     
-    .cell-plus { color: #3FB950 !important; font-weight: 900 !important; } 
-    .cell-minus { color: #F85149 !important; font-weight: 900 !important; } 
-    .missing-circle { background-color: #F0F6FC; color: #0D1117; font-weight: 800; border-radius: 6px; width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; }
-    .frame-box { position: absolute; top: 0; left: 0; right: 0; bottom: 0; border-style: solid; border-color: transparent; pointer-events: none; border-radius: 6px; }
-    .grid-header { text-align: center; padding-bottom: 6px; display: flex; flex-direction: column; align-items: center; justify-content: center; }
-    .suit-icon { font-size: 22px; line-height: 1; margin-bottom: 2px; }
-    .shape-preview-wrapper { background-color: #0D1117; border: 1px solid #30363D; border-radius: 8px; padding: 10px; display: flex; justify-content: center; align-items: center; height: 100%; }
+    /* Accent Colors for +/- Mode */
+    .cell-plus { color: #10B981 !important; font-weight: 800 !important; text-shadow: 0 0 8px rgba(16, 185, 129, 0.4); } 
+    .cell-minus { color: #F43F5E !important; font-weight: 800 !important; text-shadow: 0 0 8px rgba(244, 63, 94, 0.4); } 
     
+    /* Glowing Missing Marker */
+    .missing-circle { 
+        background: linear-gradient(135deg, #F59E0B 0%, #D97706 100%); 
+        color: #FFFFFF; 
+        font-weight: 800; 
+        border-radius: 50%; 
+        width: 32px; 
+        height: 32px; 
+        display: flex; 
+        align-items: center; 
+        justify-content: center; 
+        box-shadow: 0 0 15px rgba(245, 158, 11, 0.7);
+        margin: auto;
+        border: 2px solid #FEF3C7;
+    }
+    
+    /* Neon Frame for Matches */
+    .frame-box { 
+        position: absolute; 
+        top: 0; left: 0; right: 0; bottom: 0; 
+        border-style: solid; 
+        pointer-events: none; 
+        border-radius: 8px; 
+        box-shadow: inset 0 0 12px currentColor, 0 0 8px currentColor;
+        z-index: 10;
+    }
+    
+    /* Headers & Icons */
+    .grid-header { 
+        text-align: center; 
+        padding-bottom: 8px; 
+        display: flex; 
+        flex-direction: column; 
+        align-items: center; 
+        justify-content: center; 
+    }
+    .suit-icon { font-size: 24px; line-height: 1; margin-bottom: 4px; filter: drop-shadow(0 2px 4px rgba(0,0,0,0.3)); }
+    
+    /* Shape Preview Box */
+    .shape-preview-wrapper { 
+        background: #111827; 
+        border: 1px solid #1F2937; 
+        border-radius: 12px; 
+        padding: 12px; 
+        display: flex; 
+        justify-content: center; 
+        align-items: center; 
+        height: 100%; 
+        box-shadow: inset 0 2px 10px rgba(0,0,0,0.2);
+    }
+    
+    /* Custom DataFrame Styling */
+    [data-testid="stDataFrame"] { border-radius: 12px; overflow: hidden; border: 1px solid #1F2937; }
     [data-testid="stDataFrame"] th, [data-testid="stDataFrame"] td { text-align: left !important; }
     
-    .legend-container { display: flex; gap: 8px; margin-bottom: 10px; justify-content: center; }
-    .legend-box { background: #161B22; border: 1px solid #30363D; border-radius: 8px; padding: 6px 15px; text-align: center; flex: 1; }
-    .legend-title { font-weight: 900; font-size: 14px; margin-bottom: 2px; display: flex; align-items: center; justify-content: center; gap: 6px; }
-    .legend-cards { font-size: 11px; color: #8B949E; letter-spacing: 0.5px; }
-    .txt-plus { color: #3FB950; }
-    .txt-minus { color: #F85149; }
+    /* Compact Legend */
+    .legend-container { display: flex; gap: 12px; margin-bottom: 15px; justify-content: center; }
+    .legend-box { 
+        background: #111827; 
+        border: 1px solid #1F2937; 
+        border-radius: 10px; 
+        padding: 8px 20px; 
+        text-align: center; 
+        flex: 1; 
+        box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+    }
+    .legend-title { font-weight: 800; font-size: 14px; margin-bottom: 4px; letter-spacing: 1px;}
+    .legend-cards { font-size: 12px; color: #9CA3AF; letter-spacing: 0.5px; font-weight: 600; }
+    .txt-plus { color: #10B981; text-shadow: 0 0 5px rgba(16, 185, 129, 0.3);}
+    .txt-minus { color: #F43F5E; text-shadow: 0 0 5px rgba(244, 63, 94, 0.3);}
     
-    .result-card { background: linear-gradient(135deg, #1F2428 0%, #161B22 100%); border: 1px solid #30363D; border-radius: 12px; padding: 12px; text-align: center; margin-top: 5px; }
-    .result-split { display: flex; justify-content: space-around; align-items: center; margin-bottom: 8px; border-bottom: 1px solid #30363D; padding-bottom: 8px; }
+    /* Premium Result Cards */
+    .result-card { 
+        background: linear-gradient(180deg, #1F2937 0%, #111827 100%); 
+        border: 1px solid #374151; 
+        border-radius: 16px; 
+        padding: 16px; 
+        text-align: center; 
+        margin-top: 10px; 
+        box-shadow: 0 10px 20px rgba(0,0,0,0.2);
+    }
+    .result-split { 
+        display: flex; 
+        justify-content: space-around; 
+        align-items: center; 
+        margin-bottom: 12px; 
+        border-bottom: 1px solid #374151; 
+        padding-bottom: 12px; 
+    }
     .result-part { text-align: center; }
-    .res-suit { font-size: 11px; color: #8B949E; text-transform: uppercase; font-weight: bold; margin-bottom: 0px;}
-    .res-val { font-size: 16px; font-weight: 900; } 
-    .main-stat { font-size: 30px; font-weight: 900; color: #58A6FF; line-height: 1; margin: 2px 0; }
-    .sub-stat { font-size: 10px; color: #8B949E; text-transform: uppercase; letter-spacing: 0.5px; }
+    .res-suit { font-size: 12px; color: #9CA3AF; text-transform: uppercase; font-weight: 800; letter-spacing: 1px;}
+    .res-val { font-size: 20px; font-weight: 900; margin-top: 4px;} 
+    .main-stat { font-size: 38px; font-weight: 900; color: #60A5FA; line-height: 1; margin: 5px 0; text-shadow: 0 0 15px rgba(96, 165, 250, 0.4);}
+    .sub-stat { font-size: 11px; color: #6B7280; text-transform: uppercase; letter-spacing: 1px; font-weight: 600;}
 
-    div[data-testid="stVerticalBlock"] > div { gap: 0.2rem; }
+    /* Beautiful Winner Banner */
+    .winner-banner {
+        background: linear-gradient(135deg, #065F46 0%, #047857 100%);
+        border: 1px solid #10B981;
+        border-radius: 12px;
+        padding: 16px;
+        text-align: center;
+        color: #ECFDF5;
+        box-shadow: 0 4px 15px rgba(16, 185, 129, 0.3);
+        margin-bottom: 15px;
+    }
+    .winner-banner h3 { margin: 0; font-size: 22px; font-weight: 800; text-transform: uppercase; letter-spacing: 1px; }
+    .winner-banner p { margin: 5px 0 0 0; font-size: 14px; opacity: 0.9; }
+
+    div[data-testid="stVerticalBlock"] > div { gap: 0.3rem; }
     div[data-testid="stHorizontalBlock"] { align-items: center; }
 </style>
 """, unsafe_allow_html=True)
@@ -252,21 +398,22 @@ def draw_preview_html(shape_coords):
     max_r = max(r for r, c in shape_coords) + 1
     max_c = max(c for r, c in shape_coords) + 1
     
-    grid_html = f'<div style="display:grid; grid-template-columns: repeat({max_c}, 10px); gap: 3px;">'
+    grid_html = f'<div style="display:grid; grid-template-columns: repeat({max_c}, 14px); gap: 4px;">'
     for r in range(max_r):
         for c in range(max_c):
-            bg = "#58A6FF" if (r, c) in shape_coords else "#21262D"
-            border = "1px solid #30363D" if (r, c) not in shape_coords else "1px solid #79C0FF"
-            grid_html += f'<div style="width:10px; height:10px; border-radius:2px; background-color:{bg}; border:{border};"></div>'
+            bg = "#3B82F6" if (r, c) in shape_coords else "#1F2937"
+            border = "1px solid #60A5FA" if (r, c) in shape_coords else "1px solid #374151"
+            box_shadow = "box-shadow: 0 0 8px rgba(59, 130, 246, 0.5);" if (r, c) in shape_coords else ""
+            grid_html += f'<div style="width:14px; height:14px; border-radius:3px; background-color:{bg}; border:{border}; {box_shadow}"></div>'
     grid_html += '</div>'
     return f'<div class="shape-preview-wrapper">{grid_html}</div>'
 
 def create_sleeping_html_table(data_dict, required_cols):
     meta = {
-        'Clubs': {'icon': '♣', 'color': '#E1E4E8'},
-        'Diamonds': {'icon': '♦', 'color': '#FF4B4B'},
-        'Hearts': {'icon': '♥', 'color': '#FF4B4B'},
-        'Spades': {'icon': '♠', 'color': '#E1E4E8'}
+        'Clubs': {'icon': '♣', 'color': '#D1D5DB'},    # Sleek Gray
+        'Diamonds': {'icon': '♦', 'color': '#EF4444'}, # Vibrant Red
+        'Hearts': {'icon': '♥', 'color': '#EF4444'},   
+        'Spades': {'icon': '♠', 'color': '#D1D5DB'}
     }
     
     max_rows = 0
@@ -275,24 +422,25 @@ def create_sleeping_html_table(data_dict, required_cols):
         clean_data[col] = data_dict.get(col, [])
         if len(clean_data[col]) > max_rows: max_rows = len(clean_data[col])
             
-    parts = ['<div style="overflow-x: auto; border: 1px solid #30363D; border-radius: 6px;">',
-             '<table style="width: 100%; border-collapse: collapse; font-family: sans-serif; font-size: 14px;">',
-             '<thead><tr style="background-color: #161B22; border-bottom: 1px solid #30363D;">']
+    parts = ['<div style="overflow-x: auto; border: 1px solid #1F2937; border-radius: 12px; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">',
+             '<table style="width: 100%; border-collapse: collapse; font-family: \'Inter\', sans-serif; font-size: 14px;">',
+             '<thead><tr style="background-color: #111827; border-bottom: 2px solid #374151;">']
     
     for col in required_cols:
         c_meta = meta.get(col, {'icon': '', 'color': '#fff'})
-        header_content = f'<div style="display: flex; flex-direction: column; align-items: center; justify-content: center;"><div style="font-size: 24px; line-height: 1; margin-bottom: 2px;">{c_meta["icon"]}</div><div style="font-size: 11px; text-transform: uppercase;">{col}</div></div>'
-        parts.append(f'<th style="padding: 10px; text-align: center; color: {c_meta["color"]}; font-weight: bold; border-right: 1px solid #30363D; width: 25%; vertical-align: middle;">{header_content}</th>')
+        header_content = f'<div style="display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 8px 0;"><div style="font-size: 26px; line-height: 1; margin-bottom: 4px;">{c_meta["icon"]}</div><div style="font-size: 11px; text-transform: uppercase; font-weight: 800; letter-spacing: 1px; color: #9CA3AF;">{col}</div></div>'
+        parts.append(f'<th style="text-align: center; color: {c_meta["color"]}; font-weight: bold; border-right: 1px solid #1F2937; width: 25%; vertical-align: middle;">{header_content}</th>')
     
     parts.append('</tr></thead><tbody>')
     
     for i in range(max_rows):
-        bg_color = "#0D1117" if i % 2 == 0 else "#161B22"
-        parts.append(f'<tr style="background-color: {bg_color};">')
+        bg_color = "#1F2937" if i % 2 == 0 else "#111827"
+        parts.append(f'<tr style="background-color: {bg_color}; transition: background 0.2s;">')
         for col in required_cols:
             val = clean_data[col][i] if i < len(clean_data[col]) else ""
             text_color = meta[col]['color'] if val != "" else "transparent"
-            parts.append(f'<td style="padding: 8px; text-align: center; border-right: 1px solid #30363D; color: {text_color};">{val}</td>')
+            font_w = "600" if val != "" else "normal"
+            parts.append(f'<td style="padding: 10px; text-align: center; border-right: 1px solid #374151; color: {text_color}; font-weight: {font_w}; border-bottom: 1px solid #374151;">{val}</td>')
         parts.append("</tr>")
         
     parts.append("</tbody></table></div>")
@@ -301,13 +449,13 @@ def create_sleeping_html_table(data_dict, required_cols):
 def generate_board_html(grid_data, row_limit, cell_styles):
     html = '<div class="grid-container">'
     headers = [
-        ('Spades', '♠', '#E1E4E8'),
-        ('Hearts', '♥', '#FF4B4B'),
-        ('Diamonds', '♦', '#FF4B4B'),
-        ('Clubs', '♣', '#E1E4E8')
+        ('Spades', '♠', '#D1D5DB'),
+        ('Hearts', '♥', '#EF4444'),
+        ('Diamonds', '♦', '#EF4444'),
+        ('Clubs', '♣', '#D1D5DB')
     ]
     for name, icon, color in headers:
-        html += f'<div class="grid-header"><div class="suit-icon" style="color:{color};">{icon}</div><div class="suit-name" style="font-size: 10px; color: #8B949E;">{name}</div></div>'
+        html += f'<div class="grid-header"><div class="suit-icon" style="color:{color};">{icon}</div><div class="suit-name" style="font-size: 11px; color: #9CA3AF; font-weight: 800; letter-spacing: 1px; text-transform: uppercase;">{name}</div></div>'
     
     for r in range(min(len(grid_data), row_limit)):
         for c in range(4):
@@ -334,7 +482,8 @@ def find_matches_for_pattern(shape_idx, selected_cards, grid_data, row_limit):
     found = []
     variations = generate_variations_strict(shape_idx, base_shapes[shape_idx])
     rows = min(len(grid_data), row_limit)
-    colors = ['#FF7B72', '#D2A8FF', '#79C0FF', '#7EE787', '#FFA657']
+    # Modern Neon Palette for borders
+    colors = ['#3B82F6', '#8B5CF6', '#10B981', '#F59E0B', '#EF4444']
     
     raw_matches = []
     for shape in variations:
@@ -363,7 +512,6 @@ def find_matches_for_pattern(shape_idx, selected_cards, grid_data, row_limit):
                 if len(used_indices) == 3:
                     miss_i = [i for i in range(len(vals)) if i not in used_indices][0]
                     
-                    # --- RULE: For Column (Vertical), ignore if the missing card is in the 4th row ---
                     if shape_idx == 1 and shape[miss_i][0] == 3:
                         continue
                         
@@ -387,11 +535,13 @@ def find_matches_for_pattern(shape_idx, selected_cards, grid_data, row_limit):
 # ==========================================
 # Main Interface
 # ==========================================
-st.title("Chance Analyzer PRO")
+st.title("⚡ Chance Analyzer PRO")
 
 with st.sidebar:
-    st.header("Upload Data")
+    st.header("📂 Upload Data")
     csv_file = st.file_uploader("Choose a CSV file", type=None)
+    st.markdown("---")
+    st.caption("Powered by Advanced Geometric Pattern Recognition.")
 
 if 'uploaded_df' not in st.session_state: st.session_state['uploaded_df'] = None
 if 'current_shape_idx' not in st.session_state: st.session_state['current_shape_idx'] = 0
@@ -420,7 +570,7 @@ if df is not None:
     ROW_LIMIT = 26
     
     # --- Settings Expander ---
-    with st.expander("⚙️ Settings & Inputs", expanded=not st.session_state.get('search_done', False)):
+    with st.expander("⚙️ Configuration & Target Inputs", expanded=not st.session_state.get('search_done', False)):
         col_conf, col_prev = st.columns([4, 1])
         with col_conf:
             shape_idx = st.selectbox(
@@ -435,7 +585,7 @@ if df is not None:
         with col_prev:
             st.markdown(draw_preview_html(base_shapes[shape_idx]), unsafe_allow_html=True)
         
-        st.markdown("<div style='height: 18px;'></div>", unsafe_allow_html=True)
+        st.markdown("<div style='height: 15px;'></div>", unsafe_allow_html=True)
         
         raw_cards = np.unique(grid_data.astype(str))
         clean_cards = sorted([c for c in raw_cards if str(c).lower() != 'nan' and str(c).strip() != ''])
@@ -447,11 +597,11 @@ if df is not None:
         
         selected_cards = [c for c in [card1, card2, card3] if c != ""]
         
-        st.markdown("<div style='margin-bottom: 10px;'></div>", unsafe_allow_html=True)
+        st.markdown("<div style='margin-bottom: 15px;'></div>", unsafe_allow_html=True)
 
         b_search, b_best, b_reset = st.columns([3, 3, 1])
-        with b_search: run_search = st.button("🔍 Search", type="primary", use_container_width=True)
-        with b_best: run_best = st.button("🏆 Best 4th Card", type="primary", use_container_width=True)
+        with b_search: run_search = st.button("🔍 Search Pattern", type="primary", use_container_width=True)
+        with b_best: run_best = st.button("🏆 Find Best 4th Card", type="primary", use_container_width=True)
         with b_reset: reset_btn = st.button("Reset", use_container_width=True)
         
         if reset_btn:
@@ -459,10 +609,8 @@ if df is not None:
             if 'winning_msg' in st.session_state: del st.session_state['winning_msg']
             st.rerun()
 
-    # --- Search Logic Execution ---
     found_matches = []
     
-    # 🏆 NEW LOGIC: Find the most frequent 4th card across ALL patterns
     if run_best and len(selected_cards) == 3:
         all_missing_cards = []
         for p_idx in range(len(base_shapes)):
@@ -474,14 +622,23 @@ if df is not None:
             best_card = counts.index[0]
             best_count = counts.iloc[0]
             
-            st.session_state['winning_msg'] = f"🏆 **OVERALL WINNING 4TH CARD: {best_card}** (Found {best_count} times across ALL shapes!)"
+            st.session_state['winning_msg'] = f"""
+            <div class="winner-banner">
+                <h3>🏆 Winning 4th Card: {best_card} 🏆</h3>
+                <p>Found <b>{best_count}</b> times across all possible shapes and directions.</p>
+            </div>
+            """
         else:
-            st.session_state['winning_msg'] = "❌ No matches found for these cards in ANY shape."
+            st.session_state['winning_msg'] = """
+            <div class="winner-banner" style="background: linear-gradient(135deg, #7F1D1D 0%, #991B1B 100%); border-color: #EF4444; box-shadow: 0 4px 15px rgba(239, 68, 68, 0.3);">
+                <h3 style="font-size: 18px;">❌ No Matches Found</h3>
+                <p>These cards did not trigger any of the existing patterns.</p>
+            </div>
+            """
             
         st.session_state['search_done'] = True
         st.rerun()
 
-    # Regular Search Logic
     if (run_search or st.session_state.get('search_done', False)) and len(selected_cards) == 3:
         st.session_state['search_done'] = True
         
@@ -489,13 +646,13 @@ if df is not None:
             del st.session_state['winning_msg']
             
         if 'winning_msg' in st.session_state:
-            st.success(st.session_state['winning_msg'])
+            st.markdown(st.session_state['winning_msg'], unsafe_allow_html=True)
             
         current_patt_idx = st.session_state.get('current_shape_idx', shape_idx)
         found_matches = find_matches_for_pattern(current_patt_idx, selected_cards, grid_data, ROW_LIMIT)
 
     # --- Tabs System ---
-    tab_matches, tab_sleep, tab_pairs = st.tabs(["📋 MATCHES", "💤 SLEEPING", "⚖️ PAIRS"])
+    tab_matches, tab_sleep, tab_pairs = st.tabs(["📋 PATTERN MATCHES", "💤 SLEEPING CARDS", "⚖️ PAIRS (+/-)"])
     selected_match_ids = None 
     
     with tab_matches:
@@ -512,8 +669,9 @@ if df is not None:
             grouped_df['Row Indexes'] = grouped_df['Row'].apply(lambda x: ", ".join(map(str, x)))
             
             display_df = grouped_df[['Missing Card', 'Count', 'Row Indexes', 'Hidden_ID']]
-            calc_height = (len(display_df) + 1) * 35 + 3
+            calc_height = (len(display_df) + 1) * 36 + 3
             
+            st.markdown("<p style='color: #9CA3AF; font-size: 13px; font-weight: 600; margin-bottom: 5px;'>SELECT A ROW TO HIGHLIGHT ON BOARD:</p>", unsafe_allow_html=True)
             event = st.dataframe(display_df.drop(columns=['Hidden_ID']), hide_index=True, use_container_width=True, selection_mode="single-row", on_select="rerun", height=calc_height)
             if len(event.selection['rows']) > 0:
                 selected_match_ids = display_df.iloc[event.selection['rows'][0]]['Hidden_ID']
@@ -521,7 +679,7 @@ if df is not None:
             if st.session_state.get('search_done', False): 
                 st.info("No matches found for the currently selected pattern.")
             
-        st.subheader("Game Board")
+        st.markdown("<h4 style='margin-top: 15px; font-weight: 800; color: #F3F4F6;'>Live Game Board</h4>", unsafe_allow_html=True)
         cell_styles = {}
         matches_to_show = found_matches
         
@@ -535,7 +693,7 @@ if df is not None:
                     if coord not in cell_styles: cell_styles[coord] = ""
                     count = cell_styles[coord].count("frame-box")
                     inset = count * 3
-                    cell_styles[coord] += f'<div class="frame-box" style="border-width: 2px; border-color: {col}; top: {inset}px; left: {inset}px; right: {inset}px; bottom: {inset}px;"></div>'
+                    cell_styles[coord] += f'<div class="frame-box" style="color: {col}; top: {inset}px; left: {inset}px; right: {inset}px; bottom: {inset}px; border-width: 2px;"></div>'
             miss = m['miss_coords']
             if miss not in cell_styles: cell_styles[miss] = ""
             if "MISSING_MARKER" not in cell_styles[miss]: cell_styles[miss] += "MISSING_MARKER"
@@ -561,7 +719,7 @@ if df is not None:
         else:
             st.write("No sleeping cards found.")
             
-        st.subheader("Game Board")
+        st.markdown("<h4 style='margin-top: 15px; font-weight: 800; color: #F3F4F6;'>Live Game Board</h4>", unsafe_allow_html=True)
         st.markdown(generate_board_html(grid_data, ROW_LIMIT, {}), unsafe_allow_html=True)
 
     with tab_pairs:
@@ -625,7 +783,7 @@ if df is not None:
                 with [mc1, mc2, mc3][i]:
                     st.caption(f"{other['pair']} : {other['ago']} draws ago")
                     
-        st.subheader("Game Board")
+        st.markdown("<h4 style='margin-top: 15px; font-weight: 800; color: #F3F4F6;'>Live Game Board</h4>", unsafe_allow_html=True)
         cell_styles = {}
         if color_board:
             for r in range(min(len(grid_data), ROW_LIMIT)):
