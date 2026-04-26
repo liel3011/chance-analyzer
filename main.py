@@ -2,12 +2,16 @@ import streamlit as st
 import pandas as pd
 import numpy as np
 
+# --- Page Configuration ---
 st.set_page_config(
     page_title="Chance Analyzer PRO",
     layout="wide",
     initial_sidebar_state="collapsed"
 )
 
+# ==========================================
+# Fixed Patterns (A = Shape Block, X = Skip/Gap)
+# ==========================================
 FIXED_COMBOS_TXT = """
 A A A A
 
@@ -26,6 +30,24 @@ X A X X
 X A X X
 X X X A
 
+A A X A
+X A X X
+
+A A
+A A
+
+A X A
+A X A
+
+A X A
+X X X
+A X A
+
+A X X A
+X X X X
+X X X X
+A X X A
+
 A A A
 X A X
 
@@ -42,17 +64,26 @@ A X X A
 A X X X
 """
 
+# Pattern Names Mapping
 PATTERN_NAMES = {
     0: "1. Row (Horizontal)",
     1: "2. Column (Vertical)",
-    2: "3. Diagonal (All Dirs)",
-    3: "4. Custom 8-7-7 (All Dirs)",
-    4: "5. T-Shape (Up/Down)",
-    5: "6. T-Shape Spaced (Up/Down)",
-    6: "7. Hook (All Dirs)",
-    7: "8. C-Shape (Left/Right)"
+    2: "3. Diagonal",
+    3: "4. Custom Shape (8-7-7)",
+    4: "5. Bridge",
+    5: "6. Square (2x2)",
+    6: "7. Parallel Gaps",
+    7: "8. X-Corners",
+    8: "9. Large Corners",
+    9: "10. T-Shape (Up/Down)",
+    10: "11. T-Spaced (Up/Down)",
+    11: "12. Hook (All Dirs)",
+    12: "13. C-Shape (Left/Right)"
 }
 
+# ==========================================
+# Logic for Pairs (+/-)
+# ==========================================
 PLUS_SET = {"8", "10", "Q", "A"}
 MINUS_SET = {"7", "9", "J", "K"}
 
@@ -73,7 +104,7 @@ def analyze_pair_gap(df, col1, col2):
     for p in target_pairs:
         matches = (pairs_series == p)
         if matches.any():
-            last_idx = matches.idxmax()
+            last_idx = matches.idxmax() # 0 is latest
             results.append({'pair': p, 'ago': last_idx})
         else:
             results.append({'pair': p, 'ago': 9999})
@@ -81,6 +112,9 @@ def analyze_pair_gap(df, col1, col2):
     results.sort(key=lambda x: x['ago'], reverse=True)
     return results
 
+# ==========================================
+# Pattern Parsing & Variations Logic
+# ==========================================
 def parse_shapes_strict(text):
     shapes = []
     text = text.replace('\r\n', '\n')
@@ -90,12 +124,14 @@ def parse_shapes_strict(text):
         lines = block.strip().split('\n')
         coords = []
         for r, line in enumerate(lines):
+            # Clean spaces for exact matrix processing
             chars = line.replace(' ', '')
             for c, char in enumerate(chars):
                 if char == 'A':
                     coords.append((r, c))
         if not coords: continue
         
+        # Normalize to (0,0) origin
         min_r = min(r for r, c in coords)
         min_c = min(c for r, c in coords)
         normalized = [(r - min_r, c - min_c) for r, c in coords]
@@ -117,24 +153,41 @@ def generate_variations_strict(shape_idx, base_shape):
     rot_180 = tuple(sorted([(h - r, w - c) for r, c in base_shape]))
     
     if shape_idx in [0, 1]:
-        pass 
-    elif shape_idx in [2, 3, 6]:
-        variations.update([mirror_h, flip_v, rot_180])
-    elif shape_idx in [4, 5]:
+        pass # Original only (Row/Col)
+    elif shape_idx in [9, 10]:
+        # Up/Down Only (Vertical Flip)
         variations.update([flip_v])
-    elif shape_idx == 7:
+    elif shape_idx == 12:
+        # Left/Right Only (Horizontal Mirror)
         variations.update([mirror_h])
+    else:
+        # All Directions (Default for diagonals, squares, hooks, etc.)
+        variations.update([mirror_h, flip_v, rot_180])
         
     return [list(v) for v in variations]
 
+# ==========================================
+# CSS Styling
+# ==========================================
 st.markdown("""
 <style>
+    /* Global Settings */
     .stApp { direction: ltr; text-align: left; background-color: #0E1117; color: #FAFAFA; }
     .block-container { padding-top: 1rem !important; padding-bottom: 2rem !important; }
     .stSelectbox, .stMultiSelect, div[data-testid="stExpander"] { direction: ltr; text-align: left; }
     div.stButton > button { width: 100%; border-radius: 8px; height: 2.8rem; font-weight: 600; }
-    .grid-container { display: grid; grid-template-columns: repeat(4, 1fr); gap: 4px; background-color: #161B22; padding: 8px; border-radius: 12px; margin-top: 10px; border: 1px solid #30363D; }
-    .grid-cell { background-color: #21262D; color: #C9D1D9; padding: 0; text-align: center; border-radius: 6px; height: 40px; display: flex; align-items: center; justify-content: center; font-weight: 500; position: relative; border: 1px solid #30363D; }
+    
+    /* Grid Layouts */
+    .grid-container { 
+        display: grid; grid-template-columns: repeat(4, 1fr); gap: 4px; 
+        background-color: #161B22; padding: 8px; border-radius: 12px; margin-top: 10px; border: 1px solid #30363D;
+    }
+    .grid-cell { 
+        background-color: #21262D; color: #C9D1D9; padding: 0; text-align: center; border-radius: 6px; 
+        height: 40px; display: flex; align-items: center; justify-content: center; font-weight: 500; position: relative;
+        border: 1px solid #30363D;
+    }
+    
     .cell-plus { color: #3FB950 !important; font-weight: 900 !important; } 
     .cell-minus { color: #F85149 !important; font-weight: 900 !important; } 
     .missing-circle { background-color: #F0F6FC; color: #0D1117; font-weight: 800; border-radius: 6px; width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; }
@@ -142,13 +195,16 @@ st.markdown("""
     .grid-header { text-align: center; padding-bottom: 6px; display: flex; flex-direction: column; align-items: center; justify-content: center; }
     .suit-icon { font-size: 22px; line-height: 1; margin-bottom: 2px; }
     .shape-preview-wrapper { background-color: #0D1117; border: 1px solid #30363D; border-radius: 8px; padding: 10px; display: flex; justify-content: center; align-items: center; height: 100%; }
+    
     [data-testid="stDataFrame"] th, [data-testid="stDataFrame"] td { text-align: left !important; }
+    
     .legend-container { display: flex; gap: 8px; margin-bottom: 10px; justify-content: center; }
     .legend-box { background: #161B22; border: 1px solid #30363D; border-radius: 8px; padding: 6px 15px; text-align: center; flex: 1; }
     .legend-title { font-weight: 900; font-size: 14px; margin-bottom: 2px; display: flex; align-items: center; justify-content: center; gap: 6px; }
     .legend-cards { font-size: 11px; color: #8B949E; letter-spacing: 0.5px; }
     .txt-plus { color: #3FB950; }
     .txt-minus { color: #F85149; }
+    
     .result-card { background: linear-gradient(135deg, #1F2428 0%, #161B22 100%); border: 1px solid #30363D; border-radius: 12px; padding: 12px; text-align: center; margin-top: 5px; }
     .result-split { display: flex; justify-content: space-around; align-items: center; margin-bottom: 8px; border-bottom: 1px solid #30363D; padding-bottom: 8px; }
     .result-part { text-align: center; }
@@ -156,9 +212,15 @@ st.markdown("""
     .res-val { font-size: 16px; font-weight: 900; } 
     .main-stat { font-size: 30px; font-weight: 900; color: #58A6FF; line-height: 1; margin: 2px 0; }
     .sub-stat { font-size: 10px; color: #8B949E; text-transform: uppercase; letter-spacing: 0.5px; }
+
+    div[data-testid="stVerticalBlock"] > div { gap: 0.2rem; }
+    div[data-testid="stHorizontalBlock"] { align-items: center; }
 </style>
 """, unsafe_allow_html=True)
 
+# ==========================================
+# UI & Render Helpers
+# ==========================================
 @st.cache_data
 def load_data_robust(uploaded_file):
     if uploaded_file is None: return None, "No file"
@@ -236,7 +298,7 @@ def generate_board_html(grid_data, row_limit, cell_styles):
         ('Clubs', '♣', '#E1E4E8')
     ]
     for name, icon, color in headers:
-        html += f'<div class="grid-header"><div class="suit-icon" style="color:{color};">{icon}</div><div style="font-size: 10px; color: #8B949E;">{name}</div></div>'
+        html += f'<div class="grid-header"><div class="suit-icon" style="color:{color};">{icon}</div><div class="suit-name" style="font-size: 10px; color: #8B949E;">{name}</div></div>'
     
     for r in range(min(len(grid_data), row_limit)):
         for c in range(4):
@@ -258,6 +320,9 @@ def generate_board_html(grid_data, row_limit, cell_styles):
     html += '</div>'
     return html
 
+# ==========================================
+# Main Interface
+# ==========================================
 st.title("Chance Analyzer PRO")
 
 with st.sidebar:
@@ -289,6 +354,7 @@ if df is not None:
     grid_data = df[required_cols].values
     ROW_LIMIT = 51
     
+    # --- Settings Expander ---
     with st.expander("⚙️ Settings & Inputs", expanded=not st.session_state.get('search_done', False)):
         col_conf, col_prev = st.columns([4, 1])
         with col_conf:
@@ -302,9 +368,9 @@ if df is not None:
         clean_cards = sorted([c for c in raw_cards if str(c).lower() != 'nan' and str(c).strip() != ''])
         
         c1, c2, c3 = st.columns(3)
-        with c1: card1 = st.selectbox("Card 1", [""] + clean_cards, key="c1")
-        with c2: card2 = st.selectbox("Card 2", [""] + clean_cards, key="c2")
-        with c3: card3 = st.selectbox("Card 3", [""] + clean_cards, key="c3")
+        with c1: card1 = st.selectbox("Card 1", [""] + clean_cards, key="c1", label_visibility="collapsed")
+        with c2: card2 = st.selectbox("Card 2", [""] + clean_cards, key="c2", label_visibility="collapsed")
+        with c3: card3 = st.selectbox("Card 3", [""] + clean_cards, key="c3", label_visibility="collapsed")
         
         selected_cards = [c for c in [card1, card2, card3] if c != ""]
         
@@ -318,6 +384,7 @@ if df is not None:
             st.session_state['search_done'] = False
             st.rerun()
 
+    # --- Search Logic ---
     found_matches = []
     if (run_search or st.session_state.get('search_done', False)) and len(selected_cards) == 3:
         st.session_state['search_done'] = True
@@ -366,9 +433,11 @@ if df is not None:
             m['color'] = colors[i % len(colors)]
             found_matches.append(m)
 
+    # --- Tabs System ---
     tab_matches, tab_sleep, tab_pairs = st.tabs(["📋 MATCHES", "💤 SLEEPING", "⚖️ PAIRS"])
     selected_match_ids = None 
     
+    # ------------------ TAB 1: MATCHES ------------------
     with tab_matches:
         if found_matches:
             raw_df = pd.DataFrame([
@@ -413,6 +482,7 @@ if df is not None:
             
         st.markdown(generate_board_html(grid_data, ROW_LIMIT, cell_styles), unsafe_allow_html=True)
 
+    # ------------------ TAB 2: SLEEPING ------------------
     with tab_sleep:
         sleep_data_lists = {}
         for col_name in required_cols:
@@ -435,6 +505,7 @@ if df is not None:
         st.subheader("Game Board")
         st.markdown(generate_board_html(grid_data, ROW_LIMIT, {}), unsafe_allow_html=True)
 
+    # ------------------ TAB 3: PAIRS (+/-) ------------------
     with tab_pairs:
         st.markdown("""
         <div class="legend-container">
@@ -451,8 +522,8 @@ if df is not None:
         
         all_suits = [c for c in required_cols if c in df.columns]
         sc1, sc2, sc3 = st.columns([1.5, 1.5, 1])
-        with sc1: s_choice1 = st.selectbox("Suit 1", all_suits, index=0) 
-        with sc2: s_choice2 = st.selectbox("Suit 2", all_suits, index=1) 
+        with sc1: s_choice1 = st.selectbox("Suit 1", all_suits, index=0, label_visibility="collapsed") 
+        with sc2: s_choice2 = st.selectbox("Suit 2", all_suits, index=1, label_visibility="collapsed") 
         with sc3: color_board = st.checkbox("🎨 Color Grid", value=False)
         
         if s_choice1 == s_choice2:
