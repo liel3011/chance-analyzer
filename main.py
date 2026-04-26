@@ -1,17 +1,33 @@
 import streamlit as st
+import streamlit.components.v1 as components
 import pandas as pd
 import numpy as np
 
-# --- Page Configuration ---
 st.set_page_config(
     page_title="Chance Analyzer PRO",
     layout="wide",
     initial_sidebar_state="collapsed"
 )
 
-# ==========================================
-# Fixed Patterns (A = Shape Block, X = Skip/Gap)
-# ==========================================
+components.html(
+    """
+    <script>
+    const doc = window.parent.document;
+    const disableKeyboard = () => {
+        const inputs = doc.querySelectorAll('div[data-baseweb="select"] input');
+        inputs.forEach(el => {
+            el.setAttribute('inputmode', 'none');
+            el.setAttribute('readonly', 'readonly');
+        });
+    };
+    disableKeyboard();
+    const observer = new MutationObserver(disableKeyboard);
+    observer.observe(doc.body, { childList: true, subtree: true });
+    </script>
+    """,
+    height=0, width=0
+)
+
 FIXED_COMBOS_TXT = """
 A A A A
 
@@ -64,26 +80,22 @@ A X X A
 A X X X
 """
 
-# Pattern Names Mapping
 PATTERN_NAMES = {
-    0: "1. Row (Horizontal)",
-    1: "2. Column (Vertical)",
-    2: "3. Diagonal (All Dirs)",
-    3: "4. Custom Shape (Up/Down/Horiz)",
+    0: "1. Row",
+    1: "2. Column",
+    2: "3. Diagonal",
+    3: "4. Custom Shape",
     4: "5. Bridge",
-    5: "6. Square (2x2)",
+    5: "6. Square",
     6: "7. Parallel Gaps",
     7: "8. X-Corners",
     8: "9. Large Corners",
-    9: "10. T-Shape (Up/Down)",
-    10: "11. T-Spaced (Up/Down)",
-    11: "12. Hook (Up/Down)",
-    12: "13. C-Shape (Left/Right)"
+    9: "10. T-Shape",
+    10: "11. T-Spaced",
+    11: "12. Hook",
+    12: "13. C-Shape"
 }
 
-# ==========================================
-# Logic for Pairs (+/-)
-# ==========================================
 PLUS_SET = {"8", "10", "Q", "A"}
 MINUS_SET = {"7", "9", "J", "K"}
 
@@ -112,9 +124,6 @@ def analyze_pair_gap(df, col1, col2):
     results.sort(key=lambda x: x['ago'], reverse=True)
     return results
 
-# ==========================================
-# Pattern Parsing & Variations Logic
-# ==========================================
 def parse_shapes_strict(text):
     shapes = []
     text = text.replace('\r\n', '\n')
@@ -185,9 +194,6 @@ def generate_variations_strict(shape_idx, base_shape):
             
     return valid_variations
 
-# ==========================================
-# Premium CSS Styling
-# ==========================================
 st.markdown("""
 <style>
     @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&display=swap');
@@ -204,7 +210,7 @@ st.markdown("""
     
     .stSelectbox, .stMultiSelect, div[data-testid="stExpander"] { direction: ltr; text-align: left; }
     div[data-baseweb="select"] > div { background-color: #111827; border: 1px solid #1F2937; border-radius: 8px; }
-    
+
     div.stButton > button { 
         width: 100%; 
         border-radius: 8px; 
@@ -254,24 +260,25 @@ st.markdown("""
         position: relative;
         border: 1px solid #374151;
         box-shadow: inset 0 2px 4px rgba(0,0,0,0.1);
+        transition: all 0.2s ease;
     }
     
     .cell-plus { color: #10B981 !important; font-weight: 800 !important; text-shadow: 0 0 8px rgba(16, 185, 129, 0.4); } 
     .cell-minus { color: #F43F5E !important; font-weight: 800 !important; text-shadow: 0 0 8px rgba(244, 63, 94, 0.4); } 
     
-    .missing-circle { 
-        background: linear-gradient(135deg, #F59E0B 0%, #D97706 100%); 
-        color: #FFFFFF; 
-        font-weight: 800; 
-        border-radius: 50%; 
-        width: 32px; 
-        height: 32px; 
-        display: flex; 
-        align-items: center; 
-        justify-content: center; 
-        box-shadow: 0 0 15px rgba(245, 158, 11, 0.7);
-        margin: auto;
-        border: 2px solid #FEF3C7;
+    .missing-selected {
+        background: linear-gradient(135deg, #F59E0B 0%, #D97706 100%) !important;
+        color: #000 !important;
+        font-weight: 900 !important;
+        border: 2px solid #FFF !important;
+        box-shadow: 0 0 20px 5px rgba(245, 158, 11, 0.8) !important;
+        transform: scale(1.15);
+        z-index: 100;
+    }
+    .missing-subtle {
+        background-color: rgba(245, 158, 11, 0.15) !important;
+        border: 1px dashed #F59E0B !important;
+        color: #FCD34D !important;
     }
     
     .frame-box { 
@@ -347,27 +354,11 @@ st.markdown("""
     .main-stat { font-size: 38px; font-weight: 900; color: #60A5FA; line-height: 1; margin: 5px 0; text-shadow: 0 0 15px rgba(96, 165, 250, 0.4);}
     .sub-stat { font-size: 11px; color: #6B7280; text-transform: uppercase; letter-spacing: 1px; font-weight: 600;}
 
-    .winner-banner {
-        background: linear-gradient(135deg, #065F46 0%, #047857 100%);
-        border: 1px solid #10B981;
-        border-radius: 12px;
-        padding: 16px;
-        text-align: center;
-        color: #ECFDF5;
-        box-shadow: 0 4px 15px rgba(16, 185, 129, 0.3);
-        margin-bottom: 15px;
-    }
-    .winner-banner h3 { margin: 0; font-size: 22px; font-weight: 800; text-transform: uppercase; letter-spacing: 1px; }
-    .winner-banner p { margin: 5px 0 0 0; font-size: 14px; opacity: 0.9; }
-
     div[data-testid="stVerticalBlock"] > div { gap: 0.3rem; }
     div[data-testid="stHorizontalBlock"] { align-items: center; }
 </style>
 """, unsafe_allow_html=True)
 
-# ==========================================
-# UI & Render Helpers
-# ==========================================
 @st.cache_data
 def load_data_robust(uploaded_file):
     if uploaded_file is None: return None, "No file"
@@ -457,14 +448,15 @@ def generate_board_html(grid_data, row_limit, cell_styles):
             style_extra = cell_styles.get((r, c), "")
             inner = val
             
-            if "MISSING_MARKER" in style_extra:
-                inner = f'<div class="missing-circle">{val}</div>'
-                style_extra = style_extra.replace("MISSING_MARKER", "")
+            if "MISSING_SELECTED" in style_extra:
+                style_extra = style_extra.replace("MISSING_SELECTED", "missing-selected")
+            elif "MISSING_SUBTLE" in style_extra:
+                style_extra = style_extra.replace("MISSING_SUBTLE", "missing-subtle")
             
             if style_extra.strip().startswith("cell-"):
                  html += f'<div class="grid-cell {style_extra}">{inner}</div>'
             else:
-                 html += f'<div class="grid-cell">{inner}{style_extra}</div>'
+                 html += f'<div class="grid-cell">{inner}</div>'
                  
     html += '</div>'
     return html
@@ -522,16 +514,12 @@ def find_matches_for_pattern(shape_idx, selected_cards, grid_data, row_limit):
         
     return found
 
-# ==========================================
-# Main Interface
-# ==========================================
 st.title("⚡ Chance Analyzer PRO")
 
 with st.sidebar:
     st.header("📂 Upload Data")
     csv_file = st.file_uploader("Choose a CSV file", type=None)
     st.markdown("---")
-    st.caption("Powered by Advanced Geometric Pattern Recognition.")
 
 if 'uploaded_df' not in st.session_state: st.session_state['uploaded_df'] = None
 if 'current_shape_idx' not in st.session_state: st.session_state['current_shape_idx'] = 0
@@ -559,7 +547,6 @@ if df is not None:
     grid_data = df[required_cols].values
     ROW_LIMIT = 26
     
-    # --- Settings Expander ---
     with st.expander("⚙️ Configuration & Target Inputs", expanded=not st.session_state.get('search_done', False)):
         col_conf, col_prev = st.columns([4, 1])
         with col_conf:
@@ -591,7 +578,7 @@ if df is not None:
 
         b_search, b_best, b_reset = st.columns([3, 3, 1])
         with b_search: run_search = st.button("🔍 Search Pattern", type="primary", use_container_width=True)
-        with b_best: run_best = st.button("🏆 Find Best 4th Card", type="primary", use_container_width=True)
+        with b_best: run_best = st.button("🏆 Winning Pattern", type="primary", use_container_width=True)
         with b_reset: reset_btn = st.button("Reset", use_container_width=True)
         
         if reset_btn:
@@ -602,30 +589,16 @@ if df is not None:
     found_matches = []
     
     if run_best and len(selected_cards) == 3:
-        all_missing_cards = []
+        best_count = -1
+        best_idx = 0
         for p_idx in range(len(base_shapes)):
             m = find_matches_for_pattern(p_idx, selected_cards, grid_data, ROW_LIMIT)
-            all_missing_cards.extend([x['miss_val'] for x in m])
-            
-        if all_missing_cards:
-            counts = pd.Series(all_missing_cards).value_counts()
-            best_card = counts.index[0]
-            best_count = counts.iloc[0]
-            
-            st.session_state['winning_msg'] = f"""
-            <div class="winner-banner">
-                <h3>🏆 Winning 4th Card: {best_card} 🏆</h3>
-                <p>Found <b>{best_count}</b> times across all possible shapes and directions.</p>
-            </div>
-            """
-        else:
-            st.session_state['winning_msg'] = """
-            <div class="winner-banner" style="background: linear-gradient(135deg, #7F1D1D 0%, #991B1B 100%); border-color: #EF4444; box-shadow: 0 4px 15px rgba(239, 68, 68, 0.3);">
-                <h3 style="font-size: 18px;">❌ No Matches Found</h3>
-                <p>These cards did not trigger any of the existing patterns.</p>
-            </div>
-            """
-            
+            if len(m) > best_count:
+                best_count = len(m)
+                best_idx = p_idx
+        
+        st.session_state['current_shape_idx'] = best_idx
+        st.session_state['winning_msg'] = f"🏆 **Winning Pattern:** {PATTERN_NAMES.get(best_idx)} with **{best_count}** matches!"
         st.session_state['search_done'] = True
         st.rerun()
 
@@ -636,7 +609,7 @@ if df is not None:
             del st.session_state['winning_msg']
             
         if 'winning_msg' in st.session_state:
-            st.markdown(st.session_state['winning_msg'], unsafe_allow_html=True)
+            st.success(st.session_state['winning_msg'])
             
         current_patt_idx = st.session_state.get('current_shape_idx', shape_idx)
         found_matches = find_matches_for_pattern(current_patt_idx, selected_cards, grid_data, ROW_LIMIT)
@@ -685,7 +658,11 @@ if df is not None:
                     cell_styles[coord] += f'<div class="frame-box" style="color: {col}; top: {inset}px; left: {inset}px; right: {inset}px; bottom: {inset}px; border-width: 2px;"></div>'
             miss = m['miss_coords']
             if miss not in cell_styles: cell_styles[miss] = ""
-            if "MISSING_MARKER" not in cell_styles[miss]: cell_styles[miss] += "MISSING_MARKER"
+            
+            if selected_match_ids is not None:
+                cell_styles[miss] += " MISSING_SELECTED"
+            else:
+                cell_styles[miss] += " MISSING_SUBTLE"
             
         st.markdown(generate_board_html(grid_data, ROW_LIMIT, cell_styles), unsafe_allow_html=True)
 
