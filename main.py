@@ -93,7 +93,6 @@ def analyze_pair_gap(df, col1, col2):
 # Pattern Parsing & Variations Logic
 # ==========================================
 def parse_shapes_strict(text):
-    """Parses text blocks where 'A' is a card and 'X' (or anything else) is a gap."""
     shapes = []
     text = text.replace('\r\n', '\n')
     blocks = text.split('\n\n')
@@ -102,14 +101,12 @@ def parse_shapes_strict(text):
         lines = block.strip().split('\n')
         coords = []
         for r, line in enumerate(lines):
-            # Remove spaces to calculate exact matrix columns
             chars = line.replace(' ', '')
             for c, char in enumerate(chars):
                 if char == 'A':
                     coords.append((r, c))
         if not coords: continue
         
-        # Normalize to (0,0) starting point
         min_r = min(r for r, c in coords)
         min_c = min(c for r, c in coords)
         normalized = [(r - min_r, c - min_c) for r, c in coords]
@@ -117,7 +114,6 @@ def parse_shapes_strict(text):
     return shapes
 
 def generate_variations_strict(shape_idx, base_shape):
-    """Generates geometric variations based on the predefined rules."""
     variations = set()
     base = tuple(sorted(base_shape))
     variations.add(base)
@@ -132,15 +128,12 @@ def generate_variations_strict(shape_idx, base_shape):
     rot_180 = tuple(sorted([(h - r, w - c) for r, c in base_shape]))
     
     if shape_idx in [0, 1]:
-        pass # Original only
+        pass 
     elif shape_idx in [2, 3, 6]:
-        # All Directions
         variations.update([mirror_h, flip_v, rot_180])
     elif shape_idx in [4, 5]:
-        # Up/Down Only (Vertical Flip)
         variations.update([flip_v])
     elif shape_idx == 7:
-        # Left/Right Only (Horizontal Mirror)
         variations.update([mirror_h])
         
     return [list(v) for v in variations]
@@ -150,54 +143,26 @@ def generate_variations_strict(shape_idx, base_shape):
 # ==========================================
 st.markdown("""
 <style>
-    /* Global Settings */
     .stApp { direction: ltr; text-align: left; background-color: #0E1117; color: #FAFAFA; }
     .block-container { padding-top: 1rem !important; padding-bottom: 2rem !important; }
-    
-    /* Clean Inputs */
     .stSelectbox, .stMultiSelect, div[data-testid="stExpander"] { direction: ltr; text-align: left; }
     div.stButton > button { width: 100%; border-radius: 8px; height: 2.8rem; font-weight: 600; }
-    
-    /* Grid Layouts */
-    .grid-container { 
-        display: grid; grid-template-columns: repeat(4, 1fr); gap: 4px; 
-        background-color: #161B22; padding: 8px; border-radius: 12px; margin-top: 10px; border: 1px solid #30363D;
-    }
-    .grid-cell { 
-        background-color: #21262D; color: #C9D1D9; padding: 0; text-align: center; border-radius: 6px; 
-        height: 40px; display: flex; align-items: center; justify-content: center; font-weight: 500; position: relative;
-        border: 1px solid #30363D;
-    }
-    
-    /* Colors for +/- Mode */
+    .grid-container { display: grid; grid-template-columns: repeat(4, 1fr); gap: 4px; background-color: #161B22; padding: 8px; border-radius: 12px; margin-top: 10px; border: 1px solid #30363D; }
+    .grid-cell { background-color: #21262D; color: #C9D1D9; padding: 0; text-align: center; border-radius: 6px; height: 40px; display: flex; align-items: center; justify-content: center; font-weight: 500; position: relative; border: 1px solid #30363D; }
     .cell-plus { color: #3FB950 !important; font-weight: 900 !important; } 
     .cell-minus { color: #F85149 !important; font-weight: 900 !important; } 
-    
-    .missing-circle { 
-        background-color: #F0F6FC; color: #0D1117; font-weight: 800; border-radius: 6px; 
-        width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; 
-    }
+    .missing-circle { background-color: #F0F6FC; color: #0D1117; font-weight: 800; border-radius: 6px; width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; }
     .frame-box { position: absolute; top: 0; left: 0; right: 0; bottom: 0; border-style: solid; border-color: transparent; pointer-events: none; border-radius: 6px; }
-    
-    /* Headers & Icons */
     .grid-header { text-align: center; padding-bottom: 6px; display: flex; flex-direction: column; align-items: center; justify-content: center; }
     .suit-icon { font-size: 22px; line-height: 1; margin-bottom: 2px; }
-    
-    /* Preview */
     .shape-preview-wrapper { background-color: #0D1117; border: 1px solid #30363D; border-radius: 8px; padding: 10px; display: flex; justify-content: center; align-items: center; height: 100%; }
-    
-    /* Tables */
     [data-testid="stDataFrame"] th, [data-testid="stDataFrame"] td { text-align: left !important; }
-    
-    /* Compact Legend */
     .legend-container { display: flex; gap: 8px; margin-bottom: 10px; justify-content: center; }
     .legend-box { background: #161B22; border: 1px solid #30363D; border-radius: 8px; padding: 6px 15px; text-align: center; flex: 1; }
     .legend-title { font-weight: 900; font-size: 14px; margin-bottom: 2px; display: flex; align-items: center; justify-content: center; gap: 6px; }
     .legend-cards { font-size: 11px; color: #8B949E; letter-spacing: 0.5px; }
     .txt-plus { color: #3FB950; }
     .txt-minus { color: #F85149; }
-
-    /* Compact Result Card */
     .result-card { background: linear-gradient(135deg, #1F2428 0%, #161B22 100%); border: 1px solid #30363D; border-radius: 12px; padding: 12px; text-align: center; margin-top: 5px; }
     .result-split { display: flex; justify-content: space-around; align-items: center; margin-bottom: 8px; border-bottom: 1px solid #30363D; padding-bottom: 8px; }
     .result-part { text-align: center; }
@@ -398,7 +363,6 @@ if df is not None:
                     except IndexError:
                         continue
                     
-                    # Strictly check if the 3 selected cards are within the extracted values
                     used_indices = []
                     temp_selected = selected_cards.copy()
                     
@@ -408,7 +372,6 @@ if df is not None:
                             used_indices.append(i)
                     
                     if len(used_indices) == 3:
-                        # Find the single missing coordinate
                         miss_i = [i for i in range(len(vals)) if i not in used_indices][0]
                         m_data = {
                             'coords': tuple(sorted(coords)), 
