@@ -124,14 +124,12 @@ def parse_shapes_strict(text):
         lines = block.strip().split('\n')
         coords = []
         for r, line in enumerate(lines):
-            # Clean spaces for exact matrix processing
             chars = line.replace(' ', '')
             for c, char in enumerate(chars):
                 if char == 'A':
                     coords.append((r, c))
         if not coords: continue
         
-        # Normalize to (0,0) origin
         min_r = min(r for r, c in coords)
         min_c = min(c for r, c in coords)
         normalized = [(r - min_r, c - min_c) for r, c in coords]
@@ -153,15 +151,12 @@ def generate_variations_strict(shape_idx, base_shape):
     rot_180 = tuple(sorted([(h - r, w - c) for r, c in base_shape]))
     
     if shape_idx in [0, 1]:
-        pass # Original only (Row/Col)
+        pass 
     elif shape_idx in [9, 10]:
-        # Up/Down Only (Vertical Flip)
         variations.update([flip_v])
     elif shape_idx == 12:
-        # Left/Right Only (Horizontal Mirror)
         variations.update([mirror_h])
     else:
-        # All Directions (Default for diagonals, squares, hooks, etc.)
         variations.update([mirror_h, flip_v, rot_180])
         
     return [list(v) for v in variations]
@@ -171,23 +166,12 @@ def generate_variations_strict(shape_idx, base_shape):
 # ==========================================
 st.markdown("""
 <style>
-    /* Global Settings */
     .stApp { direction: ltr; text-align: left; background-color: #0E1117; color: #FAFAFA; }
     .block-container { padding-top: 1rem !important; padding-bottom: 2rem !important; }
     .stSelectbox, .stMultiSelect, div[data-testid="stExpander"] { direction: ltr; text-align: left; }
     div.stButton > button { width: 100%; border-radius: 8px; height: 2.8rem; font-weight: 600; }
-    
-    /* Grid Layouts */
-    .grid-container { 
-        display: grid; grid-template-columns: repeat(4, 1fr); gap: 4px; 
-        background-color: #161B22; padding: 8px; border-radius: 12px; margin-top: 10px; border: 1px solid #30363D;
-    }
-    .grid-cell { 
-        background-color: #21262D; color: #C9D1D9; padding: 0; text-align: center; border-radius: 6px; 
-        height: 40px; display: flex; align-items: center; justify-content: center; font-weight: 500; position: relative;
-        border: 1px solid #30363D;
-    }
-    
+    .grid-container { display: grid; grid-template-columns: repeat(4, 1fr); gap: 4px; background-color: #161B22; padding: 8px; border-radius: 12px; margin-top: 10px; border: 1px solid #30363D; }
+    .grid-cell { background-color: #21262D; color: #C9D1D9; padding: 0; text-align: center; border-radius: 6px; height: 40px; display: flex; align-items: center; justify-content: center; font-weight: 500; position: relative; border: 1px solid #30363D; }
     .cell-plus { color: #3FB950 !important; font-weight: 900 !important; } 
     .cell-minus { color: #F85149 !important; font-weight: 900 !important; } 
     .missing-circle { background-color: #F0F6FC; color: #0D1117; font-weight: 800; border-radius: 6px; width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; }
@@ -320,6 +304,62 @@ def generate_board_html(grid_data, row_limit, cell_styles):
     html += '</div>'
     return html
 
+# --- Search Engine Abstraction ---
+def find_matches_for_pattern(shape_idx, selected_cards, grid_data, row_limit):
+    """Encapsulated logic to find matches for any given pattern index."""
+    found = []
+    variations = generate_variations_strict(shape_idx, base_shapes[shape_idx])
+    rows = min(len(grid_data), row_limit)
+    colors = ['#FF7B72', '#D2A8FF', '#79C0FF', '#7EE787', '#FFA657']
+    
+    raw_matches = []
+    for shape in variations:
+        sh_h = max(r for r, c in shape) + 1
+        sh_w = max(c for r, c in shape) + 1
+        
+        for r in range(rows - sh_h + 1):
+            for c in range(4 - sh_w + 1):
+                vals = []
+                coords = []
+                try:
+                    for dr, dc in shape:
+                        vals.append(str(grid_data[r+dr, c+dc]))
+                        coords.append((r+dr, c+dc))
+                except IndexError:
+                    continue
+                
+                used_indices = []
+                temp_selected = selected_cards.copy()
+                
+                for i, v in enumerate(vals):
+                    if v in temp_selected:
+                        temp_selected.remove(v)
+                        used_indices.append(i)
+                
+                if len(used_indices) == 3:
+                    miss_i = [i for i in range(len(vals)) if i not in used_indices][0]
+                    
+                    # --- RULE: For Column (Vertical), ignore if the missing card is in the 4th row ---
+                    if shape_idx == 1 and shape[miss_i][0] == 3:
+                        continue
+                        
+                    m_data = {
+                        'coords': tuple(sorted(coords)), 
+                        'miss_coords': coords[miss_i], 
+                        'miss_val': vals[miss_i], 
+                        'full_coords_list': coords
+                    }
+                    if not any(x['coords'] == m_data['coords'] for x in raw_matches):
+                        raw_matches.append(m_data)
+    
+    raw_matches.sort(key=lambda x: x['miss_coords'][0])
+    for i, m in enumerate(raw_matches):
+        m['id'] = i + 1
+        m['color'] = colors[i % len(colors)]
+        found.append(m)
+        
+    return found
+
 # ==========================================
 # Main Interface
 # ==========================================
@@ -352,13 +392,19 @@ if df is not None:
         st.stop()
 
     grid_data = df[required_cols].values
-    ROW_LIMIT = 51
+    ROW_LIMIT = 26
     
     # --- Settings Expander ---
     with st.expander("⚙️ Settings & Inputs", expanded=not st.session_state.get('search_done', False)):
         col_conf, col_prev = st.columns([4, 1])
         with col_conf:
-            shape_idx = st.selectbox("Search Pattern", range(len(base_shapes)), format_func=lambda x: PATTERN_NAMES.get(x, f"Pattern {x+1}"), label_visibility="collapsed")
+            shape_idx = st.selectbox(
+                "Search Pattern", 
+                range(len(base_shapes)), 
+                format_func=lambda x: PATTERN_NAMES.get(x, f"Pattern {x+1}"), 
+                label_visibility="collapsed",
+                key="pattern_selector"
+            )
         with col_prev:
             st.markdown(draw_preview_html(base_shapes[shape_idx]), unsafe_allow_html=True)
         
@@ -376,68 +422,50 @@ if df is not None:
         
         st.markdown("<div style='margin-bottom: 10px;'></div>", unsafe_allow_html=True)
 
-        b_search, b_reset = st.columns([3, 1])
-        with b_search: run_search = st.button("Search", type="primary")
-        with b_reset: reset_btn = st.button("Reset")
+        b_search, b_best, b_reset = st.columns([3, 3, 1])
+        with b_search: run_search = st.button("🔍 Search", type="primary", use_container_width=True)
+        with b_best: run_best = st.button("🏆 Winning Pattern", type="primary", use_container_width=True)
+        with b_reset: reset_btn = st.button("Reset", use_container_width=True)
         
         if reset_btn:
             st.session_state['search_done'] = False
+            if 'winning_msg' in st.session_state: del st.session_state['winning_msg']
             st.rerun()
 
-    # --- Search Logic ---
+    # --- Search Logic Execution ---
     found_matches = []
+    
+    if run_best and len(selected_cards) == 3:
+        best_count = -1
+        best_idx = 0
+        for p_idx in range(len(base_shapes)):
+            m = find_matches_for_pattern(p_idx, selected_cards, grid_data, ROW_LIMIT)
+            if len(m) > best_count:
+                best_count = len(m)
+                best_idx = p_idx
+        
+        st.session_state['pattern_selector'] = best_idx
+        st.session_state['winning_msg'] = f"🏆 **Winning Pattern:** {PATTERN_NAMES.get(best_idx)} with **{best_count}** matches!"
+        st.session_state['search_done'] = True
+        st.rerun()
+
     if (run_search or st.session_state.get('search_done', False)) and len(selected_cards) == 3:
         st.session_state['search_done'] = True
-        variations = generate_variations_strict(shape_idx, base_shapes[shape_idx])
-        rows = min(len(grid_data), ROW_LIMIT)
-        colors = ['#FF7B72', '#D2A8FF', '#79C0FF', '#7EE787', '#FFA657']
         
-        raw_matches = []
-        for shape in variations:
-            sh_h = max(r for r, c in shape) + 1
-            sh_w = max(c for r, c in shape) + 1
+        # Clear success message if user clicked manual search
+        if run_search and 'winning_msg' in st.session_state:
+            del st.session_state['winning_msg']
             
-            for r in range(rows - sh_h + 1):
-                for c in range(4 - sh_w + 1):
-                    vals = []
-                    coords = []
-                    try:
-                        for dr, dc in shape:
-                            vals.append(str(grid_data[r+dr, c+dc]))
-                            coords.append((r+dr, c+dc))
-                    except IndexError:
-                        continue
-                    
-                    used_indices = []
-                    temp_selected = selected_cards.copy()
-                    
-                    for i, v in enumerate(vals):
-                        if v in temp_selected:
-                            temp_selected.remove(v)
-                            used_indices.append(i)
-                    
-                    if len(used_indices) == 3:
-                        miss_i = [i for i in range(len(vals)) if i not in used_indices][0]
-                        m_data = {
-                            'coords': tuple(sorted(coords)), 
-                            'miss_coords': coords[miss_i], 
-                            'miss_val': vals[miss_i], 
-                            'full_coords_list': coords
-                        }
-                        if not any(x['coords'] == m_data['coords'] for x in raw_matches):
-                            raw_matches.append(m_data)
-        
-        raw_matches.sort(key=lambda x: x['miss_coords'][0])
-        for i, m in enumerate(raw_matches):
-            m['id'] = i + 1
-            m['color'] = colors[i % len(colors)]
-            found_matches.append(m)
+        if 'winning_msg' in st.session_state:
+            st.success(st.session_state['winning_msg'])
+            
+        current_patt_idx = st.session_state.get('pattern_selector', shape_idx)
+        found_matches = find_matches_for_pattern(current_patt_idx, selected_cards, grid_data, ROW_LIMIT)
 
     # --- Tabs System ---
     tab_matches, tab_sleep, tab_pairs = st.tabs(["📋 MATCHES", "💤 SLEEPING", "⚖️ PAIRS"])
     selected_match_ids = None 
     
-    # ------------------ TAB 1: MATCHES ------------------
     with tab_matches:
         if found_matches:
             raw_df = pd.DataFrame([
@@ -482,7 +510,6 @@ if df is not None:
             
         st.markdown(generate_board_html(grid_data, ROW_LIMIT, cell_styles), unsafe_allow_html=True)
 
-    # ------------------ TAB 2: SLEEPING ------------------
     with tab_sleep:
         sleep_data_lists = {}
         for col_name in required_cols:
@@ -505,7 +532,6 @@ if df is not None:
         st.subheader("Game Board")
         st.markdown(generate_board_html(grid_data, ROW_LIMIT, {}), unsafe_allow_html=True)
 
-    # ------------------ TAB 3: PAIRS (+/-) ------------------
     with tab_pairs:
         st.markdown("""
         <div class="legend-container">
