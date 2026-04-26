@@ -2,16 +2,12 @@ import streamlit as st
 import pandas as pd
 import numpy as np
 
-# --- Page Configuration ---
 st.set_page_config(
     page_title="Chance Analyzer PRO",
     layout="wide",
     initial_sidebar_state="collapsed"
 )
 
-# ==========================================
-# Fixed Patterns (A = Shape Block, X = Skip/Gap)
-# ==========================================
 FIXED_COMBOS_TXT = """
 A A A A
 
@@ -64,26 +60,22 @@ A X X A
 A X X X
 """
 
-# Pattern Names Mapping
 PATTERN_NAMES = {
-    0: "1. Row (Horizontal)",
-    1: "2. Column (Vertical)",
-    2: "3. Diagonal (All Dirs)",
-    3: "4. Custom Shape (Up/Down/Horiz)",
+    0: "1. Row",
+    1: "2. Column",
+    2: "3. Diagonal",
+    3: "4. Custom Shape",
     4: "5. Bridge",
-    5: "6. Square (2x2)",
+    5: "6. Square",
     6: "7. Parallel Gaps",
     7: "8. X-Corners",
     8: "9. Large Corners",
-    9: "10. T-Shape (Up/Down)",
-    10: "11. T-Spaced (Up/Down)",
-    11: "12. Hook (Up/Down)",
-    12: "13. C-Shape (Left/Right)"
+    9: "10. T-Shape",
+    10: "11. T-Spaced",
+    11: "12. Hook",
+    12: "13. C-Shape"
 }
 
-# ==========================================
-# Logic for Pairs (+/-)
-# ==========================================
 PLUS_SET = {"8", "10", "Q", "A"}
 MINUS_SET = {"7", "9", "J", "K"}
 
@@ -112,9 +104,6 @@ def analyze_pair_gap(df, col1, col2):
     results.sort(key=lambda x: x['ago'], reverse=True)
     return results
 
-# ==========================================
-# Pattern Parsing & Variations Logic
-# ==========================================
 def parse_shapes_strict(text):
     shapes = []
     text = text.replace('\r\n', '\n')
@@ -185,9 +174,6 @@ def generate_variations_strict(shape_idx, base_shape):
             
     return valid_variations
 
-# ==========================================
-# Premium CSS Styling
-# ==========================================
 st.markdown("""
 <style>
     @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&display=swap');
@@ -205,15 +191,10 @@ st.markdown("""
     .stSelectbox, .stMultiSelect, div[data-testid="stExpander"] { direction: ltr; text-align: left; }
     div[data-baseweb="select"] > div { background-color: #111827; border: 1px solid #1F2937; border-radius: 8px; }
     
-    /* --- KILL MOBILE KEYBOARD ON ALL SELECTBOXES --- */
     div[data-baseweb="select"] input {
-        pointer-events: none !important;
-        user-select: none !important;
-        -webkit-user-select: none !important;
-        touch-action: none !important;
+        display: none !important;
     }
-    /* ----------------------------------------------- */
-    
+
     div.stButton > button { 
         width: 100%; 
         border-radius: 8px; 
@@ -263,24 +244,25 @@ st.markdown("""
         position: relative;
         border: 1px solid #374151;
         box-shadow: inset 0 2px 4px rgba(0,0,0,0.1);
+        transition: all 0.2s ease;
     }
     
     .cell-plus { color: #10B981 !important; font-weight: 800 !important; text-shadow: 0 0 8px rgba(16, 185, 129, 0.4); } 
     .cell-minus { color: #F43F5E !important; font-weight: 800 !important; text-shadow: 0 0 8px rgba(244, 63, 94, 0.4); } 
     
-    .missing-circle { 
-        background: linear-gradient(135deg, #F59E0B 0%, #D97706 100%); 
-        color: #FFFFFF; 
-        font-weight: 800; 
-        border-radius: 50%; 
-        width: 32px; 
-        height: 32px; 
-        display: flex; 
-        align-items: center; 
-        justify-content: center; 
-        box-shadow: 0 0 15px rgba(245, 158, 11, 0.7);
-        margin: auto;
-        border: 2px solid #FEF3C7;
+    .missing-selected {
+        background: linear-gradient(135deg, #F59E0B 0%, #D97706 100%) !important;
+        color: #000 !important;
+        font-weight: 900 !important;
+        border: 2px solid #FFF !important;
+        box-shadow: 0 0 20px 5px rgba(245, 158, 11, 0.8) !important;
+        transform: scale(1.15);
+        z-index: 100;
+    }
+    .missing-subtle {
+        background-color: rgba(245, 158, 11, 0.15) !important;
+        border: 1px dashed #F59E0B !important;
+        color: #FCD34D !important;
     }
     
     .frame-box { 
@@ -374,9 +356,6 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-# ==========================================
-# UI & Render Helpers
-# ==========================================
 @st.cache_data
 def load_data_robust(uploaded_file):
     if uploaded_file is None: return None, "No file"
@@ -466,14 +445,15 @@ def generate_board_html(grid_data, row_limit, cell_styles):
             style_extra = cell_styles.get((r, c), "")
             inner = val
             
-            if "MISSING_MARKER" in style_extra:
-                inner = f'<div class="missing-circle">{val}</div>'
-                style_extra = style_extra.replace("MISSING_MARKER", "")
+            if "MISSING_SELECTED" in style_extra:
+                style_extra = style_extra.replace("MISSING_SELECTED", "missing-selected")
+            elif "MISSING_SUBTLE" in style_extra:
+                style_extra = style_extra.replace("MISSING_SUBTLE", "missing-subtle")
             
-            if style_extra.strip().startswith("cell-"):
+            if style_extra.strip() != "":
                  html += f'<div class="grid-cell {style_extra}">{inner}</div>'
             else:
-                 html += f'<div class="grid-cell">{inner}{style_extra}</div>'
+                 html += f'<div class="grid-cell">{inner}</div>'
                  
     html += '</div>'
     return html
@@ -531,16 +511,12 @@ def find_matches_for_pattern(shape_idx, selected_cards, grid_data, row_limit):
         
     return found
 
-# ==========================================
-# Main Interface
-# ==========================================
 st.title("⚡ Chance Analyzer PRO")
 
 with st.sidebar:
     st.header("📂 Upload Data")
     csv_file = st.file_uploader("Choose a CSV file", type=None)
     st.markdown("---")
-    st.caption("Powered by Advanced Geometric Pattern Recognition.")
 
 if 'uploaded_df' not in st.session_state: st.session_state['uploaded_df'] = None
 if 'current_shape_idx' not in st.session_state: st.session_state['current_shape_idx'] = 0
@@ -691,9 +667,14 @@ if df is not None:
                     count = cell_styles[coord].count("frame-box")
                     inset = count * 3
                     cell_styles[coord] += f'<div class="frame-box" style="color: {col}; top: {inset}px; left: {inset}px; right: {inset}px; bottom: {inset}px; border-width: 2px;"></div>'
+            
             miss = m['miss_coords']
             if miss not in cell_styles: cell_styles[miss] = ""
-            if "MISSING_MARKER" not in cell_styles[miss]: cell_styles[miss] += "MISSING_MARKER"
+            
+            if selected_match_ids is not None:
+                cell_styles[miss] += " MISSING_SELECTED"
+            else:
+                cell_styles[miss] += " MISSING_SUBTLE"
             
         st.markdown(generate_board_html(grid_data, ROW_LIMIT, cell_styles), unsafe_allow_html=True)
 
