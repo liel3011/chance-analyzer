@@ -1,178 +1,157 @@
-javascript:(function(){
-    const UI_ID = 'chance-ultimate-en';
-    const existing = document.getElementById(UI_ID);
-    if(existing) existing.remove();
+import streamlit as st
+import pandas as pd
+import numpy as np
 
-    const ui = document.createElement('div');
-    ui.id = UI_ID;
-    ui.style.cssText = 'position:fixed; top:50px; right:50px; background:#222; color:#fff; border:2px solid #fff; padding:15px; z-index:999999; font-family:Arial,sans-serif; direction:ltr; box-shadow:0 0 20px rgba(0,0,0,0.5); border-radius:8px; width:260px; font-size:14px;';
+# --- Page Configuration ---
+st.set_page_config(
+    page_title="Chance Analyzer PRO",
+    layout="wide",
+    initial_sidebar_state="collapsed"
+)
+
+# ==========================================
+# Fixed Patterns (A = Shape Block, X = Skip/Gap)
+# ==========================================
+FIXED_COMBOS_TXT = """
+A A A A
+
+A
+A
+A
+A
+
+A X X X
+X A X X
+X X A X
+X X X A
+
+A X X X
+X A X X
+X A X X
+X X X A
+
+A A A
+X A X
+
+A A A
+X X X
+X A X
+
+A X X X
+X A X X
+X A A X
+
+A X X X
+A X X A
+A X X X
+"""
+
+# Pattern Names Mapping
+PATTERN_NAMES = {
+    0: "1. Row (Horizontal)",
+    1: "2. Column (Vertical)",
+    2: "3. Diagonal (All Dirs)",
+    3: "4. Custom 8-7-7 (All Dirs)",
+    4: "5. T-Shape (Up/Down)",
+    5: "6. T-Shape Spaced (Up/Down)",
+    6: "7. Hook (All Dirs)",
+    7: "8. C-Shape (Left/Right)"
+}
+
+# ==========================================
+# Logic for Pairs (+/-)
+# ==========================================
+PLUS_SET = {"8", "10", "Q", "A"}
+MINUS_SET = {"7", "9", "J", "K"}
+
+def get_card_sign(card_val):
+    val = str(card_val).strip().upper()
+    if val in PLUS_SET: return "+"
+    if val in MINUS_SET: return "-"
+    return "?"
+
+def analyze_pair_gap(df, col1, col2):
+    s1 = df[col1].apply(get_card_sign)
+    s2 = df[col2].apply(get_card_sign)
+    pairs_series = s1 + s2 
+
+    target_pairs = ["++", "--", "+-", "-+"]
+    results = []
+
+    for p in target_pairs:
+        matches = (pairs_series == p)
+        if matches.any():
+            last_idx = matches.idxmax() # 0 is latest
+            results.append({'pair': p, 'ago': last_idx})
+        else:
+            results.append({'pair': p, 'ago': 9999})
+            
+    results.sort(key=lambda x: x['ago'], reverse=True)
+    return results
+
+# ==========================================
+# Pattern Parsing & Variations Logic
+# ==========================================
+def parse_shapes_strict(text):
+    """Parses text blocks where 'A' is a card and 'X' (or anything else) is a gap."""
+    shapes = []
+    text = text.replace('\r\n', '\n')
+    blocks = text.split('\n\n')
+    for block in blocks:
+        if not block.strip(): continue
+        lines = block.strip().split('\n')
+        coords = []
+        for r, line in enumerate(lines):
+            # Remove spaces to calculate exact matrix columns
+            chars = line.replace(' ', '')
+            for c, char in enumerate(chars):
+                if char == 'A':
+                    coords.append((r, c))
+        if not coords: continue
+        
+        # Normalize to (0,0) starting point
+        min_r = min(r for r, c in coords)
+        min_c = min(c for r, c in coords)
+        normalized = [(r - min_r, c - min_c) for r, c in coords]
+        shapes.append(normalized)
+    return shapes
+
+def generate_variations_strict(shape_idx, base_shape):
+    """Generates geometric variations based on the predefined rules."""
+    variations = set()
+    base = tuple(sorted(base_shape))
+    variations.add(base)
     
-    let html = '<h3 style="margin:0 0 15px; text-align:center; color:#f1c40f; border-bottom:1px solid #555; padding-bottom:10px;">Chance Analyzer</h3>';
+    if not base_shape: return [list(v) for v in variations]
     
-    html += '<div style="display:flex; gap:5px; margin-bottom:10px;">';
-    ['s1','s2','s3'].forEach(id => html += `<select id="${id}" style="flex:1; height:30px; font-weight:bold; color:#000; text-align:center;"></select>`);
-    html += '</div>';
-
-    html += '<select id="pat-select" style="width:100%; height:30px; margin-bottom:15px; color:#000; font-weight:bold;">';
-    html += '<option value="all">🔍 All Shapes</option>';
-    const pNames = ['Row', 'Column', 'Main Diagonal', 'Secondary Diagonal', 'Square 2x2', 'Square 3x3', 'Square 4x4', 'Diamond', 'Bridge', 'Short T (Up/Down)', 'Long T (All Directions)', 'Stairs (All Directions)', 'Arch (Left/Right)'];
-    pNames.forEach((n,i) => html += `<option value="${i}">${n}</option>`);
-    html += '</select>';
-
-    html += '<div style="display:flex; gap:10px;">';
-    html += '<button id="btn-scan" style="flex:2; background:#27ae60; color:white; border:none; padding:8px; border-radius:4px; cursor:pointer; font-weight:bold;">Scan</button>';
-    html += '<button onclick="document.getElementById(\''+UI_ID+'\').remove()" style="flex:1; background:#c0392b; color:#fff; border:none; border-radius:4px; cursor:pointer;">Close</button>';
-    html += '</div>';
-    html += '<div id="status-msg" style="margin-top:10px; text-align:center; color:#ccc; font-size:12px;">Ready.</div>';
-
-    ui.innerHTML = html;
-    document.body.appendChild(ui);
-
-    const cards = ['7', '8', '9', '10', 'J', 'Q', 'K', 'A'];
-    ['s1','s2','s3'].forEach(id => {
-        const el = document.getElementById(id);
-        cards.forEach(c => {
-            const opt = document.createElement('option');
-            opt.value = c; opt.innerText = c;
-            el.appendChild(opt);
-        });
-    });
-
-    const patterns = [
-        [ [[0,0], [0,1], [0,2], [0,3]] ],
-        [ [[0,0], [1,0], [2,0], [3,0]] ],
-        [ [[0,0], [1,1], [2,2], [3,3]] ],
-        [ [[0,3], [1,2], [2,1], [3,0]] ],
-        [ [[0,0], [0,1], [1,0], [1,1]] ],
-        [ [[0,0], [0,2], [2,0], [2,2]] ],
-        [ [[0,0], [0,3], [3,0], [3,3]] ],
-        [ [[0,1], [1,0], [1,2], [2,1]] ],
-        [ [[0,0], [0,2], [0,4], [0,6]] ],
-        [ [[0,0], [0,1], [0,2], [1,1]], [[0,1], [1,0], [1,1], [1,2]] ],
-        [ [[0,0], [0,1], [0,2], [2,1]], [[0,1], [2,0], [2,1], [2,2]], [[0,2], [1,2], [2,2], [1,0]], [[0,0], [1,0], [2,0], [1,2]] ],
-        [
-            [[0,0], [1,1], [2,1], [2,2]],
-            [[0,2], [1,0], [1,1], [2,0]],
-            [[0,0], [0,1], [1,1], [2,2]],
-            [[0,2], [1,1], [1,2], [2,0]],
-            [[0,2], [1,1], [2,0], [2,1]],
-            [[0,1], [0,2], [1,1], [2,0]],
-            [[0,0], [1,1], [1,2], [2,2]],
-            [[0,0], [1,0], [1,1], [2,2]]
-        ],
-        [ [[0,0], [1,0], [1,3], [2,0]], [[0,3], [1,0], [1,3], [2,3]] ]
-    ];
-
-    document.getElementById('btn-scan').onclick = function() {
-        const status = document.getElementById('status-msg');
-        status.innerText = "Scanning...";
+    w = max(c for r, c in base_shape)
+    h = max(r for r, c in base_shape)
+    
+    mirror_h = tuple(sorted([(r, w - c) for r, c in base_shape]))
+    flip_v = tuple(sorted([(h - r, c) for r, c in base_shape]))
+    rot_180 = tuple(sorted([(h - r, w - c) for r, c in base_shape]))
+    
+    if shape_idx in [0, 1]:
+        pass # Original only
+    elif shape_idx in [2, 3, 6]:
+        # All Directions
+        variations.update([mirror_h, flip_v, rot_180])
+    elif shape_idx in [4, 5]:
+        # Up/Down Only (Vertical Flip)
+        variations.update([flip_v])
+    elif shape_idx == 7:
+        # Left/Right Only (Horizontal Mirror)
+        variations.update([mirror_h])
         
-        document.querySelectorAll('*').forEach(el => {
-            if(el.dataset.chk) {
-                el.style.backgroundColor = '';
-                el.style.outline = '';
-                el.style.color = '';
-                delete el.dataset.chk;
-            }
-        });
+    return [list(v) for v in variations]
 
-        const targets = [
-            document.getElementById('s1').value,
-            document.getElementById('s2').value,
-            document.getElementById('s3').value
-        ];
-        
-        const pVal = document.getElementById('pat-select').value;
-        let activeCoords = [];
-        if(pVal === 'all') {
-            patterns.forEach(p => activeCoords.push(...p));
-        } else {
-            activeCoords = patterns[parseInt(pVal)];
-        }
-
-        const grid = [];
-        const rows = document.querySelectorAll('tr');
-        
-        rows.forEach(tr => {
-            const rowData = [];
-            tr.querySelectorAll('td').forEach(td => {
-                const txt = td.innerText || td.textContent;
-                const val = txt.replace(/[^0-9a-zA-Z]/g, '').trim(); 
-                if(cards.includes(val)) {
-                    rowData.push({ v: val, el: td });
-                }
-            });
-            if(rowData.length >= 4) {
-                grid.push(rowData.slice(-4)); 
-            }
-        });
-
-        if(grid.length === 0) {
-            status.innerText = "Valid table not found.";
-            return;
-        }
-
-        let found = 0;
-        
-        for(let r=0; r<grid.length; r++) {
-            for(let c=0; c<4; c++) {
-                activeCoords.forEach(coords => {
-                    let cells = [];
-                    let possible = true;
-
-                    for(let coord of coords) {
-                        let nr = r + coord[0];
-                        let nc = c + coord[1];
-                        
-                        if(nr >= grid.length || nc >= 4) {
-                            possible = false; break;
-                        }
-                        
-                        if(!grid[nr] || !grid[nr][nc]) {
-                            possible = false; break;
-                        }
-
-                        cells.push(grid[nr][nc]);
-                    }
-
-                    if(possible) {
-                        let needed = [...targets];
-                        let matchedIdx = [];
-
-                        cells.forEach((cell, idx) => {
-                            let i = needed.indexOf(cell.v);
-                            if(i !== -1) {
-                                needed.splice(i, 1);
-                                matchedIdx.push(idx);
-                            }
-                        });
-
-                        if(matchedIdx.length === 3) {
-                            found++;
-                            const missingIdx = [0,1,2,3].find(x => !matchedIdx.includes(x));
-                            
-                            matchedIdx.forEach(i => {
-                                cells[i].el.style.backgroundColor = 'yellow';
-                                cells[i].el.style.color = 'black';
-                                cells[i].el.dataset.chk = '1';
-                            });
-
-                            const target = cells[missingIdx].el;
-                            target.style.backgroundColor = 'cyan';
-                            target.style.outline = '3px solid red';
-                            target.style.color = 'black';
-                            target.style.fontWeight = 'bold';
-                            target.dataset.chk = '1';
-
-                            if(found === 1) target.scrollIntoView({behavior:'smooth', block:'center'});
-                        }
-                    }
-                });
-            }
-        }
-        status.innerText = found > 0 ? `Found ${found}!` : 'No matches found.';
-    };
-})();
+# ==========================================
+# CSS Styling
+# ==========================================
+st.markdown("""
+<style>
+    /* Global Settings */
+    .stApp { direction: ltr; text-align: left; background-color: #0E1117; color: #FAFAFA; }
     .block-container { padding-top: 1rem !important; padding-bottom: 2rem !important; }
     
     /* Clean Inputs */
@@ -208,146 +187,61 @@ javascript:(function(){
     .shape-preview-wrapper { background-color: #0D1117; border: 1px solid #30363D; border-radius: 8px; padding: 10px; display: flex; justify-content: center; align-items: center; height: 100%; }
     
     /* Tables */
-    [data-testid="stDataFrame"] th { text-align: left !important; }
-    [data-testid="stDataFrame"] td { text-align: left !important; }
+    [data-testid="stDataFrame"] th, [data-testid="stDataFrame"] td { text-align: left !important; }
     
-    /* --- COMPACT LEGEND STYLING --- */
-    .legend-container {
-        display: flex; gap: 8px; margin-bottom: 10px; justify-content: center;
-    }
-    .legend-box {
-        background: #161B22; border: 1px solid #30363D; border-radius: 8px; padding: 6px 15px;
-        text-align: center; flex: 1;
-    }
+    /* Compact Legend */
+    .legend-container { display: flex; gap: 8px; margin-bottom: 10px; justify-content: center; }
+    .legend-box { background: #161B22; border: 1px solid #30363D; border-radius: 8px; padding: 6px 15px; text-align: center; flex: 1; }
     .legend-title { font-weight: 900; font-size: 14px; margin-bottom: 2px; display: flex; align-items: center; justify-content: center; gap: 6px; }
     .legend-cards { font-size: 11px; color: #8B949E; letter-spacing: 0.5px; }
-    
     .txt-plus { color: #3FB950; }
     .txt-minus { color: #F85149; }
-    .dot-plus { width: 8px; height: 8px; background: #3FB950; border-radius: 50%; display: inline-block; }
-    .dot-minus { width: 8px; height: 8px; background: #F85149; border-radius: 50%; display: inline-block; }
 
-    /* --- COMPACT RESULT CARD STYLING --- */
-    .result-card {
-        background: linear-gradient(135deg, #1F2428 0%, #161B22 100%);
-        border: 1px solid #30363D; border-radius: 12px; padding: 12px; text-align: center; margin-top: 5px;
-    }
-    .result-split {
-        display: flex; justify-content: space-around; align-items: center; margin-bottom: 8px;
-        border-bottom: 1px solid #30363D; padding-bottom: 8px;
-    }
+    /* Compact Result Card */
+    .result-card { background: linear-gradient(135deg, #1F2428 0%, #161B22 100%); border: 1px solid #30363D; border-radius: 12px; padding: 12px; text-align: center; margin-top: 5px; }
+    .result-split { display: flex; justify-content: space-around; align-items: center; margin-bottom: 8px; border-bottom: 1px solid #30363D; padding-bottom: 8px; }
     .result-part { text-align: center; }
     .res-suit { font-size: 11px; color: #8B949E; text-transform: uppercase; font-weight: bold; margin-bottom: 0px;}
     .res-val { font-size: 16px; font-weight: 900; } 
-    
     .main-stat { font-size: 30px; font-weight: 900; color: #58A6FF; line-height: 1; margin: 2px 0; }
     .sub-stat { font-size: 10px; color: #8B949E; text-transform: uppercase; letter-spacing: 0.5px; }
-
-    /* Compact Selectors */
-    div[data-testid="stVerticalBlock"] > div { gap: 0.2rem; }
-    div[data-testid="stHorizontalBlock"] { align-items: center; }
-
 </style>
 """, unsafe_allow_html=True)
 
-# --- Logic Functions ---
-
+# ==========================================
+# UI & Render Helpers
+# ==========================================
 @st.cache_data
 def load_data_robust(uploaded_file):
     if uploaded_file is None: return None, "No file"
     try:
         uploaded_file.seek(0)
         df = pd.read_csv(uploaded_file)
-        hebrew_map = {'תלתן': 'Clubs', 'יהלום': 'Diamonds', 'לב': 'Hearts', 'עלה': 'Spades'}
-        df.rename(columns=hebrew_map, inplace=True)
-        return df, "ok"
     except:
         try:
             uploaded_file.seek(0)
             df = pd.read_csv(uploaded_file, encoding='cp1255')
-            hebrew_map = {'תלתן': 'Clubs', 'יהלום': 'Diamonds', 'לב': 'Hearts', 'עלה': 'Spades'}
-            df.rename(columns=hebrew_map, inplace=True)
-            return df, "ok"
         except:
             return None, "Error loading file"
-
-def parse_shapes_strict(text):
-    shapes = []
-    text = text.replace('\r\n', '\n')
-    blocks = text.split('\n\n')
-    for block in blocks:
-        if not block.strip(): continue
-        lines = [l for l in block.split('\n')]
-        coords = []
-        for r, line in enumerate(lines):
-            c_idx = 0
-            i = 0
-            while i < len(line):
-                char = line[i]
-                if char == 'A':
-                    coords.append((r, c_idx)); c_idx += 1
-                elif char == 'S': c_idx += 1 
-                elif char == ' ':
-                    prev = line[i-1] if i > 0 else None
-                    next_c = line[i+1] if i < len(line)-1 else None
-                    if not (prev in ['A', 'S'] and next_c in ['A', 'S']): c_idx += 1
-                i += 1
-        if not coords: continue
-        min_c = min(c for r, c in coords)
-        coords = [(r, c - min_c) for r, c in coords]
-        shapes.append(coords)
-    return shapes
-
-def generate_variations_strict(shape_idx, base_shape):
-    variations = set()
-    if shape_idx == 0: variations.add(tuple(sorted(base_shape))) 
-    elif shape_idx == 1: variations.add(tuple(sorted(base_shape)))
-    elif shape_idx == 2:
-        variations.add(tuple(sorted(base_shape))) 
-        max_c = max(c for r,c in base_shape)
-        mirror = [(r, max_c-c) for r,c in base_shape]
-        variations.add(tuple(sorted(mirror)))
-    elif shape_idx == 3:
-        # הצורה החדשה המותאמת אישית - חיפוש במבנה הנוקשה שהוגדר בלבד
-        variations.add(tuple(sorted(base_shape)))
-    elif shape_idx == 4:
-        base = [(0,0), (0,1), (0,3), (1,1)]
-        variations.add(tuple(sorted(base)))
-        max_r = max(r for r,c in base)
-        flipped = sorted([(max_r - r, c) for r, c in base])
-        variations.add(tuple(flipped))
-        for v in list(variations):
-            w = max(c for r,c in v)
-            mirror = [(r, w-c) for r,c in v]
-            variations.add(tuple(sorted(mirror)))
-    else:
-        variations.add(tuple(sorted(base_shape)))
-        w = max(c for r,c in base_shape)
-        mirror_h = sorted([(r, w - c) for r, c in base_shape])
-        variations.add(tuple(mirror_h))
-        max_r = max(r for r,c in base_shape)
-        flip_v = sorted([(max_r - r, c) for r, c in base_shape])
-        variations.add(tuple(flip_v))
-        flip_hv = sorted([(max_r - r, w - c) for r, c in base_shape])
-        variations.add(tuple(flip_hv))
-    return [list(v) for v in variations]
+            
+    hebrew_map = {'תלתן': 'Clubs', 'יהלום': 'Diamonds', 'לב': 'Hearts', 'עלה': 'Spades'}
+    df.rename(columns=hebrew_map, inplace=True)
+    return df, "ok"
 
 def draw_preview_html(shape_coords):
     if not shape_coords: return ""
-    min_r = min(r for r,c in shape_coords); min_c = min(c for r,c in shape_coords)
-    norm = [(r-min_r, c-min_c) for r,c in shape_coords]
-    max_r = max(r for r, c in norm) + 1; max_c = max(c for r, c in norm) + 1
+    max_r = max(r for r, c in shape_coords) + 1
+    max_c = max(c for r, c in shape_coords) + 1
     
     grid_html = f'<div style="display:grid; grid-template-columns: repeat({max_c}, 10px); gap: 3px;">'
     for r in range(max_r):
         for c in range(max_c):
-            bg = "#58A6FF" if (r, c) in norm else "#21262D"
-            border = "1px solid #30363D" if (r, c) not in norm else "1px solid #79C0FF"
+            bg = "#58A6FF" if (r, c) in shape_coords else "#21262D"
+            border = "1px solid #30363D" if (r, c) not in shape_coords else "1px solid #79C0FF"
             grid_html += f'<div style="width:10px; height:10px; border-radius:2px; background-color:{bg}; border:{border};"></div>'
     grid_html += '</div>'
     return f'<div class="shape-preview-wrapper">{grid_html}</div>'
 
-# --- Custom HTML Table Generator ---
 def create_sleeping_html_table(data_dict, required_cols):
     meta = {
         'Clubs': {'icon': '♣', 'color': '#E1E4E8'},
@@ -360,23 +254,15 @@ def create_sleeping_html_table(data_dict, required_cols):
     clean_data = {}
     for col in required_cols:
         clean_data[col] = data_dict.get(col, [])
-        if len(clean_data[col]) > max_rows:
-            max_rows = len(clean_data[col])
+        if len(clean_data[col]) > max_rows: max_rows = len(clean_data[col])
             
-    parts = []
-    parts.append('<div style="overflow-x: auto; border: 1px solid #30363D; border-radius: 6px;">')
-    parts.append('<table style="width: 100%; border-collapse: collapse; font-family: sans-serif; font-size: 14px;">')
-    parts.append('<thead>')
-    parts.append('<tr style="background-color: #161B22; border-bottom: 1px solid #30363D;">')
+    parts = ['<div style="overflow-x: auto; border: 1px solid #30363D; border-radius: 6px;">',
+             '<table style="width: 100%; border-collapse: collapse; font-family: sans-serif; font-size: 14px;">',
+             '<thead><tr style="background-color: #161B22; border-bottom: 1px solid #30363D;">']
     
     for col in required_cols:
         c_meta = meta.get(col, {'icon': '', 'color': '#fff'})
-        header_content = f"""
-        <div style="display: flex; flex-direction: column; align-items: center; justify-content: center;">
-            <div style="font-size: 24px; line-height: 1; margin-bottom: 2px;">{c_meta['icon']}</div>
-            <div style="font-size: 11px; text-transform: uppercase;">{col}</div>
-        </div>
-        """
+        header_content = f'<div style="display: flex; flex-direction: column; align-items: center; justify-content: center;"><div style="font-size: 24px; line-height: 1; margin-bottom: 2px;">{c_meta["icon"]}</div><div style="font-size: 11px; text-transform: uppercase;">{col}</div></div>'
         parts.append(f'<th style="padding: 10px; text-align: center; color: {c_meta["color"]}; font-weight: bold; border-right: 1px solid #30363D; width: 25%; vertical-align: middle;">{header_content}</th>')
     
     parts.append('</tr></thead><tbody>')
@@ -393,10 +279,8 @@ def create_sleeping_html_table(data_dict, required_cols):
     parts.append("</tbody></table></div>")
     return "".join(parts)
 
-# --- BOARD GENERATOR FUNCTION ---
 def generate_board_html(grid_data, row_limit, cell_styles):
     html = '<div class="grid-container">'
-    # UPDATED ORDER: Spades, Hearts, Diamonds, Clubs
     headers = [
         ('Spades', '♠', '#E1E4E8'),
         ('Hearts', '♥', '#FF4B4B'),
@@ -404,11 +288,11 @@ def generate_board_html(grid_data, row_limit, cell_styles):
         ('Clubs', '♣', '#E1E4E8')
     ]
     for name, icon, color in headers:
-        html += f'<div class="grid-header"><div class="suit-icon" style="color:{color};">{icon}</div><div class="suit-name">{name}</div></div>'
+        html += f'<div class="grid-header"><div class="suit-icon" style="color:{color};">{icon}</div><div style="font-size: 10px; color: #8B949E;">{name}</div></div>'
     
     for r in range(min(len(grid_data), row_limit)):
         for c in range(4):
-            val = str(grid_data[r, c]); 
+            val = str(grid_data[r, c])
             if val == 'nan': val = ''
             
             style_extra = cell_styles.get((r, c), "")
@@ -426,18 +310,16 @@ def generate_board_html(grid_data, row_limit, cell_styles):
     html += '</div>'
     return html
 
-# --- Main Interface ---
+# ==========================================
+# Main Interface
+# ==========================================
+st.title("Chance Analyzer PRO")
 
-st.title("Chance Analyzer")
-
-# Sidebar
 with st.sidebar:
     st.header("Upload Data")
-    csv_file = st.file_uploader("Choose a CSV file", type=None)
+    csv_file = st.file_uploader("Choose a CSV file", type=["csv"])
 
-# --- SESSION STATE & FILE HANDLING ---
-if 'uploaded_df' not in st.session_state:
-    st.session_state['uploaded_df'] = None
+if 'uploaded_df' not in st.session_state: st.session_state['uploaded_df'] = None
 
 base_shapes = parse_shapes_strict(FIXED_COMBOS_TXT)
 
@@ -451,23 +333,22 @@ if csv_file:
 df = st.session_state['uploaded_df']
 
 if df is not None:
-    # UPDATED ORDER: Spades, Hearts, Diamonds, Clubs
     required_cols = ['Spades', 'Hearts', 'Diamonds', 'Clubs']
     df.columns = df.columns.str.strip()
     missing = [c for c in required_cols if c not in df.columns]
+    
     if missing:
-        st.error(f"Missing columns: {missing}")
+        st.error(f"Missing columns in dataset: {missing}")
         st.stop()
 
     grid_data = df[required_cols].values
-    ROW_LIMIT = 26
+    ROW_LIMIT = 51
     
-    # --- Settings ---
+    # --- Settings Expander ---
     with st.expander("⚙️ Settings & Inputs", expanded=not st.session_state.get('search_done', False)):
         col_conf, col_prev = st.columns([4, 1])
         with col_conf:
-            def format_pattern(idx): return PATTERN_NAMES.get(idx, f"Pattern {idx+1}")
-            shape_idx = st.selectbox("Search Pattern", range(len(base_shapes)), format_func=format_pattern, label_visibility="collapsed")
+            shape_idx = st.selectbox("Search Pattern", range(len(base_shapes)), format_func=lambda x: PATTERN_NAMES.get(x, f"Pattern {x+1}"), label_visibility="collapsed")
         with col_prev:
             st.markdown(draw_preview_html(base_shapes[shape_idx]), unsafe_allow_html=True)
         
@@ -477,9 +358,9 @@ if df is not None:
         clean_cards = sorted([c for c in raw_cards if str(c).lower() != 'nan' and str(c).strip() != ''])
         
         c1, c2, c3 = st.columns(3)
-        with c1: card1 = st.selectbox("C1", [""] + clean_cards, key="c1", label_visibility="collapsed")
-        with c2: card2 = st.selectbox("C2", [""] + clean_cards, key="c2", label_visibility="collapsed")
-        with c3: card3 = st.selectbox("C3", [""] + clean_cards, key="c3", label_visibility="collapsed")
+        with c1: card1 = st.selectbox("Card 1", [""] + clean_cards, key="c1")
+        with c2: card2 = st.selectbox("Card 2", [""] + clean_cards, key="c2")
+        with c3: card3 = st.selectbox("Card 3", [""] + clean_cards, key="c3")
         
         selected_cards = [c for c in [card1, card2, card3] if c != ""]
         
@@ -491,48 +372,61 @@ if df is not None:
         
         if reset_btn:
             st.session_state['search_done'] = False
-            st.session_state['selected_match'] = None
             st.rerun()
 
     # --- Search Logic ---
     found_matches = []
     if (run_search or st.session_state.get('search_done', False)) and len(selected_cards) == 3:
         st.session_state['search_done'] = True
-        
         variations = generate_variations_strict(shape_idx, base_shapes[shape_idx])
         rows = min(len(grid_data), ROW_LIMIT)
         colors = ['#FF7B72', '#D2A8FF', '#79C0FF', '#7EE787', '#FFA657']
         
         raw_matches = []
         for shape in variations:
-            sh_h = max(r for r,c in shape)+1; sh_w = max(c for r,c in shape)+1
+            sh_h = max(r for r, c in shape) + 1
+            sh_w = max(c for r, c in shape) + 1
+            
             for r in range(rows - sh_h + 1):
                 for c in range(4 - sh_w + 1):
-                    vals = []; coords = []
+                    vals = []
+                    coords = []
                     try:
                         for dr, dc in shape:
-                            vals.append(grid_data[r+dr, c+dc])
+                            vals.append(str(grid_data[r+dr, c+dc]))
                             coords.append((r+dr, c+dc))
-                    except: continue
-                    matched = 0; used = set()
-                    for t in selected_cards:
-                        for i, v in enumerate(vals):
-                            if i not in used and str(v) == t:
-                                used.add(i); matched += 1; break
-                    if matched == 3:
-                        miss_i = [i for i in range(4) if i not in used][0]
-                        m_data = {'coords': tuple(sorted(coords)), 'miss_coords': coords[miss_i], 'miss_val': vals[miss_i], 'full_coords_list': coords}
+                    except IndexError:
+                        continue
+                    
+                    # Strictly check if the 3 selected cards are within the extracted values
+                    used_indices = []
+                    temp_selected = selected_cards.copy()
+                    
+                    for i, v in enumerate(vals):
+                        if v in temp_selected:
+                            temp_selected.remove(v)
+                            used_indices.append(i)
+                    
+                    if len(used_indices) == 3:
+                        # Find the single missing coordinate
+                        miss_i = [i for i in range(len(vals)) if i not in used_indices][0]
+                        m_data = {
+                            'coords': tuple(sorted(coords)), 
+                            'miss_coords': coords[miss_i], 
+                            'miss_val': vals[miss_i], 
+                            'full_coords_list': coords
+                        }
                         if not any(x['coords'] == m_data['coords'] for x in raw_matches):
                             raw_matches.append(m_data)
         
         raw_matches.sort(key=lambda x: x['miss_coords'][0])
         for i, m in enumerate(raw_matches):
-            m['id'] = i + 1; m['color'] = colors[i % len(colors)]
+            m['id'] = i + 1
+            m['color'] = colors[i % len(colors)]
             found_matches.append(m)
 
-    # --- TABS ---
+    # --- Tabs System ---
     tab_matches, tab_sleep, tab_pairs = st.tabs(["📋 MATCHES", "💤 SLEEPING", "⚖️ PAIRS"])
-    
     selected_match_ids = None 
     
     # ------------------ TAB 1: MATCHES ------------------
@@ -550,18 +444,19 @@ if df is not None:
             grouped_df['Row Indexes'] = grouped_df['Row'].apply(lambda x: ", ".join(map(str, x)))
             
             display_df = grouped_df[['Missing Card', 'Count', 'Row Indexes', 'Hidden_ID']]
-            num_rows = len(display_df); calc_height = (num_rows + 1) * 35 + 3
+            calc_height = (len(display_df) + 1) * 35 + 3
             
             event = st.dataframe(display_df.drop(columns=['Hidden_ID']), hide_index=True, use_container_width=True, selection_mode="single-row", on_select="rerun", height=calc_height)
             if len(event.selection['rows']) > 0:
                 selected_match_ids = display_df.iloc[event.selection['rows'][0]]['Hidden_ID']
         else:
-            if st.session_state.get('search_done', False): st.info("No matches found.")
+            if st.session_state.get('search_done', False): 
+                st.info("No matches found. Try different cards or pattern.")
             
-        # Board (Matches Style)
         st.subheader("Game Board")
         cell_styles = {}
         matches_to_show = found_matches
+        
         if selected_match_ids is not None:
             matches_to_show = [m for m in found_matches if m['id'] in selected_match_ids]
 
@@ -570,7 +465,8 @@ if df is not None:
             for coord in m['full_coords_list']:
                 if coord != m['miss_coords']:
                     if coord not in cell_styles: cell_styles[coord] = ""
-                    count = cell_styles[coord].count("frame-box"); inset = count * 3
+                    count = cell_styles[coord].count("frame-box")
+                    inset = count * 3
                     cell_styles[coord] += f'<div class="frame-box" style="border-width: 2px; border-color: {col}; top: {inset}px; left: {inset}px; right: {inset}px; bottom: {inset}px;"></div>'
             miss = m['miss_coords']
             if miss not in cell_styles: cell_styles[miss] = ""
@@ -598,13 +494,11 @@ if df is not None:
         else:
             st.write("No sleeping cards found.")
             
-        # Board (Clean)
         st.subheader("Game Board")
         st.markdown(generate_board_html(grid_data, ROW_LIMIT, {}), unsafe_allow_html=True)
 
     # ------------------ TAB 3: PAIRS (+/-) ------------------
     with tab_pairs:
-        # 1. Legend
         st.markdown("""
         <div class="legend-container">
             <div class="legend-box">
@@ -618,75 +512,32 @@ if df is not None:
         </div>
         """, unsafe_allow_html=True)
         
-        # 2. Controls
         all_suits = [c for c in required_cols if c in df.columns]
         sc1, sc2, sc3 = st.columns([1.5, 1.5, 1])
-        with sc1: s_choice1 = st.selectbox("S1", all_suits, index=0, label_visibility="collapsed") # Spade
-        with sc2: s_choice2 = st.selectbox("S2", all_suits, index=1, label_visibility="collapsed") # Heart
-        with sc3: 
-            color_board = st.checkbox("🎨 Color", value=False)
+        with sc1: s_choice1 = st.selectbox("Suit 1", all_suits, index=0) 
+        with sc2: s_choice2 = st.selectbox("Suit 2", all_suits, index=1) 
+        with sc3: color_board = st.checkbox("🎨 Color Grid", value=False)
         
-        # 3. Calculation & Display
         if s_choice1 == s_choice2:
-            st.warning("Select different suits")
+            st.warning("Please select two different suits.")
         else:
             res = analyze_pair_gap(df, s_choice1, s_choice2)
-            best_sleeper = res[0] # The one with biggest gap
-            pair_code = best_sleeper['pair'] # e.g. "+-"
+            best_sleeper = res[0] 
+            pair_code = best_sleeper['pair'] 
             
-            # Determine specific sign for each suit based on the pair code
             s1_sign = "PLUS" if pair_code[0] == "+" else "MINUS"
             s1_cls = "txt-plus" if pair_code[0] == "+" else "txt-minus"
             
             s2_sign = "PLUS" if pair_code[1] == "+" else "MINUS"
             s2_cls = "txt-plus" if pair_code[1] == "+" else "txt-minus"
             
-            # Icons
             s_icons = {'Clubs': '♣', 'Diamonds': '♦', 'Hearts': '♥', 'Spades': '♠'}
             ic1 = s_icons.get(s_choice1, "")
             ic2 = s_icons.get(s_choice2, "")
 
-            # Result Card HTML
             st.markdown(f"""
             <div class="result-card">
                 <div class="result-split">
                     <div class="result-part">
                         <div class="res-suit">{ic1} {s_choice1}</div>
-                        <div class="res-val {s1_cls}">{s1_sign}</div>
-                    </div>
-                    <div class="result-part">
-                        <div class="res-suit">{ic2} {s_choice2}</div>
-                        <div class="res-val {s2_cls}">{s2_sign}</div>
-                    </div>
-                </div>
-                <div class="sub-stat">HAS NOT APPEARED FOR</div>
-                <div class="main-stat">{best_sleeper['ago']}</div>
-                <div class="sub-stat">DRAWS</div>
-            </div>
-            """, unsafe_allow_html=True)
-            
-            # Mini details for other combos
-            st.markdown("<br>", unsafe_allow_html=True)
-            mc1, mc2, mc3 = st.columns(3)
-            for i, other in enumerate(res[1:]):
-                with [mc1, mc2, mc3][i]:
-                    st.caption(f"{other['pair']} : {other['ago']} ago")
-                    
-        # Board (Color Style if checked)
-        st.subheader("Game Board")
-        cell_styles = {}
-        if color_board:
-            for r in range(min(len(grid_data), ROW_LIMIT)):
-                for c in range(4):
-                    val = str(grid_data[r, c])
-                    sign = get_card_sign(val)
-                    if sign == "+": cell_styles[(r, c)] = " cell-plus"
-                    elif sign == "-": cell_styles[(r, c)] = " cell-minus"
-        
-        st.markdown(generate_board_html(grid_data, ROW_LIMIT, cell_styles), unsafe_allow_html=True)
-
-else:
-    st.info("👋 Upload a CSV file to start.")
-
-
-
+                        <div class="res-val {s1_cls}">{s1_
