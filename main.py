@@ -540,4 +540,36 @@ if df is not None:
                 <div class="result-split">
                     <div class="result-part">
                         <div class="res-suit">{ic1} {s_choice1}</div>
-                        <div class="res-val {s1_cls}">{s1_
+                        <div class="res-val {s1_cls}">{s1_sign}</div>
+                    </div>
+                    <div class="result-part">
+                        <div class="res-suit">{ic2} {s_choice2}</div>
+                        <div class="res-val {s2_cls}">{s2_sign}</div>
+                    </div>
+                </div>
+                <div class="sub-stat">HAS NOT APPEARED FOR</div>
+                <div class="main-stat">{best_sleeper['ago']}</div>
+                <div class="sub-stat">DRAWS</div>
+            </div>
+            """, unsafe_allow_html=True)
+            
+            st.markdown("<br>", unsafe_allow_html=True)
+            mc1, mc2, mc3 = st.columns(3)
+            for i, other in enumerate(res[1:]):
+                with [mc1, mc2, mc3][i]:
+                    st.caption(f"{other['pair']} : {other['ago']} draws ago")
+                    
+        st.subheader("Game Board")
+        cell_styles = {}
+        if color_board:
+            for r in range(min(len(grid_data), ROW_LIMIT)):
+                for c in range(4):
+                    val = str(grid_data[r, c])
+                    sign = get_card_sign(val)
+                    if sign == "+": cell_styles[(r, c)] = " cell-plus"
+                    elif sign == "-": cell_styles[(r, c)] = " cell-minus"
+        
+        st.markdown(generate_board_html(grid_data, ROW_LIMIT, cell_styles), unsafe_allow_html=True)
+
+else:
+    st.info("👋 Upload a CSV file to get started.")
