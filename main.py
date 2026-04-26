@@ -205,6 +205,15 @@ st.markdown("""
     .stSelectbox, .stMultiSelect, div[data-testid="stExpander"] { direction: ltr; text-align: left; }
     div[data-baseweb="select"] > div { background-color: #111827; border: 1px solid #1F2937; border-radius: 8px; }
     
+    /* --- KILL MOBILE KEYBOARD ON ALL SELECTBOXES --- */
+    div[data-baseweb="select"] input {
+        pointer-events: none !important;
+        user-select: none !important;
+        -webkit-user-select: none !important;
+        touch-action: none !important;
+    }
+    /* ----------------------------------------------- */
+    
     div.stButton > button { 
         width: 100%; 
         border-radius: 8px; 
@@ -559,7 +568,6 @@ if df is not None:
     grid_data = df[required_cols].values
     ROW_LIMIT = 26
     
-    # --- Settings Expander ---
     with st.expander("⚙️ Configuration & Target Inputs", expanded=not st.session_state.get('search_done', False)):
         col_conf, col_prev = st.columns([4, 1])
         with col_conf:
