@@ -2,16 +2,12 @@ import streamlit as st
 import pandas as pd
 import numpy as np
 
-# --- Page Configuration ---
 st.set_page_config(
     page_title="Chance Analyzer PRO",
     layout="wide",
     initial_sidebar_state="collapsed"
 )
 
-# ==========================================
-# Fixed Patterns (A = Shape Block, X = Skip/Gap)
-# ==========================================
 FIXED_COMBOS_TXT = """
 A A A A
 
@@ -46,7 +42,6 @@ A X X A
 A X X X
 """
 
-# Pattern Names Mapping
 PATTERN_NAMES = {
     0: "1. Row (Horizontal)",
     1: "2. Column (Vertical)",
@@ -58,9 +53,6 @@ PATTERN_NAMES = {
     7: "8. C-Shape (Left/Right)"
 }
 
-# ==========================================
-# Logic for Pairs (+/-)
-# ==========================================
 PLUS_SET = {"8", "10", "Q", "A"}
 MINUS_SET = {"7", "9", "J", "K"}
 
@@ -81,7 +73,7 @@ def analyze_pair_gap(df, col1, col2):
     for p in target_pairs:
         matches = (pairs_series == p)
         if matches.any():
-            last_idx = matches.idxmax() # 0 is latest
+            last_idx = matches.idxmax()
             results.append({'pair': p, 'ago': last_idx})
         else:
             results.append({'pair': p, 'ago': 9999})
@@ -89,9 +81,6 @@ def analyze_pair_gap(df, col1, col2):
     results.sort(key=lambda x: x['ago'], reverse=True)
     return results
 
-# ==========================================
-# Pattern Parsing & Variations Logic
-# ==========================================
 def parse_shapes_strict(text):
     shapes = []
     text = text.replace('\r\n', '\n')
@@ -138,9 +127,6 @@ def generate_variations_strict(shape_idx, base_shape):
         
     return [list(v) for v in variations]
 
-# ==========================================
-# CSS Styling
-# ==========================================
 st.markdown("""
 <style>
     .stApp { direction: ltr; text-align: left; background-color: #0E1117; color: #FAFAFA; }
@@ -173,9 +159,6 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-# ==========================================
-# UI & Render Helpers
-# ==========================================
 @st.cache_data
 def load_data_robust(uploaded_file):
     if uploaded_file is None: return None, "No file"
@@ -275,14 +258,11 @@ def generate_board_html(grid_data, row_limit, cell_styles):
     html += '</div>'
     return html
 
-# ==========================================
-# Main Interface
-# ==========================================
 st.title("Chance Analyzer PRO")
 
 with st.sidebar:
     st.header("Upload Data")
-    csv_file = st.file_uploader("Choose a CSV file", type=["csv"])
+    csv_file = st.file_uploader("Choose a CSV file", type=None)
 
 if 'uploaded_df' not in st.session_state: st.session_state['uploaded_df'] = None
 
@@ -309,7 +289,6 @@ if df is not None:
     grid_data = df[required_cols].values
     ROW_LIMIT = 51
     
-    # --- Settings Expander ---
     with st.expander("⚙️ Settings & Inputs", expanded=not st.session_state.get('search_done', False)):
         col_conf, col_prev = st.columns([4, 1])
         with col_conf:
@@ -339,7 +318,6 @@ if df is not None:
             st.session_state['search_done'] = False
             st.rerun()
 
-    # --- Search Logic ---
     found_matches = []
     if (run_search or st.session_state.get('search_done', False)) and len(selected_cards) == 3:
         st.session_state['search_done'] = True
@@ -388,11 +366,9 @@ if df is not None:
             m['color'] = colors[i % len(colors)]
             found_matches.append(m)
 
-    # --- Tabs System ---
     tab_matches, tab_sleep, tab_pairs = st.tabs(["📋 MATCHES", "💤 SLEEPING", "⚖️ PAIRS"])
     selected_match_ids = None 
     
-    # ------------------ TAB 1: MATCHES ------------------
     with tab_matches:
         if found_matches:
             raw_df = pd.DataFrame([
@@ -437,7 +413,6 @@ if df is not None:
             
         st.markdown(generate_board_html(grid_data, ROW_LIMIT, cell_styles), unsafe_allow_html=True)
 
-    # ------------------ TAB 2: SLEEPING ------------------
     with tab_sleep:
         sleep_data_lists = {}
         for col_name in required_cols:
@@ -460,7 +435,6 @@ if df is not None:
         st.subheader("Game Board")
         st.markdown(generate_board_html(grid_data, ROW_LIMIT, {}), unsafe_allow_html=True)
 
-    # ------------------ TAB 3: PAIRS (+/-) ------------------
     with tab_pairs:
         st.markdown("""
         <div class="legend-container">
