@@ -145,12 +145,11 @@ def normalize_shape(shape):
 def generate_variations_strict(shape_idx, base_shape):
     bases = [normalize_shape(base_shape)]
     
-    # Custom additions
     if shape_idx == 3:
         bases.append(normalize_shape([(0,0), (0,1), (1,1), (3,3)]))
-    if shape_idx == 11: # Add the requested top-heavy hook variation
+    if shape_idx == 11:
         bases.append(normalize_shape([(0,0), (0,1), (1,1), (2,2)]))
-    
+        
     variations = set()
     for b in bases:
         variations.add(b)
@@ -171,15 +170,12 @@ def generate_variations_strict(shape_idx, base_shape):
         if shape_idx in [0, 1]:
             pass 
         elif shape_idx in [9, 10, 11]:
-            # Up/Down Only (Vertical Flip)
             variations.update([flip_v])
         elif shape_idx == 12:
-            # Left/Right Only (Horizontal Mirror)
             variations.update([mirror_h])
         elif shape_idx == 3:
             variations.update([mirror_h, flip_v, rot_180])
         else:
-            # All Directions
             variations.update([mirror_h, flip_v, rot_180, rot_90, rot_270, transp1, transp2])
             
     valid_variations = []
@@ -209,16 +205,6 @@ st.markdown("""
     .stSelectbox, .stMultiSelect, div[data-testid="stExpander"] { direction: ltr; text-align: left; }
     div[data-baseweb="select"] > div { background-color: #111827; border: 1px solid #1F2937; border-radius: 8px; }
     
-    /* Navigation Buttons (Arrows) */
-    .nav-btn > button {
-        background: #1F2937 !important;
-        border: 1px solid #374151 !important;
-        color: #60A5FA !important;
-        font-size: 18px !important;
-        padding: 0 !important;
-    }
-    .nav-btn > button:hover { background: #374151 !important; color: #fff !important; }
-
     div.stButton > button { 
         width: 100%; 
         border-radius: 8px; 
@@ -268,26 +254,24 @@ st.markdown("""
         position: relative;
         border: 1px solid #374151;
         box-shadow: inset 0 2px 4px rgba(0,0,0,0.1);
-        transition: all 0.2s ease;
     }
     
     .cell-plus { color: #10B981 !important; font-weight: 800 !important; text-shadow: 0 0 8px rgba(16, 185, 129, 0.4); } 
     .cell-minus { color: #F43F5E !important; font-weight: 800 !important; text-shadow: 0 0 8px rgba(244, 63, 94, 0.4); } 
     
-    /* Missing Card Visuals */
-    .missing-selected {
-        background: linear-gradient(135deg, #F59E0B 0%, #D97706 100%) !important;
-        color: #000 !important;
-        font-weight: 900 !important;
-        border: 2px solid #FFF !important;
-        box-shadow: 0 0 20px 5px rgba(245, 158, 11, 0.8) !important;
-        transform: scale(1.15);
-        z-index: 100;
-    }
-    .missing-subtle {
-        background-color: rgba(245, 158, 11, 0.15) !important;
-        border: 1px dashed #F59E0B !important;
-        color: #FCD34D !important;
+    .missing-circle { 
+        background: linear-gradient(135deg, #F59E0B 0%, #D97706 100%); 
+        color: #FFFFFF; 
+        font-weight: 800; 
+        border-radius: 50%; 
+        width: 32px; 
+        height: 32px; 
+        display: flex; 
+        align-items: center; 
+        justify-content: center; 
+        box-shadow: 0 0 15px rgba(245, 158, 11, 0.7);
+        margin: auto;
+        border: 2px solid #FEF3C7;
     }
     
     .frame-box { 
@@ -473,16 +457,14 @@ def generate_board_html(grid_data, row_limit, cell_styles):
             style_extra = cell_styles.get((r, c), "")
             inner = val
             
-            # Apply missing card styling directly to the cell class
-            if "MISSING_SELECTED" in style_extra:
-                style_extra = style_extra.replace("MISSING_SELECTED", "missing-selected")
-            elif "MISSING_SUBTLE" in style_extra:
-                style_extra = style_extra.replace("MISSING_SUBTLE", "missing-subtle")
+            if "MISSING_MARKER" in style_extra:
+                inner = f'<div class="missing-circle">{val}</div>'
+                style_extra = style_extra.replace("MISSING_MARKER", "")
             
-            if style_extra.strip() != "":
+            if style_extra.strip().startswith("cell-"):
                  html += f'<div class="grid-cell {style_extra}">{inner}</div>'
             else:
-                 html += f'<div class="grid-cell">{inner}</div>'
+                 html += f'<div class="grid-cell">{inner}{style_extra}</div>'
                  
     html += '</div>'
     return html
@@ -579,35 +561,19 @@ if df is not None:
     
     # --- Settings Expander ---
     with st.expander("⚙️ Configuration & Target Inputs", expanded=not st.session_state.get('search_done', False)):
-        
-        # Navigation arrows bypass the mobile keyboard issue
-        col_prev_btn, col_conf, col_next_btn, col_prev = st.columns([0.5, 3, 0.5, 1])
-        
-        with col_prev_btn:
-            st.markdown("<div style='height: 28px;'></div>", unsafe_allow_html=True)
-            if st.button("◀", key="prev_shape", help="Previous Pattern"):
-                st.session_state['current_shape_idx'] = (st.session_state['current_shape_idx'] - 1) % len(base_shapes)
-                st.rerun()
-                
+        col_conf, col_prev = st.columns([4, 1])
         with col_conf:
             shape_idx = st.selectbox(
-                "Search Pattern (Use arrows to avoid keyboard)", 
+                "Search Pattern", 
                 range(len(base_shapes)), 
                 index=st.session_state['current_shape_idx'],
-                format_func=lambda x: PATTERN_NAMES.get(x, f"Pattern {x+1}")
+                format_func=lambda x: PATTERN_NAMES.get(x, f"Pattern {x+1}"), 
+                label_visibility="collapsed"
             )
-            if shape_idx != st.session_state['current_shape_idx']:
-                st.session_state['current_shape_idx'] = shape_idx
-                st.rerun()
-
-        with col_next_btn:
-            st.markdown("<div style='height: 28px;'></div>", unsafe_allow_html=True)
-            if st.button("▶", key="next_shape", help="Next Pattern"):
-                st.session_state['current_shape_idx'] = (st.session_state['current_shape_idx'] + 1) % len(base_shapes)
-                st.rerun()
+            st.session_state['current_shape_idx'] = shape_idx
 
         with col_prev:
-            st.markdown(draw_preview_html(base_shapes[st.session_state['current_shape_idx']]), unsafe_allow_html=True)
+            st.markdown(draw_preview_html(base_shapes[shape_idx]), unsafe_allow_html=True)
         
         st.markdown("<div style='height: 15px;'></div>", unsafe_allow_html=True)
         
@@ -717,14 +683,9 @@ if df is not None:
                     count = cell_styles[coord].count("frame-box")
                     inset = count * 3
                     cell_styles[coord] += f'<div class="frame-box" style="color: {col}; top: {inset}px; left: {inset}px; right: {inset}px; bottom: {inset}px; border-width: 2px;"></div>'
-            
             miss = m['miss_coords']
             if miss not in cell_styles: cell_styles[miss] = ""
-            
-            if selected_match_ids is not None:
-                cell_styles[miss] += " MISSING_SELECTED"
-            else:
-                cell_styles[miss] += " MISSING_SUBTLE"
+            if "MISSING_MARKER" not in cell_styles[miss]: cell_styles[miss] += "MISSING_MARKER"
             
         st.markdown(generate_board_html(grid_data, ROW_LIMIT, cell_styles), unsafe_allow_html=True)
 
