@@ -66,19 +66,19 @@ A X X X
 
 # Pattern Names Mapping
 PATTERN_NAMES = {
-    0: "1. Row",
-    1: "2. Column",
-    2: "3. Diagonal",
-    3: "4. Custom Shape",
+    0: "1. Row (Horizontal)",
+    1: "2. Column (Vertical)",
+    2: "3. Diagonal (All Dirs)",
+    3: "4. Custom Shape (Up/Down/Horiz)",
     4: "5. Bridge",
-    5: "6. Square",
+    5: "6. Square (2x2)",
     6: "7. Parallel Gaps",
     7: "8. X-Corners",
     8: "9. Large Corners",
-    9: "10. T-Shape",
-    10: "11. T-Spaced",
-    11: "12. Hook",
-    12: "13. C-Shape"
+    9: "10. T-Shape (Up/Down)",
+    10: "11. T-Spaced (Up/Down)",
+    11: "12. Hook (Up/Down)",
+    12: "13. C-Shape (Left/Right)"
 }
 
 # ==========================================
@@ -205,14 +205,6 @@ st.markdown("""
     .stSelectbox, .stMultiSelect, div[data-testid="stExpander"] { direction: ltr; text-align: left; }
     div[data-baseweb="select"] > div { background-color: #111827; border: 1px solid #1F2937; border-radius: 8px; }
     
-    /* DISABLE KEYBOARD FIX (Works on mobile without blocking clicks) */
-    div[data-baseweb="select"] input {
-        pointer-events: none !important;
-        user-select: none !important;
-        -webkit-user-select: none !important;
-        touch-action: none !important;
-    }
-
     div.stButton > button { 
         width: 100%; 
         border-radius: 8px; 
@@ -262,7 +254,6 @@ st.markdown("""
         position: relative;
         border: 1px solid #374151;
         box-shadow: inset 0 2px 4px rgba(0,0,0,0.1);
-        transition: all 0.2s ease;
     }
     
     .cell-plus { color: #10B981 !important; font-weight: 800 !important; text-shadow: 0 0 8px rgba(16, 185, 129, 0.4); } 
@@ -289,6 +280,7 @@ st.markdown("""
         border-style: solid; 
         pointer-events: none; 
         border-radius: 8px; 
+        box-shadow: inset 0 0 12px currentColor, 0 0 8px currentColor;
         z-index: 10;
     }
     
@@ -472,7 +464,7 @@ def generate_board_html(grid_data, row_limit, cell_styles):
             if style_extra.strip().startswith("cell-"):
                  html += f'<div class="grid-cell {style_extra}">{inner}</div>'
             else:
-                 html += f'<div class="grid-cell">{inner}</div>'
+                 html += f'<div class="grid-cell">{inner}{style_extra}</div>'
                  
     html += '</div>'
     return html
@@ -539,6 +531,7 @@ with st.sidebar:
     st.header("📂 Upload Data")
     csv_file = st.file_uploader("Choose a CSV file", type=None)
     st.markdown("---")
+    st.caption("Powered by Advanced Geometric Pattern Recognition.")
 
 if 'uploaded_df' not in st.session_state: st.session_state['uploaded_df'] = None
 if 'current_shape_idx' not in st.session_state: st.session_state['current_shape_idx'] = 0
@@ -566,6 +559,7 @@ if df is not None:
     grid_data = df[required_cols].values
     ROW_LIMIT = 26
     
+    # --- Settings Expander ---
     with st.expander("⚙️ Configuration & Target Inputs", expanded=not st.session_state.get('search_done', False)):
         col_conf, col_prev = st.columns([4, 1])
         with col_conf:
@@ -688,11 +682,10 @@ if df is not None:
                     if coord not in cell_styles: cell_styles[coord] = ""
                     count = cell_styles[coord].count("frame-box")
                     inset = count * 3
-                    cell_styles[coord] += f'<div class="frame-box" style="border-width: 2px; border-color: {col}; box-shadow: inset 0 0 10px {col}, 0 0 8px {col}; top: {inset}px; left: {inset}px; right: {inset}px; bottom: {inset}px;"></div>'
+                    cell_styles[coord] += f'<div class="frame-box" style="color: {col}; top: {inset}px; left: {inset}px; right: {inset}px; bottom: {inset}px; border-width: 2px;"></div>'
             miss = m['miss_coords']
             if miss not in cell_styles: cell_styles[miss] = ""
-            if "MISSING_MARKER" not in cell_styles[miss]: 
-                cell_styles[miss] += " MISSING_MARKER"
+            if "MISSING_MARKER" not in cell_styles[miss]: cell_styles[miss] += "MISSING_MARKER"
             
         st.markdown(generate_board_html(grid_data, ROW_LIMIT, cell_styles), unsafe_allow_html=True)
 
