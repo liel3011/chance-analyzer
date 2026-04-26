@@ -81,9 +81,6 @@ PATTERN_NAMES = {
     12: "13. C-Shape"
 }
 
-# Create a clean list of string names to prevent mobile keyboard popups
-PATTERN_LIST = [PATTERN_NAMES[i] for i in range(len(PATTERN_NAMES))]
-
 # ==========================================
 # Logic for Pairs (+/-)
 # ==========================================
@@ -366,6 +363,20 @@ st.markdown("""
 
     div[data-testid="stVerticalBlock"] > div { gap: 0.3rem; }
     div[data-testid="stHorizontalBlock"] { align-items: center; }
+    
+    /* Style for the custom pattern text box */
+    .pattern-display {
+        display: flex; 
+        align-items: center; 
+        justify-content: center; 
+        height: 2.8rem; 
+        background-color: #111827; 
+        border: 1px solid #374151; 
+        border-radius: 8px; 
+        font-weight: 800; 
+        color: #60A5FA;
+        font-size: 16px;
+    }
 </style>
 """, unsafe_allow_html=True)
 
@@ -466,7 +477,7 @@ def generate_board_html(grid_data, row_limit, cell_styles):
             elif "MISSING_SUBTLE" in style_extra:
                 style_extra = style_extra.replace("MISSING_SUBTLE", "missing-subtle")
             
-            if style_extra.strip() != "":
+            if style_extra.strip().startswith("cell-"):
                  html += f'<div class="grid-cell {style_extra}">{inner}</div>'
             else:
                  html += f'<div class="grid-cell">{inner}</div>'
@@ -563,24 +574,29 @@ if df is not None:
     grid_data = df[required_cols].values
     ROW_LIMIT = 26
     
+    # --- Settings Expander ---
     with st.expander("⚙️ Configuration & Target Inputs", expanded=not st.session_state.get('search_done', False)):
-        col_conf, col_prev = st.columns([4, 1])
         
-        with col_conf:
-            selected_pattern_name = st.selectbox(
-                "Search Pattern", 
-                PATTERN_LIST, 
-                index=st.session_state['current_shape_idx'],
-                label_visibility="collapsed"
-            )
-            shape_idx = PATTERN_LIST.index(selected_pattern_name)
+        # Completely Custom Navigation to avoid mobile keyboard
+        st.markdown("<label style='font-size: 14px; color: #F3F4F6; font-weight: 600;'>Search Pattern</label>", unsafe_allow_html=True)
+        col_p, col_text, col_n, col_prev = st.columns([0.5, 3, 0.5, 1.5])
+        
+        with col_p:
+            if st.button("◀", key="prev_pat"):
+                st.session_state['current_shape_idx'] = (st.session_state['current_shape_idx'] - 1) % len(PATTERN_NAMES)
+                st.rerun()
+                
+        with col_text:
+            curr_name = PATTERN_NAMES[st.session_state['current_shape_idx']]
+            st.markdown(f"<div class='pattern-display'>{curr_name}</div>", unsafe_allow_html=True)
             
-            if shape_idx != st.session_state['current_shape_idx']:
-                st.session_state['current_shape_idx'] = shape_idx
+        with col_n:
+            if st.button("▶", key="next_pat"):
+                st.session_state['current_shape_idx'] = (st.session_state['current_shape_idx'] + 1) % len(PATTERN_NAMES)
                 st.rerun()
 
         with col_prev:
-            st.markdown(draw_preview_html(base_shapes[shape_idx]), unsafe_allow_html=True)
+            st.markdown(draw_preview_html(base_shapes[st.session_state['current_shape_idx']]), unsafe_allow_html=True)
         
         st.markdown("<div style='height: 15px;'></div>", unsafe_allow_html=True)
         
@@ -645,7 +661,7 @@ if df is not None:
         if 'winning_msg' in st.session_state:
             st.markdown(st.session_state['winning_msg'], unsafe_allow_html=True)
             
-        current_patt_idx = st.session_state.get('current_shape_idx', shape_idx)
+        current_patt_idx = st.session_state.get('current_shape_idx', 0)
         found_matches = find_matches_for_pattern(current_patt_idx, selected_cards, grid_data, ROW_LIMIT)
 
     tab_matches, tab_sleep, tab_pairs = st.tabs(["📋 PATTERN MATCHES", "💤 SLEEPING CARDS", "⚖️ PAIRS (+/-)"])
