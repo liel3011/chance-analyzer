@@ -1,39 +1,13 @@
 import streamlit as st
-import streamlit.components.v1 as components
 import pandas as pd
 import numpy as np
 
-# --- Page Configuration ---
 st.set_page_config(
     page_title="Chance Analyzer PRO",
     layout="wide",
     initial_sidebar_state="collapsed"
 )
 
-# --- KILL MOBILE KEYBOARD HACK ---
-components.html(
-    """
-    <script>
-    const doc = window.parent.document;
-    const disableKeyboard = () => {
-        const inputs = doc.querySelectorAll('div[data-baseweb="select"] input');
-        inputs.forEach(el => {
-            el.setAttribute('inputmode', 'none');
-            el.setAttribute('readonly', 'readonly');
-        });
-    };
-    disableKeyboard();
-    const observer = new MutationObserver(disableKeyboard);
-    observer.observe(doc.body, { childList: true, subtree: true });
-    </script>
-    """,
-    height=0, width=0
-)
-# ---------------------------------
-
-# ==========================================
-# Fixed Patterns (A = Shape Block, X = Skip/Gap)
-# ==========================================
 FIXED_COMBOS_TXT = """
 A A A A
 
@@ -86,7 +60,6 @@ A X X A
 A X X X
 """
 
-# Pattern Names Mapping
 PATTERN_NAMES = {
     0: "1. Row",
     1: "2. Column",
@@ -103,9 +76,6 @@ PATTERN_NAMES = {
     12: "13. C-Shape"
 }
 
-# ==========================================
-# Logic for Pairs (+/-)
-# ==========================================
 PLUS_SET = {"8", "10", "Q", "A"}
 MINUS_SET = {"7", "9", "J", "K"}
 
@@ -134,9 +104,6 @@ def analyze_pair_gap(df, col1, col2):
     results.sort(key=lambda x: x['ago'], reverse=True)
     return results
 
-# ==========================================
-# Pattern Parsing & Variations Logic
-# ==========================================
 def parse_shapes_strict(text):
     shapes = []
     text = text.replace('\r\n', '\n')
@@ -207,9 +174,6 @@ def generate_variations_strict(shape_idx, base_shape):
             
     return valid_variations
 
-# ==========================================
-# Premium CSS Styling
-# ==========================================
 st.markdown("""
 <style>
     @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&display=swap');
@@ -226,6 +190,12 @@ st.markdown("""
     
     .stSelectbox, .stMultiSelect, div[data-testid="stExpander"] { direction: ltr; text-align: left; }
     div[data-baseweb="select"] > div { background-color: #111827; border: 1px solid #1F2937; border-radius: 8px; }
+    
+    /* DISABLE KEYBOARD FIX */
+    div[data-baseweb="select"] input {
+        display: none !important;
+        caret-color: transparent !important;
+    }
 
     div.stButton > button { 
         width: 100%; 
@@ -276,6 +246,7 @@ st.markdown("""
         position: relative;
         border: 1px solid #374151;
         box-shadow: inset 0 2px 4px rgba(0,0,0,0.1);
+        transition: all 0.2s ease;
     }
     
     .cell-plus { color: #10B981 !important; font-weight: 800 !important; text-shadow: 0 0 8px rgba(16, 185, 129, 0.4); } 
@@ -302,7 +273,6 @@ st.markdown("""
         border-style: solid; 
         pointer-events: none; 
         border-radius: 8px; 
-        box-shadow: inset 0 0 12px currentColor, 0 0 8px currentColor;
         z-index: 10;
     }
     
@@ -387,9 +357,6 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-# ==========================================
-# UI & Render Helpers
-# ==========================================
 @st.cache_data
 def load_data_robust(uploaded_file):
     if uploaded_file is None: return None, "No file"
@@ -479,7 +446,6 @@ def generate_board_html(grid_data, row_limit, cell_styles):
             style_extra = cell_styles.get((r, c), "")
             inner = val
             
-            # Here we render the golden circle if MISSING_MARKER is present
             if "MISSING_MARKER" in style_extra:
                 inner = f'<div class="missing-circle">{val}</div>'
                 style_extra = style_extra.replace("MISSING_MARKER", "")
@@ -545,9 +511,6 @@ def find_matches_for_pattern(shape_idx, selected_cards, grid_data, row_limit):
         
     return found
 
-# ==========================================
-# Main Interface
-# ==========================================
 st.title("⚡ Chance Analyzer PRO")
 
 with st.sidebar:
@@ -584,14 +547,17 @@ if df is not None:
     with st.expander("⚙️ Configuration & Target Inputs", expanded=not st.session_state.get('search_done', False)):
         col_conf, col_prev = st.columns([4, 1])
         with col_conf:
-            shape_idx = st.selectbox(
+            pattern_list = list(PATTERN_NAMES.values())
+            selected_patt = st.selectbox(
                 "Search Pattern", 
-                range(len(base_shapes)), 
+                pattern_list, 
                 index=st.session_state['current_shape_idx'],
-                format_func=lambda x: PATTERN_NAMES.get(x, f"Pattern {x+1}"), 
                 label_visibility="collapsed"
             )
-            st.session_state['current_shape_idx'] = shape_idx
+            shape_idx = pattern_list.index(selected_patt)
+            if shape_idx != st.session_state['current_shape_idx']:
+                st.session_state['current_shape_idx'] = shape_idx
+                st.rerun()
 
         with col_prev:
             st.markdown(draw_preview_html(base_shapes[shape_idx]), unsafe_allow_html=True)
@@ -703,10 +669,10 @@ if df is not None:
                     if coord not in cell_styles: cell_styles[coord] = ""
                     count = cell_styles[coord].count("frame-box")
                     inset = count * 3
-                    cell_styles[coord] += f'<div class="frame-box" style="color: {col}; top: {inset}px; left: {inset}px; right: {inset}px; bottom: {inset}px; border-width: 2px;"></div>'
+                    # FIX: Explicit border-color added back
+                    cell_styles[coord] += f'<div class="frame-box" style="border-width: 2px; border-color: {col}; box-shadow: inset 0 0 10px {col}, 0 0 8px {col}; top: {inset}px; left: {inset}px; right: {inset}px; bottom: {inset}px;"></div>'
             miss = m['miss_coords']
             if miss not in cell_styles: cell_styles[miss] = ""
-            
             if "MISSING_MARKER" not in cell_styles[miss]: 
                 cell_styles[miss] += " MISSING_MARKER"
             
