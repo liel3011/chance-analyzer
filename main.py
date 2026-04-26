@@ -2,12 +2,16 @@ import streamlit as st
 import pandas as pd
 import numpy as np
 
+# --- Page Configuration ---
 st.set_page_config(
     page_title="Chance Analyzer PRO",
     layout="wide",
     initial_sidebar_state="collapsed"
 )
 
+# ==========================================
+# Fixed Patterns (A = Shape Block, X = Skip/Gap)
+# ==========================================
 FIXED_COMBOS_TXT = """
 A A A A
 
@@ -60,6 +64,7 @@ A X X A
 A X X X
 """
 
+# Pattern Names Mapping
 PATTERN_NAMES = {
     0: "1. Row",
     1: "2. Column",
@@ -76,6 +81,12 @@ PATTERN_NAMES = {
     12: "13. C-Shape"
 }
 
+# Create a clean list of string names to prevent mobile keyboard popups
+PATTERN_LIST = [PATTERN_NAMES[i] for i in range(len(PATTERN_NAMES))]
+
+# ==========================================
+# Logic for Pairs (+/-)
+# ==========================================
 PLUS_SET = {"8", "10", "Q", "A"}
 MINUS_SET = {"7", "9", "J", "K"}
 
@@ -104,6 +115,9 @@ def analyze_pair_gap(df, col1, col2):
     results.sort(key=lambda x: x['ago'], reverse=True)
     return results
 
+# ==========================================
+# Pattern Parsing & Variations Logic
+# ==========================================
 def parse_shapes_strict(text):
     shapes = []
     text = text.replace('\r\n', '\n')
@@ -174,6 +188,9 @@ def generate_variations_strict(shape_idx, base_shape):
             
     return valid_variations
 
+# ==========================================
+# Premium CSS Styling
+# ==========================================
 st.markdown("""
 <style>
     @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&display=swap');
@@ -190,10 +207,6 @@ st.markdown("""
     
     .stSelectbox, .stMultiSelect, div[data-testid="stExpander"] { direction: ltr; text-align: left; }
     div[data-baseweb="select"] > div { background-color: #111827; border: 1px solid #1F2937; border-radius: 8px; }
-    
-    div[data-baseweb="select"] input {
-        display: none !important;
-    }
 
     div.stButton > button { 
         width: 100%; 
@@ -356,6 +369,9 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
+# ==========================================
+# UI & Render Helpers
+# ==========================================
 @st.cache_data
 def load_data_robust(uploaded_file):
     if uploaded_file is None: return None, "No file"
@@ -511,6 +527,9 @@ def find_matches_for_pattern(shape_idx, selected_cards, grid_data, row_limit):
         
     return found
 
+# ==========================================
+# Main Interface
+# ==========================================
 st.title("⚡ Chance Analyzer PRO")
 
 with st.sidebar:
@@ -546,15 +565,19 @@ if df is not None:
     
     with st.expander("⚙️ Configuration & Target Inputs", expanded=not st.session_state.get('search_done', False)):
         col_conf, col_prev = st.columns([4, 1])
+        
         with col_conf:
-            shape_idx = st.selectbox(
+            selected_pattern_name = st.selectbox(
                 "Search Pattern", 
-                range(len(base_shapes)), 
+                PATTERN_LIST, 
                 index=st.session_state['current_shape_idx'],
-                format_func=lambda x: PATTERN_NAMES.get(x, f"Pattern {x+1}"), 
                 label_visibility="collapsed"
             )
-            st.session_state['current_shape_idx'] = shape_idx
+            shape_idx = PATTERN_LIST.index(selected_pattern_name)
+            
+            if shape_idx != st.session_state['current_shape_idx']:
+                st.session_state['current_shape_idx'] = shape_idx
+                st.rerun()
 
         with col_prev:
             st.markdown(draw_preview_html(base_shapes[shape_idx]), unsafe_allow_html=True)
@@ -667,7 +690,6 @@ if df is not None:
                     count = cell_styles[coord].count("frame-box")
                     inset = count * 3
                     cell_styles[coord] += f'<div class="frame-box" style="color: {col}; top: {inset}px; left: {inset}px; right: {inset}px; bottom: {inset}px; border-width: 2px;"></div>'
-            
             miss = m['miss_coords']
             if miss not in cell_styles: cell_styles[miss] = ""
             
