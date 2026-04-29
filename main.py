@@ -201,15 +201,21 @@ st.markdown("""
     .grid-container { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; background: #111827; padding: 12px; border-radius: 16px; margin-top: 15px; border: 1px solid #1F2937; box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.3); }
     .grid-cell { background-color: #1F2937; color: #D1D5DB; padding: 0; text-align: center; border-radius: 8px; height: 42px; display: flex; align-items: center; justify-content: center; font-weight: 600; font-size: 15px; position: relative; border: 1px solid #374151; box-shadow: inset 0 2px 4px rgba(0,0,0,0.1); transition: all 0.2s ease; }
     
-    .missing-selected { background: linear-gradient(135deg, #F59E0B 0%, #D97706 100%) !important; color: #000 !important; font-weight: 900 !important; border: 2px solid #FFF !important; box-shadow: 0 0 20px 5px rgba(245, 158, 11, 0.8) !important; transform: scale(1.15); z-index: 100; }
+    .missing-selected { background: linear-gradient(135deg, #F59E0B 0%, #D97706 100%) !important; color: #000 !important; font-weight: 900 !important; border: 1px solid #FFF !important; box-shadow: 0 0 15px rgba(245, 158, 11, 0.8) !important; transform: scale(1.1); z-index: 100; }
     .missing-subtle { background-color: rgba(245, 158, 11, 0.15) !important; border: 1px dashed #F59E0B !important; color: #FCD34D !important; }
     
     .missing-circle { background: linear-gradient(135deg, #F59E0B 0%, #D97706 100%); color: #FFFFFF; font-weight: 800; border-radius: 50%; width: 32px; height: 32px; display: flex; align-items: center; justify-content: center; box-shadow: 0 0 15px rgba(245, 158, 11, 0.7); margin: auto; border: 2px solid #FEF3C7; }
     
     .frame-box { position: absolute; top: 0; left: 0; right: 0; bottom: 0; border-style: solid; pointer-events: none; border-radius: 8px; z-index: 10; }
     
-    .window-highlight { box-shadow: inset 0 0 15px rgba(245, 158, 11, 0.4) !important; border: 2px solid #F59E0B !important; background-color: #1F2937 !important; z-index: 5; }
-    .window-dim { opacity: 0.25 !important; filter: grayscale(50%); }
+    /* תיקון הסימונים של הלוח כדי שלא ישבור את המבנה */
+    .window-highlight { 
+        border: 1px solid #F59E0B !important; 
+        box-shadow: inset 0 0 15px rgba(245, 158, 11, 0.5), 0 0 8px rgba(245, 158, 11, 0.3) !important; 
+        background-color: #1F2937 !important; 
+        z-index: 5; 
+    }
+    .window-dim { opacity: 0.3 !important; filter: grayscale(40%); }
 
     .grid-header { text-align: center; padding-bottom: 8px; display: flex; flex-direction: column; align-items: center; justify-content: center; }
     .suit-icon { font-size: 24px; line-height: 1; margin-bottom: 4px; filter: drop-shadow(0 2px 4px rgba(0,0,0,0.3)); }
@@ -423,6 +429,7 @@ if df is not None:
         st.stop()
 
     grid_data = df[required_cols].values
+    ROW_LIMIT = 26
     
     tab_matches, tab_predictor, tab_sleep = st.tabs(["📋 PATTERN MATCHES", "🔍 3-ROW PREDICTOR", "💤 SLEEPING CARDS"])
     selected_match_ids = None 
@@ -579,7 +586,6 @@ if df is not None:
 
         suits = ['Spades', 'Hearts', 'Diamonds', 'Clubs']
         suit_icons = {'Spades': '♠', 'Hearts': '♥', 'Diamonds': '♦', 'Clubs': '♣'}
-        suit_colors = {'Spades': '#D1D5DB', 'Hearts': '#EF4444', 'Diamonds': '#EF4444', 'Clubs': '#D1D5DB'}
         
         suit_tabs = st.tabs([f"{suit_icons[s]} {s}" for s in suits])
         
@@ -610,13 +616,13 @@ if df is not None:
                             is_hit = has_actual and (card == actual_card)
                             
                             if is_hit:
-                                row_bg = "background: rgba(63, 185, 80, 0.15);"
-                                border_left = "border-left: 4px solid #3FB950;"
-                                card_color = "#3FB950"
-                                icon_check = " ✔️ HIT"
+                                row_bg = "background: rgba(16, 185, 129, 0.1);"
+                                border_left = "border-left: 3px solid #10B981;"
+                                card_color = "#10B981"
+                                icon_check = "<span style='background: #10B981; color: white; padding: 2px 6px; border-radius: 4px; font-size: 9px; margin-left: 8px; vertical-align: middle; letter-spacing: 0.5px;'>HIT</span>"
                             else:
                                 row_bg = ""
-                                border_left = "border-left: 4px solid transparent;"
+                                border_left = "border-left: 3px solid transparent;"
                                 card_color = "#58A6FF"
                                 icon_check = ""
                             
@@ -626,12 +632,12 @@ if df is not None:
                             html_table += "</tr>"
                     else:
                         html_table += "<tr style='border-bottom: 1px solid #30363D;'>"
-                        html_table += "<td style='padding: 8px; border-left: 4px solid transparent; color: #F85149; font-weight: 600;'>No Match</td>"
+                        html_table += "<td style='padding: 8px; border-left: 3px solid transparent; color: #F85149; font-weight: 600;'>No Match</td>"
                         html_table += "<td style='padding: 8px; color: #8B949E;'>0</td>"
                         html_table += "</tr>"
                 else:
                     html_table += "<tr style='border-bottom: 1px solid #30363D;'>"
-                    html_table += "<td style='padding: 8px; border-left: 4px solid transparent; color: #8B949E; font-weight: 600;'>Incomplete Triplet</td>"
+                    html_table += "<td style='padding: 8px; border-left: 3px solid transparent; color: #8B949E; font-weight: 600;'>Incomplete Triplet</td>"
                     html_table += "<td style='padding: 8px; color: #8B949E;'>-</td>"
                     html_table += "</tr>"
                     
@@ -670,7 +676,7 @@ if df is not None:
             st.write("No sleeping cards found.")
             
         st.markdown("<h4 style='margin-top: 15px; font-weight: 800; color: #F3F4F6;'>Live Game Board</h4>", unsafe_allow_html=True)
-        st.markdown(generate_board_html(grid_data, 0, 30, {}), unsafe_allow_html=True)
+        st.markdown(generate_board_html(grid_data, 0, ROW_LIMIT, {}), unsafe_allow_html=True)
 
 else:
     st.info("👋 Upload a CSV file to get started.")
