@@ -420,62 +420,62 @@ if df is not None:
     grid_data = df[required_cols].values
     ROW_LIMIT = 26
     
-    with st.expander("⚙️ Configuration & Target Inputs", expanded=not st.session_state.get('search_done', False)):
-        col_conf, col_prev = st.columns([4, 1])
-        with col_conf:
-            st.markdown("<label style='font-size: 14px; font-weight: 600; color: #FAFAFA;'>Search Pattern</label>", unsafe_allow_html=True)
-            nav_col1, nav_col2, nav_col3 = st.columns([1, 4, 1])
-            with nav_col1:
-                if st.button("◀", use_container_width=True):
-                    st.session_state['current_shape_idx'] = (st.session_state['current_shape_idx'] - 1) % len(PATTERN_NAMES)
-                    st.rerun()
-            with nav_col2:
-                curr_name = PATTERN_NAMES[st.session_state['current_shape_idx']]
-                st.markdown(f"<div style='display: flex; align-items: center; justify-content: center; height: 2.8rem; background-color: #161B22; border: 1px solid #30363D; border-radius: 8px; font-weight: 600; color: #58A6FF; font-size: 15px;'>{curr_name}</div>", unsafe_allow_html=True)
-            with nav_col3:
-                if st.button("▶", use_container_width=True):
-                    st.session_state['current_shape_idx'] = (st.session_state['current_shape_idx'] + 1) % len(PATTERN_NAMES)
-                    st.rerun()
-                    
-            shape_idx = st.session_state['current_shape_idx']
-
-        with col_prev:
-            st.markdown(draw_preview_html(base_shapes[shape_idx]), unsafe_allow_html=True)
-        
-        st.markdown("<div style='height: 18px;'></div>", unsafe_allow_html=True)
-        
-        raw_cards = np.unique(grid_data.astype(str))
-        clean_cards = sorted([c for c in raw_cards if str(c).lower() != 'nan' and str(c).strip() != ''])
-        
-        c1, c2, c3 = st.columns(3)
-        with c1: card1 = st.selectbox("Card 1", [""] + clean_cards, key="c1", label_visibility="collapsed")
-        with c2: card2 = st.selectbox("Card 2", [""] + clean_cards, key="c2", label_visibility="collapsed")
-        with c3: card3 = st.selectbox("Card 3", [""] + clean_cards, key="c3", label_visibility="collapsed")
-        
-        selected_cards = [c for c in [card1, card2, card3] if c != ""]
-        
-        st.markdown("<div style='margin-bottom: 10px;'></div>", unsafe_allow_html=True)
-
-        b_search, b_empty, b_reset = st.columns([3, 3, 1])
-        with b_search: run_search = st.button("🔍 Search", type="primary", use_container_width=True)
-        with b_reset: reset_btn = st.button("Reset", use_container_width=True)
-        
-        if reset_btn:
-            st.session_state['search_done'] = False
-            st.rerun()
-
-    found_matches = []
-    
-    if run_search or st.session_state.get('search_done', False):
-        if len(selected_cards) == 3:
-            st.session_state['search_done'] = True
-            current_patt_idx = st.session_state.get('current_shape_idx', shape_idx)
-            found_matches = find_matches_for_pattern(current_patt_idx, selected_cards, grid_data, ROW_LIMIT)
-
     tab_matches, tab_predictor, tab_sleep = st.tabs(["📋 PATTERN MATCHES", "🔍 3-ROW PREDICTOR", "💤 SLEEPING CARDS"])
     selected_match_ids = None 
     
     with tab_matches:
+        # Move inputs ONLY into the PATTERN MATCHES tab
+        with st.expander("⚙️ Configuration & Target Inputs", expanded=not st.session_state.get('search_done', False)):
+            col_conf, col_prev = st.columns([4, 1])
+            with col_conf:
+                st.markdown("<label style='font-size: 14px; font-weight: 600; color: #FAFAFA;'>Search Pattern</label>", unsafe_allow_html=True)
+                nav_col1, nav_col2, nav_col3 = st.columns([1, 4, 1])
+                with nav_col1:
+                    if st.button("◀", use_container_width=True):
+                        st.session_state['current_shape_idx'] = (st.session_state['current_shape_idx'] - 1) % len(PATTERN_NAMES)
+                        st.rerun()
+                with nav_col2:
+                    curr_name = PATTERN_NAMES[st.session_state['current_shape_idx']]
+                    st.markdown(f"<div style='display: flex; align-items: center; justify-content: center; height: 2.8rem; background-color: #161B22; border: 1px solid #30363D; border-radius: 8px; font-weight: 600; color: #58A6FF; font-size: 15px;'>{curr_name}</div>", unsafe_allow_html=True)
+                with nav_col3:
+                    if st.button("▶", use_container_width=True):
+                        st.session_state['current_shape_idx'] = (st.session_state['current_shape_idx'] + 1) % len(PATTERN_NAMES)
+                        st.rerun()
+                        
+                shape_idx = st.session_state['current_shape_idx']
+
+            with col_prev:
+                st.markdown(draw_preview_html(base_shapes[shape_idx]), unsafe_allow_html=True)
+            
+            st.markdown("<div style='height: 18px;'></div>", unsafe_allow_html=True)
+            
+            raw_cards = np.unique(grid_data.astype(str))
+            clean_cards = sorted([c for c in raw_cards if str(c).lower() != 'nan' and str(c).strip() != ''])
+            
+            c1, c2, c3 = st.columns(3)
+            with c1: card1 = st.selectbox("Card 1", [""] + clean_cards, key="c1", label_visibility="collapsed")
+            with c2: card2 = st.selectbox("Card 2", [""] + clean_cards, key="c2", label_visibility="collapsed")
+            with c3: card3 = st.selectbox("Card 3", [""] + clean_cards, key="c3", label_visibility="collapsed")
+            
+            selected_cards = [c for c in [card1, card2, card3] if c != ""]
+            
+            st.markdown("<div style='margin-bottom: 10px;'></div>", unsafe_allow_html=True)
+
+            b_search, b_empty, b_reset = st.columns([3, 3, 1])
+            with b_search: run_search = st.button("🔍 Search", type="primary", use_container_width=True)
+            with b_reset: reset_btn = st.button("Reset", use_container_width=True)
+            
+            if reset_btn:
+                st.session_state['search_done'] = False
+                st.rerun()
+
+        found_matches = []
+        
+        if (run_search or st.session_state.get('search_done', False)) and len(selected_cards) == 3:
+            st.session_state['search_done'] = True
+            current_patt_idx = st.session_state.get('current_shape_idx', shape_idx)
+            found_matches = find_matches_for_pattern(current_patt_idx, selected_cards, grid_data, ROW_LIMIT)
+
         if found_matches:
             raw_df = pd.DataFrame([
                 {'Missing Card': m['miss_val'], 'Row': m['miss_coords'][0], 'Hidden_ID': m['id']} 
@@ -532,41 +532,52 @@ if df is not None:
         
         suits = ['Spades', 'Hearts', 'Diamonds', 'Clubs']
         suit_icons = {'Spades': '♠', 'Hearts': '♥', 'Diamonds': '♦', 'Clubs': '♣'}
-        suit_colors = {'Spades': '#D1D5DB', 'Hearts': '#EF4444', 'Diamonds': '#EF4444', 'Clubs': '#D1D5DB'}
         
-        col1, col2, col3, col4 = st.columns(4)
+        pred_data = []
+        
         for i, suit in enumerate(suits):
-            with [col1, col2, col3, col4][i]:
-                triplet = [str(w_data[r, i]) for r in range(min(3, len(w_data))) if str(w_data[r, i]).lower() != 'nan' and str(w_data[r, i]).strip() != '']
-                
-                st.markdown(f"""
-                <div style="background: #161B22; border: 1px solid #374151; border-radius: 12px; padding: 12px; text-align: center; height: 100%;">
-                    <div style="font-size: 24px; color: {suit_colors[suit]}; line-height: 1;">{suit_icons[suit]}</div>
-                    <div style="font-size: 12px; font-weight: 800; color: #9CA3AF; text-transform: uppercase; margin-bottom: 8px;">{suit}</div>
-                """, unsafe_allow_html=True)
-                
-                if len(triplet) == 3:
-                    st.markdown(f"<div style='font-size: 14px; color: #F3F4F6; margin-bottom: 12px; background: #1F2937; padding: 4px; border-radius: 6px;'>[ {' | '.join(triplet)} ]</div>", unsafe_allow_html=True)
+            triplet = [str(w_data[r, i]) for r in range(min(3, len(w_data))) if str(w_data[r, i]).lower() != 'nan' and str(w_data[r, i]).strip() != '']
+            
+            if len(triplet) == 3:
+                triplet_str = f"[ {' | '.join(triplet)} ]"
+                all_missing = []
+                for p_idx in range(len(base_shapes)):
+                    m = find_matches_for_pattern(p_idx, triplet, grid_data, ROW_LIMIT)
+                    all_missing.extend([x['miss_val'] for x in m])
                     
-                    all_missing = []
-                    for p_idx in range(len(base_shapes)):
-                        m = find_matches_for_pattern(p_idx, triplet, grid_data, ROW_LIMIT)
-                        all_missing.extend([x['miss_val'] for x in m])
-                        
-                    if all_missing:
-                        counts = pd.Series(all_missing).value_counts()
-                        html = "<table style='width:100%; border-collapse: collapse;'>"
-                        html += "<tr style='border-bottom: 1px solid #374151;'><th style='padding:4px; text-align:left; color:#9CA3AF; font-size:11px;'>CARD</th><th style='padding:4px; text-align:right; color:#9CA3AF; font-size:11px;'>MATCHES</th></tr>"
-                        for card, count in counts.items():
-                            html += f"<tr style='border-bottom: 1px solid #30363D;'><td style='padding:6px; color:#F59E0B; font-weight:800; text-align:left; font-size: 16px;'>{card}</td><td style='padding:6px; color:#F3F4F6; font-weight:600; text-align:right;'>{count}</td></tr>"
-                        html += "</table>"
-                        st.markdown(html, unsafe_allow_html=True)
-                    else:
-                        st.markdown("<div style='color:#F85149; font-size:12px; margin-top:10px;'>No matches found</div>", unsafe_allow_html=True)
+                if all_missing:
+                    counts = pd.Series(all_missing).value_counts()
+                    for card, count in counts.items():
+                        pred_data.append({
+                            'Suit': f"{suit_icons[suit]} {suit}",
+                            'Triplet (Window)': triplet_str,
+                            'Predicted Card': card,
+                            'Matches': count
+                        })
                 else:
-                    st.markdown("<div style='color:#8B949E; font-size:12px; margin-top:10px;'>Incomplete triplet</div>", unsafe_allow_html=True)
+                    pred_data.append({
+                        'Suit': f"{suit_icons[suit]} {suit}",
+                        'Triplet (Window)': triplet_str,
+                        'Predicted Card': 'No Match',
+                        'Matches': 0
+                    })
+            else:
+                pred_data.append({
+                    'Suit': f"{suit_icons[suit]} {suit}",
+                    'Triplet (Window)': 'Incomplete',
+                    'Predicted Card': '-',
+                    'Matches': 0
+                })
                 
-                st.markdown("</div>", unsafe_allow_html=True)
+        st.markdown("<h4 style='color: #FCD34D; margin-top: 10px; margin-bottom: 10px;'>📊 3-Row Prediction Summary</h4>", unsafe_allow_html=True)
+        if pred_data:
+            pred_df = pd.DataFrame(pred_data)
+            pred_df.sort_values(by=['Suit', 'Matches'], ascending=[True, False], inplace=True)
+            
+            pred_df['Matches'] = pred_df['Matches'].astype(str)
+            pred_df.loc[pred_df['Matches'] == '0', 'Matches'] = '-'
+            
+            st.dataframe(pred_df, hide_index=True, use_container_width=True, height=(len(pred_df)+1)*36+3)
                 
         st.markdown("<h4 style='margin-top: 25px; font-weight: 800; color: #F3F4F6;'>Live Game Board (Window Highlighted)</h4>", unsafe_allow_html=True)
         cell_styles_3row = {}
