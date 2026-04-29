@@ -293,7 +293,8 @@ def create_sleeping_html_table(data_dict, required_cols):
     parts.append("</tbody></table></div>")
     return "".join(parts)
 
-def generate_board_html(grid_data, row_limit, cell_styles):
+# UPDATED to support shifting the visual grid to historical rows
+def generate_board_html(grid_data, start_row, end_row, cell_styles):
     html = '<div class="grid-container">'
     headers = [
         ('Spades', '♠', '#D1D5DB'),
@@ -304,7 +305,7 @@ def generate_board_html(grid_data, row_limit, cell_styles):
     for name, icon, color in headers:
         html += f'<div class="grid-header"><div class="suit-icon" style="color:{color};">{icon}</div><div class="suit-name" style="font-size: 11px; color: #9CA3AF; font-weight: 800; letter-spacing: 1px; text-transform: uppercase;">{name}</div></div>'
     
-    for r in range(min(len(grid_data), row_limit)):
+    for r in range(start_row, min(len(grid_data), end_row)):
         for c in range(4):
             val = str(grid_data[r, c])
             if val == 'nan': val = ''
@@ -461,7 +462,7 @@ if df is not None:
             st.markdown("<div style='margin-bottom: 10px;'></div>", unsafe_allow_html=True)
 
             b_search, b_empty, b_reset = st.columns([3, 3, 1])
-            with b_search: run_search = st.button("🔍 Search Pattern", type="primary", use_container_width=True)
+            with b_search: run_search = st.button("🔍 Search", type="primary", use_container_width=True)
             with b_reset: reset_btn = st.button("Reset", use_container_width=True)
             
             if reset_btn:
@@ -521,15 +522,21 @@ if df is not None:
             else:
                 cell_styles[miss] += " MISSING_MARKER"
             
-        st.markdown(generate_board_html(grid_data, ROW_LIMIT, cell_styles), unsafe_allow_html=True)
+        st.markdown(generate_board_html(grid_data, 0, ROW_LIMIT, cell_styles), unsafe_allow_html=True)
 
     with tab_predictor:
-        st.markdown("<p style='color: #9CA3AF; font-size: 13px; font-weight: 600; margin-bottom: 5px;'>SELECT A BASE ROW (ANALYZES THIS ROW + 2 ROWS BELOW IT):</p>", unsafe_allow_html=True)
-        window_start = st.slider("Base Row", 0, max(0, ROW_LIMIT - 3), 0, key="window_start", label_visibility="collapsed")
+        st.markdown("<p style='color: #9CA3AF; font-size: 13px; font-weight: 600; margin-bottom: 5px;'>SELECT A BASE ROW (ANALYZES THIS ROW + 25 ROWS HISTORICALLY BELOW IT):</p>", unsafe_allow_html=True)
+        
+        # Max slider allows going deep without going out of bounds
+        max_slider = max(0, len(grid_data) - ROW_LIMIT)
+        window_start = st.slider("Base Row", 0, min(500, max_slider), 0, key="window_start", label_visibility="collapsed")
         
         w_data = grid_data[window_start : window_start + 3, :]
         has_actual = window_start > 0
         actual_row = grid_data[window_start - 1, :] if has_actual else [None, None, None, None]
+        
+        # Sliced strictly to prevent data leakage from rows chronologically AFTER window_start
+        historical_grid = grid_data[window_start : window_start + ROW_LIMIT]
         
         if has_actual:
             st.markdown(f"""
@@ -574,7 +581,8 @@ if df is not None:
                 if len(triplet) == 3:
                     all_missing = []
                     for p_idx in range(len(base_shapes)):
-                        m = find_matches_for_pattern(p_idx, triplet, grid_data, ROW_LIMIT)
+                        # Passing historical_grid prevents data leakage!
+                        m = find_matches_for_pattern(p_idx, triplet, historical_grid, ROW_LIMIT)
                         all_missing.extend([x['miss_val'].strip().upper() for x in m])
                     
                     if all_missing:
@@ -611,16 +619,17 @@ if df is not None:
                 html_table += "</tbody></table>"
                 st.markdown(html_table, unsafe_allow_html=True)
                 
-        st.markdown("<h4 style='margin-top: 25px; font-weight: 800; color: #FAFAFA;'>Live Game Board (Window Highlighted)</h4>", unsafe_allow_html=True)
+        st.markdown("<h4 style='margin-top: 25px; font-weight: 800; color: #FAFAFA;'>Historical Game Board</h4>", unsafe_allow_html=True)
         cell_styles_3row = {}
-        for r in range(min(len(grid_data), ROW_LIMIT)):
+        for r in range(max(0, window_start - 1), window_start + ROW_LIMIT):
             for c in range(4):
                 if window_start <= r < window_start + 3:
                     cell_styles_3row[(r, c)] = " window-highlight"
                 else:
                     cell_styles_3row[(r, c)] = " window-dim"
                     
-        st.markdown(generate_board_html(grid_data, ROW_LIMIT, cell_styles_3row), unsafe_allow_html=True)
+        # Update the board to show the actual relevant historical rows
+        st.markdown(generate_board_html(grid_data, max(0, window_start - 1), window_start + ROW_LIMIT, cell_styles_3row), unsafe_allow_html=True)
 
     with tab_sleep:
         sleep_data_lists = {}
@@ -642,7 +651,7 @@ if df is not None:
             st.write("No sleeping cards found.")
             
         st.markdown("<h4 style='margin-top: 15px; font-weight: 800; color: #F3F4F6;'>Live Game Board</h4>", unsafe_allow_html=True)
-        st.markdown(generate_board_html(grid_data, ROW_LIMIT, {}), unsafe_allow_html=True)
+        st.markdown(generate_board_html(grid_data, 0, ROW_LIMIT, {}), unsafe_allow_html=True)
 
 else:
     st.info("👋 Upload a CSV file to get started.")
