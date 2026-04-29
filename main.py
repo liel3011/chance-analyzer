@@ -555,7 +555,7 @@ if df is not None:
         suit_icons = {'Spades': '♠', 'Hearts': '♥', 'Diamonds': '♦', 'Clubs': '♣'}
         suit_colors = {'Spades': '#D1D5DB', 'Hearts': '#EF4444', 'Diamonds': '#EF4444', 'Clubs': '#D1D5DB'}
         
-        # --- THE FIX: 4 INTERNAL TABS FOR EACH SUIT ---
+        # Inner tabs for each suit
         suit_tabs = st.tabs([f"{suit_icons[s]} {s}" for s in suits])
         
         for i, suit in enumerate(suits):
@@ -564,75 +564,71 @@ if df is not None:
                 triplet_str = f"[ {' | '.join(triplet)} ]" if len(triplet) == 3 else "Incomplete"
                 actual_card = str(actual_row[i]).strip().upper() if has_actual else "-"
                 
+                # Check all combinations
+                all_missing = []
+                if len(triplet) == 3:
+                    for p_idx in range(len(base_shapes)):
+                        m = find_matches_for_pattern(p_idx, triplet, grid_data, ROW_LIMIT)
+                        all_missing.extend([x['miss_val'].strip().upper() for x in m])
+                
                 html_table = f"""
                 <table style="width: 100%; border-collapse: collapse; text-align: center; background: #161B22; border-radius: 12px; overflow: hidden; border: 1px solid #30363D;">
                     <thead style="background: #21262D; color: #8B949E; font-size: 11px; text-transform: uppercase; letter-spacing: 1px;">
                         <tr>
-                            <th style="padding: 12px; border-bottom: 1px solid #30363D; width: 25%;">Suit</th>
-                            <th style="padding: 12px; border-bottom: 1px solid #30363D; width: 25%;">Base Triplet</th>
-                            <th style="padding: 12px; border-bottom: 1px solid #30363D; width: 20%;">Predicted</th>
-                            <th style="padding: 12px; border-bottom: 1px solid #30363D; width: 15%;">Matches</th>
-                            <th style="padding: 12px; border-bottom: 1px solid #30363D; width: 15%;">Actual</th>
+                            <th style="padding: 12px; border-bottom: 1px solid #30363D;">Suit</th>
+                            <th style="padding: 12px; border-bottom: 1px solid #30363D;">Triplet</th>
+                            <th style="padding: 12px; border-bottom: 1px solid #30363D;">Predicted</th>
+                            <th style="padding: 12px; border-bottom: 1px solid #30363D;">Strength</th>
+                            <th style="padding: 12px; border-bottom: 1px solid #30363D;">Actual</th>
                         </tr>
                     </thead>
                     <tbody>
                 """
                 
-                if len(triplet) == 3:
-                    all_missing = []
-                    for p_idx in range(len(base_shapes)):
-                        m = find_matches_for_pattern(p_idx, triplet, grid_data, ROW_LIMIT)
-                        all_missing.extend([x['miss_val'].strip().upper() for x in m])
-                    
-                    if all_missing:
-                        counts = pd.Series(all_missing).value_counts()
-                        for card, count in counts.items():
-                            is_hit = has_actual and (card == actual_card)
-                            
-                            if is_hit:
-                                row_bg = "background: rgba(63, 185, 80, 0.15);"
-                                border_left = "border-left: 4px solid #3FB950;"
-                                card_color = "#3FB950"
-                                icon_check = " ✔️ HIT"
-                            else:
-                                row_bg = ""
-                                border_left = "border-left: 4px solid transparent;"
-                                card_color = "#58A6FF"
-                                icon_check = ""
-                            
-                            html_table += f"""
-                            <tr style="{row_bg} border-bottom: 1px solid #30363D;">
-                                <td style="padding: 12px; {border_left} font-weight: 800; border-bottom: 1px solid #30363D;"><span style='color:{suit_colors[suit]};'>{suit_icons[suit]} {suit}</span></td>
-                                <td style="padding: 12px; color: #D1D5DB; font-size: 13px; font-weight: 600; border-bottom: 1px solid #30363D;">{triplet_str}</td>
-                                <td style="padding: 12px; font-weight: 900; font-size: 18px; color: {card_color}; border-bottom: 1px solid #30363D;">{card}</td>
-                                <td style="padding: 12px; font-weight: 800; color: #FAFAFA; font-size: 16px; border-bottom: 1px solid #30363D;">{count}</td>
-                                <td style="padding: 12px; font-weight: 900; font-size: 16px; color: #F59E0B; border-bottom: 1px solid #30363D;">{actual_card}{icon_check}</td>
-                            </tr>
-                            """
-                    else:
+                if all_missing:
+                    counts = pd.Series(all_missing).value_counts()
+                    for card, count in counts.items():
+                        is_hit = has_actual and (card == actual_card)
+                        
+                        if is_hit:
+                            row_bg = "background: rgba(63, 185, 80, 0.15);"
+                            border_left = "border-left: 4px solid #3FB950;"
+                            card_color = "#3FB950"
+                            icon_check = " ✔️ HIT"
+                        else:
+                            row_bg = ""
+                            border_left = "border-left: 4px solid transparent;"
+                            card_color = "#58A6FF"
+                            icon_check = ""
+                        
                         html_table += f"""
-                        <tr style="border-bottom: 1px solid #30363D;">
-                            <td style="padding: 12px; font-weight: 800; border-left: 4px solid transparent;"><span style='color:{suit_colors[suit]};'>{suit_icons[suit]} {suit}</span></td>
-                            <td style="padding: 12px; color: #8B949E; font-size: 13px; font-weight: 600;">{triplet_str}</td>
-                            <td style="padding: 12px; color: #F85149; font-weight: 600;">No Match</td>
-                            <td style="padding: 12px; color: #8B949E;">0</td>
-                            <td style="padding: 12px; color: #8B949E;">-</td>
+                        <tr style="{row_bg} border-bottom: 1px solid #30363D;">
+                            <td style="padding: 12px; {border_left} font-weight: 800; border-bottom: 1px solid #30363D;"><span style='color:{suit_colors[suit]};'>{suit_icons[suit]} {suit}</span></td>
+                            <td style="padding: 12px; color: #D1D5DB; font-size: 13px; font-weight: 600; border-bottom: 1px solid #30363D;">{triplet_str}</td>
+                            <td style="padding: 12px; font-weight: 900; font-size: 18px; color: {card_color}; border-bottom: 1px solid #30363D;">{card}</td>
+                            <td style="padding: 12px; font-weight: 800; color: #FAFAFA; font-size: 16px; border-bottom: 1px solid #30363D;">{count}</td>
+                            <td style="padding: 12px; font-weight: 900; font-size: 16px; color: #F59E0B; border-bottom: 1px solid #30363D;">{actual_card}{icon_check}</td>
                         </tr>
                         """
                 else:
+                    if len(triplet) == 3:
+                        msg = "No Match"
+                    else:
+                        msg = "Incomplete"
+                        
                     html_table += f"""
                     <tr style="border-bottom: 1px solid #30363D;">
                         <td style="padding: 12px; font-weight: 800; border-left: 4px solid transparent;"><span style='color:{suit_colors[suit]};'>{suit_icons[suit]} {suit}</span></td>
-                        <td style="padding: 12px; color: #8B949E; font-size: 13px;">{triplet_str}</td>
-                        <td style="padding: 12px; color: #8B949E;">-</td>
+                        <td style="padding: 12px; color: #8B949E; font-size: 13px; font-weight: 600;">{triplet_str}</td>
+                        <td style="padding: 12px; color: #F85149; font-weight: 600;">{msg}</td>
                         <td style="padding: 12px; color: #8B949E;">-</td>
                         <td style="padding: 12px; color: #8B949E;">-</td>
                     </tr>
                     """
-                    
+                
                 html_table += "</tbody></table>"
                 st.markdown(html_table, unsafe_allow_html=True)
-            
+                
         st.markdown("<h4 style='margin-top: 25px; font-weight: 800; color: #FAFAFA;'>Live Game Board (Window Highlighted)</h4>", unsafe_allow_html=True)
         cell_styles_3row = {}
         for r in range(min(len(grid_data), ROW_LIMIT)):
