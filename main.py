@@ -424,7 +424,7 @@ if df is not None:
     selected_match_ids = None 
     
     with tab_matches:
-        # Move inputs ONLY into the PATTERN MATCHES tab
+        # Configuration is ONLY inside the Pattern Matches tab
         with st.expander("⚙️ Configuration & Target Inputs", expanded=not st.session_state.get('search_done', False)):
             col_conf, col_prev = st.columns([4, 1])
             with col_conf:
@@ -556,24 +556,12 @@ if df is not None:
         suit_icons = {'Spades': '♠', 'Hearts': '♥', 'Diamonds': '♦', 'Clubs': '♣'}
         suit_colors = {'Spades': '#D1D5DB', 'Hearts': '#EF4444', 'Diamonds': '#EF4444', 'Clubs': '#D1D5DB'}
         
-        html_table = """
-        <table style="width: 100%; border-collapse: collapse; text-align: center; background: #161B22; border-radius: 12px; overflow: hidden; border: 1px solid #30363D;">
-            <thead style="background: #21262D; color: #8B949E; font-size: 11px; text-transform: uppercase; letter-spacing: 1px;">
-                <tr>
-                    <th style="padding: 12px; border-bottom: 1px solid #30363D;">Suit</th>
-                    <th style="padding: 12px; border-bottom: 1px solid #30363D;">Triplet (Window)</th>
-                    <th style="padding: 12px; border-bottom: 1px solid #30363D;">Predicted Card</th>
-                    <th style="padding: 12px; border-bottom: 1px solid #30363D;">Matches</th>
-                </tr>
-            </thead>
-            <tbody>
-        """
-        
+        pred_data = []
         for i, suit in enumerate(suits):
             triplet = [str(w_data[r, i]) for r in range(min(3, len(w_data))) if str(w_data[r, i]).lower() != 'nan' and str(w_data[r, i]).strip() != '']
             triplet_str = f"[ {' | '.join(triplet)} ]" if len(triplet) == 3 else "Incomplete"
-            actual_card = str(actual_row[i]).strip().upper() if has_actual else None
-            
+            actual_card = str(actual_row[i]).strip().upper() if has_actual else "-"
+
             if len(triplet) == 3:
                 all_missing = []
                 for p_idx in range(len(base_shapes)):
@@ -583,47 +571,61 @@ if df is not None:
                 if all_missing:
                     counts = pd.Series(all_missing).value_counts()
                     for card, count in counts.items():
-                        is_correct = (has_actual and card == actual_card)
-                        
-                        if is_correct:
-                            row_bg = "background: rgba(63, 185, 80, 0.15); border-left: 4px solid #3FB950;"
-                            card_color = "#3FB950"
-                            icon_check = " ✔️"
-                        else:
-                            row_bg = "border-bottom: 1px solid #30363D;"
-                            card_color = "#58A6FF"
-                            icon_check = ""
-                        
-                        html_table += f"""
-                        <tr style="{row_bg}">
-                            <td style="padding: 12px; font-weight: 800; color: {suit_colors[suit]}; border-bottom: 1px solid #30363D;">{suit_icons[suit]} {suit}</td>
-                            <td style="padding: 12px; color: #D1D5DB; font-size: 13px; font-weight: 600; border-bottom: 1px solid #30363D;">{triplet_str}</td>
-                            <td style="padding: 12px; font-weight: 900; font-size: 18px; color: {card_color}; border-bottom: 1px solid #30363D;">{card}{icon_check}</td>
-                            <td style="padding: 12px; font-weight: 800; color: #FAFAFA; border-bottom: 1px solid #30363D;">{count}</td>
-                        </tr>
-                        """
-                else:
-                    html_table += f"""
-                    <tr style="border-bottom: 1px solid #30363D;">
-                        <td style="padding: 12px; font-weight: 800; color: {suit_colors[suit]};">{suit_icons[suit]} {suit}</td>
-                        <td style="padding: 12px; color: #8B949E; font-size: 13px; font-weight: 600;">{triplet_str}</td>
-                        <td style="padding: 12px; color: #F85149; font-weight: 600;">No Match</td>
-                        <td style="padding: 12px; color: #8B949E;">0</td>
+                        pred_data.append({
+                            'suit': suit,
+                            'suit_html': f"<span style='color:{suit_colors[suit]};'>{suit_icons[suit]} {suit}</span>",
+                            'triplet': triplet_str,
+                            'pred_card': card,
+                            'matches': count,
+                            'actual_card': actual_card
+                        })
+
+        if pred_data:
+            # Sort globally by matches to show strongest signals across ALL suits at the top
+            pred_data.sort(key=lambda x: x['matches'], reverse=True)
+
+            html_table = """
+            <table style="width: 100%; border-collapse: collapse; text-align: center; background: #161B22; border-radius: 12px; overflow: hidden; border: 1px solid #30363D;">
+                <thead style="background: #21262D; color: #8B949E; font-size: 11px; text-transform: uppercase; letter-spacing: 1px;">
+                    <tr>
+                        <th style="padding: 12px; border-bottom: 1px solid #30363D;">Suit</th>
+                        <th style="padding: 12px; border-bottom: 1px solid #30363D;">Base Triplet</th>
+                        <th style="padding: 12px; border-bottom: 1px solid #30363D;">Predicted Card</th>
+                        <th style="padding: 12px; border-bottom: 1px solid #30363D;">Strength (Matches)</th>
+                        <th style="padding: 12px; border-bottom: 1px solid #30363D;">Actual Result</th>
                     </tr>
-                    """
-            else:
+                </thead>
+                <tbody>
+            """
+            
+            for row in pred_data:
+                is_hit = has_actual and (row['pred_card'] == row['actual_card'])
+                
+                if is_hit:
+                    row_bg = "background: rgba(63, 185, 80, 0.15);"
+                    border_left = "border-left: 4px solid #3FB950;"
+                    card_color = "#3FB950"
+                    icon_check = " ✔️ HIT"
+                else:
+                    row_bg = ""
+                    border_left = "border-left: 4px solid transparent;"
+                    card_color = "#58A6FF"
+                    icon_check = ""
+                
                 html_table += f"""
-                <tr style="border-bottom: 1px solid #30363D;">
-                    <td style="padding: 12px; font-weight: 800; color: {suit_colors[suit]};">{suit_icons[suit]} {suit}</td>
-                    <td style="padding: 12px; color: #8B949E; font-size: 13px;">{triplet_str}</td>
-                    <td style="padding: 12px; color: #8B949E;">-</td>
-                    <td style="padding: 12px; color: #8B949E;">-</td>
+                <tr style="{row_bg} border-bottom: 1px solid #30363D;">
+                    <td style="padding: 12px; {border_left} font-weight: 800; border-bottom: 1px solid #30363D;">{row['suit_html']}</td>
+                    <td style="padding: 12px; color: #D1D5DB; font-size: 13px; font-weight: 600; border-bottom: 1px solid #30363D;">{row['triplet']}</td>
+                    <td style="padding: 12px; font-weight: 900; font-size: 18px; color: {card_color}; border-bottom: 1px solid #30363D;">{row['pred_card']}</td>
+                    <td style="padding: 12px; font-weight: 800; color: #FAFAFA; font-size: 16px; border-bottom: 1px solid #30363D;">{row['matches']}</td>
+                    <td style="padding: 12px; font-weight: 900; font-size: 16px; color: #F59E0B; border-bottom: 1px solid #30363D;">{row['actual_card']}{icon_check}</td>
                 </tr>
                 """
-                
-        html_table += "</tbody></table>"
-        st.markdown(html_table, unsafe_allow_html=True)
-        
+            html_table += "</tbody></table>"
+            st.markdown(html_table, unsafe_allow_html=True)
+        else:
+            st.info("No predictions available for the selected row window.")
+            
         st.markdown("<h4 style='margin-top: 25px; font-weight: 800; color: #FAFAFA;'>Live Game Board (Window Highlighted)</h4>", unsafe_allow_html=True)
         cell_styles_3row = {}
         for r in range(min(len(grid_data), ROW_LIMIT)):
