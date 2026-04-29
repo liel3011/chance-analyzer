@@ -293,7 +293,6 @@ def create_sleeping_html_table(data_dict, required_cols):
     parts.append("</tbody></table></div>")
     return "".join(parts)
 
-# UPDATED to support shifting the visual grid to historical rows
 def generate_board_html(grid_data, start_row, end_row, cell_styles):
     html = '<div class="grid-container">'
     headers = [
@@ -397,6 +396,7 @@ with st.sidebar:
 
 if 'uploaded_df' not in st.session_state: st.session_state['uploaded_df'] = None
 if 'current_shape_idx' not in st.session_state: st.session_state['current_shape_idx'] = 0
+if 'window_start' not in st.session_state: st.session_state['window_start'] = 0
 
 base_shapes = parse_shapes_strict(FIXED_COMBOS_TXT)
 
@@ -431,14 +431,14 @@ if df is not None:
                 st.markdown("<label style='font-size: 14px; font-weight: 600; color: #FAFAFA;'>Search Pattern</label>", unsafe_allow_html=True)
                 nav_col1, nav_col2, nav_col3 = st.columns([1, 4, 1])
                 with nav_col1:
-                    if st.button("◀", use_container_width=True):
+                    if st.button("◀", use_container_width=True, key="prev_pat"):
                         st.session_state['current_shape_idx'] = (st.session_state['current_shape_idx'] - 1) % len(PATTERN_NAMES)
                         st.rerun()
                 with nav_col2:
                     curr_name = PATTERN_NAMES[st.session_state['current_shape_idx']]
                     st.markdown(f"<div style='display: flex; align-items: center; justify-content: center; height: 2.8rem; background-color: #161B22; border: 1px solid #30363D; border-radius: 8px; font-weight: 600; color: #58A6FF; font-size: 15px;'>{curr_name}</div>", unsafe_allow_html=True)
                 with nav_col3:
-                    if st.button("▶", use_container_width=True):
+                    if st.button("▶", use_container_width=True, key="next_pat"):
                         st.session_state['current_shape_idx'] = (st.session_state['current_shape_idx'] + 1) % len(PATTERN_NAMES)
                         st.rerun()
                         
@@ -527,20 +527,31 @@ if df is not None:
     with tab_predictor:
         st.markdown("<p style='color: #9CA3AF; font-size: 13px; font-weight: 600; margin-bottom: 5px;'>SELECT A BASE ROW (ANALYZES THIS ROW + 25 ROWS HISTORICALLY BELOW IT):</p>", unsafe_allow_html=True)
         
-        # Max slider allows going deep without going out of bounds
-        max_slider = max(0, len(grid_data) - ROW_LIMIT)
-        window_start = st.slider("Base Row", 0, min(500, max_slider), 0, key="window_start", label_visibility="collapsed")
+        max_val = max(0, len(grid_data) - ROW_LIMIT)
+        
+        c_minus, c_val, c_plus = st.columns([1, 2, 1])
+        with c_minus:
+            if st.button("➖", use_container_width=True, key="btn_minus"):
+                st.session_state['window_start'] = max(0, st.session_state['window_start'] - 1)
+                st.rerun()
+        with c_val:
+            st.markdown(f"<div style='text-align:center; font-size: 18px; font-weight: 800; background: #1F2937; padding: 5px; border-radius: 8px; border: 1px solid #374151; color: #60A5FA;'>Row: {st.session_state['window_start']}</div>", unsafe_allow_html=True)
+        with c_plus:
+            if st.button("➕", use_container_width=True, key="btn_plus"):
+                st.session_state['window_start'] = min(max_val, st.session_state['window_start'] + 1)
+                st.rerun()
+                
+        window_start = st.session_state['window_start']
         
         w_data = grid_data[window_start : window_start + 3, :]
         has_actual = window_start > 0
         actual_row = grid_data[window_start - 1, :] if has_actual else [None, None, None, None]
         
-        # Sliced strictly to prevent data leakage from rows chronologically AFTER window_start
         historical_grid = grid_data[window_start : window_start + ROW_LIMIT]
         
         if has_actual:
             st.markdown(f"""
-            <div style="background: linear-gradient(135deg, #1E3A8A 0%, #111827 100%); border: 1px solid #3B82F6; border-radius: 12px; padding: 15px; margin-bottom: 20px; text-align: center; box-shadow: 0 4px 10px rgba(59,130,246,0.2);">
+            <div style="background: linear-gradient(135deg, #1E3A8A 0%, #111827 100%); border: 1px solid #3B82F6; border-radius: 12px; padding: 15px; margin-top: 15px; margin-bottom: 20px; text-align: center; box-shadow: 0 4px 10px rgba(59,130,246,0.2);">
                 <div style="font-size: 13px; color: #93C5FD; font-weight: 600; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 8px;">🎯 Actual Outcome (Row {window_start - 1})</div>
                 <div style="font-size: 22px; font-weight: 900; color: #FFFFFF; letter-spacing: 2px;">
                     <span style="color: #D1D5DB;">♠ {actual_row[0]}</span> &nbsp;|&nbsp; 
@@ -552,7 +563,7 @@ if df is not None:
             """, unsafe_allow_html=True)
         else:
             st.markdown(f"""
-            <div style="background: linear-gradient(135deg, #064E3B 0%, #111827 100%); border: 1px solid #10B981; border-radius: 12px; padding: 15px; margin-bottom: 20px; text-align: center; box-shadow: 0 4px 10px rgba(16,185,129,0.2);">
+            <div style="background: linear-gradient(135deg, #064E3B 0%, #111827 100%); border: 1px solid #10B981; border-radius: 12px; padding: 15px; margin-top: 15px; margin-bottom: 20px; text-align: center; box-shadow: 0 4px 10px rgba(16,185,129,0.2);">
                 <div style="font-size: 13px; color: #6EE7B7; font-weight: 600; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 8px;">🔮 Predicting Next Draw</div>
                 <div style="font-size: 16px; font-weight: 600; color: #D1FAE5;">Waiting for actual results to validate...</div>
             </div>
@@ -560,6 +571,7 @@ if df is not None:
 
         suits = ['Spades', 'Hearts', 'Diamonds', 'Clubs']
         suit_icons = {'Spades': '♠', 'Hearts': '♥', 'Diamonds': '♦', 'Clubs': '♣'}
+        suit_colors = {'Spades': '#D1D5DB', 'Hearts': '#EF4444', 'Diamonds': '#EF4444', 'Clubs': '#D1D5DB'}
         
         suit_tabs = st.tabs([f"{suit_icons[s]} {s}" for s in suits])
         
@@ -581,7 +593,6 @@ if df is not None:
                 if len(triplet) == 3:
                     all_missing = []
                     for p_idx in range(len(base_shapes)):
-                        # Passing historical_grid prevents data leakage!
                         m = find_matches_for_pattern(p_idx, triplet, historical_grid, ROW_LIMIT)
                         all_missing.extend([x['miss_val'].strip().upper() for x in m])
                     
@@ -628,7 +639,6 @@ if df is not None:
                 else:
                     cell_styles_3row[(r, c)] = " window-dim"
                     
-        # Update the board to show the actual relevant historical rows
         st.markdown(generate_board_html(grid_data, max(0, window_start - 1), window_start + ROW_LIMIT, cell_styles_3row), unsafe_allow_html=True)
 
     with tab_sleep:
