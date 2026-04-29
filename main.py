@@ -461,7 +461,7 @@ if df is not None:
             st.markdown("<div style='margin-bottom: 10px;'></div>", unsafe_allow_html=True)
 
             b_search, b_empty, b_reset = st.columns([3, 3, 1])
-            with b_search: run_search = st.button("🔍 Search", type="primary", use_container_width=True)
+            with b_search: run_search = st.button("🔍 Search Pattern", type="primary", use_container_width=True)
             with b_reset: reset_btn = st.button("Reset", use_container_width=True)
             
             if reset_btn:
@@ -553,7 +553,6 @@ if df is not None:
 
         suits = ['Spades', 'Hearts', 'Diamonds', 'Clubs']
         suit_icons = {'Spades': '♠', 'Hearts': '♥', 'Diamonds': '♦', 'Clubs': '♣'}
-        suit_colors = {'Spades': '#D1D5DB', 'Hearts': '#EF4444', 'Diamonds': '#EF4444', 'Clubs': '#D1D5DB'}
         
         suit_tabs = st.tabs([f"{suit_icons[s]} {s}" for s in suits])
         
@@ -563,14 +562,13 @@ if df is not None:
                 triplet_str = f"[ {' | '.join(triplet)} ]" if len(triplet) == 3 else "Incomplete"
                 actual_card = str(actual_row[i]).strip().upper() if has_actual else "-"
                 
-                html_table = "<table style='width: 100%; border-collapse: collapse; text-align: center; background: #161B22; border-radius: 12px; overflow: hidden; border: 1px solid #30363D;'>"
+                st.markdown(f"<div style='text-align: center; color: #8B949E; font-size: 13px; font-weight: 600; margin-bottom: 10px;'>Base Triplet: <span style='color: #D1D5DB;'>{triplet_str}</span></div>", unsafe_allow_html=True)
+                
+                html_table = "<table style='max-width: 400px; margin: 0 auto; width: 100%; border-collapse: collapse; text-align: center; background: #161B22; border-radius: 10px; overflow: hidden; border: 1px solid #30363D;'>"
                 html_table += "<thead style='background: #21262D; color: #8B949E; font-size: 11px; text-transform: uppercase; letter-spacing: 1px;'>"
                 html_table += "<tr>"
-                html_table += "<th style='padding: 12px; border-bottom: 1px solid #30363D; width: 25%;'>Suit</th>"
-                html_table += "<th style='padding: 12px; border-bottom: 1px solid #30363D; width: 25%;'>Base Triplet</th>"
-                html_table += "<th style='padding: 12px; border-bottom: 1px solid #30363D; width: 20%;'>Predicted</th>"
-                html_table += "<th style='padding: 12px; border-bottom: 1px solid #30363D; width: 15%;'>Matches</th>"
-                html_table += "<th style='padding: 12px; border-bottom: 1px solid #30363D; width: 15%;'>Actual</th>"
+                html_table += "<th style='padding: 8px; border-bottom: 1px solid #30363D; width: 60%;'>Predicted Card</th>"
+                html_table += "<th style='padding: 8px; border-bottom: 1px solid #30363D; width: 40%;'>Matches</th>"
                 html_table += "</tr></thead><tbody>"
                 
                 if len(triplet) == 3:
@@ -596,27 +594,18 @@ if df is not None:
                                 icon_check = ""
                             
                             html_table += f"<tr style='{row_bg} border-bottom: 1px solid #30363D;'>"
-                            html_table += f"<td style='padding: 12px; {border_left} font-weight: 800; border-bottom: 1px solid #30363D;'><span style='color:{suit_colors[suit]};'>{suit_icons[suit]} {suit}</span></td>"
-                            html_table += f"<td style='padding: 12px; color: #D1D5DB; font-size: 13px; font-weight: 600; border-bottom: 1px solid #30363D;'>{triplet_str}</td>"
-                            html_table += f"<td style='padding: 12px; font-weight: 900; font-size: 18px; color: {card_color}; border-bottom: 1px solid #30363D;'>{card}</td>"
-                            html_table += f"<td style='padding: 12px; font-weight: 800; color: #FAFAFA; font-size: 16px; border-bottom: 1px solid #30363D;'>{count}</td>"
-                            html_table += f"<td style='padding: 12px; font-weight: 900; font-size: 16px; color: #F59E0B; border-bottom: 1px solid #30363D;'>{actual_card}{icon_check}</td>"
+                            html_table += f"<td style='padding: 8px; {border_left} font-weight: 900; font-size: 18px; color: {card_color}; border-bottom: 1px solid #30363D;'>{card}{icon_check}</td>"
+                            html_table += f"<td style='padding: 8px; font-weight: 800; color: #FAFAFA; font-size: 16px; border-bottom: 1px solid #30363D;'>{count}</td>"
                             html_table += "</tr>"
                     else:
                         html_table += "<tr style='border-bottom: 1px solid #30363D;'>"
-                        html_table += f"<td style='padding: 12px; font-weight: 800; border-left: 4px solid transparent;'><span style='color:{suit_colors[suit]};'>{suit_icons[suit]} {suit}</span></td>"
-                        html_table += f"<td style='padding: 12px; color: #8B949E; font-size: 13px; font-weight: 600;'>{triplet_str}</td>"
-                        html_table += "<td style='padding: 12px; color: #F85149; font-weight: 600;'>No Match</td>"
-                        html_table += "<td style='padding: 12px; color: #8B949E;'>0</td>"
-                        html_table += "<td style='padding: 12px; color: #8B949E;'>-</td>"
+                        html_table += "<td style='padding: 8px; border-left: 4px solid transparent; color: #F85149; font-weight: 600;'>No Match</td>"
+                        html_table += "<td style='padding: 8px; color: #8B949E;'>0</td>"
                         html_table += "</tr>"
                 else:
                     html_table += "<tr style='border-bottom: 1px solid #30363D;'>"
-                    html_table += f"<td style='padding: 12px; font-weight: 800; border-left: 4px solid transparent;'><span style='color:{suit_colors[suit]};'>{suit_icons[suit]} {suit}</span></td>"
-                    html_table += f"<td style='padding: 12px; color: #8B949E; font-size: 13px;'>{triplet_str}</td>"
-                    html_table += "<td style='padding: 12px; color: #8B949E;'>-</td>"
-                    html_table += "<td style='padding: 12px; color: #8B949E;'>-</td>"
-                    html_table += "<td style='padding: 12px; color: #8B949E;'>-</td>"
+                    html_table += "<td style='padding: 8px; border-left: 4px solid transparent; color: #8B949E; font-weight: 600;'>Incomplete Triplet</td>"
+                    html_table += "<td style='padding: 8px; color: #8B949E;'>-</td>"
                     html_table += "</tr>"
                     
                 html_table += "</tbody></table>"
