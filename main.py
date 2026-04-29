@@ -1,17 +1,33 @@
 import streamlit as st
+import streamlit.components.v1 as components
 import pandas as pd
 import numpy as np
 
-# --- Page Configuration ---
 st.set_page_config(
     page_title="Chance Analyzer PRO",
     layout="wide",
     initial_sidebar_state="collapsed"
 )
 
-# ==========================================
-# Fixed Patterns (A = Shape Block, X = Skip/Gap)
-# ==========================================
+components.html(
+    """
+    <script>
+    const doc = window.parent.document;
+    const disableKeyboard = () => {
+        const inputs = doc.querySelectorAll('div[data-baseweb="select"] input');
+        inputs.forEach(el => {
+            el.setAttribute('inputmode', 'none');
+            el.setAttribute('readonly', 'readonly');
+        });
+    };
+    disableKeyboard();
+    const observer = new MutationObserver(disableKeyboard);
+    observer.observe(doc.body, { childList: true, subtree: true });
+    </script>
+    """,
+    height=0, width=0
+)
+
 FIXED_COMBOS_TXT = """
 A A A A
 
@@ -64,57 +80,22 @@ A X X A
 A X X X
 """
 
-# Pattern Names Mapping
 PATTERN_NAMES = {
-    0: "1. Row (Horizontal)",
-    1: "2. Column (Vertical)",
-    2: "3. Diagonal (All Dirs)",
-    3: "4. Custom Shape (Up/Down/Horiz)",
+    0: "1. Row",
+    1: "2. Column",
+    2: "3. Diagonal",
+    3: "4. Custom Shape",
     4: "5. Bridge",
-    5: "6. Square (2x2)",
+    5: "6. Square",
     6: "7. Parallel Gaps",
     7: "8. X-Corners",
     8: "9. Large Corners",
-    9: "10. T-Shape (Up/Down)",
-    10: "11. T-Spaced (Up/Down)",
-    11: "12. Hook (Up/Down)",
-    12: "13. C-Shape (Left/Right)"
+    9: "10. T-Shape",
+    10: "11. T-Spaced",
+    11: "12. Hook",
+    12: "13. C-Shape"
 }
 
-# ==========================================
-# Logic for Pairs (+/-)
-# ==========================================
-PLUS_SET = {"8", "10", "Q", "A"}
-MINUS_SET = {"7", "9", "J", "K"}
-
-def get_card_sign(card_val):
-    val = str(card_val).strip().upper()
-    if val in PLUS_SET: return "+"
-    if val in MINUS_SET: return "-"
-    return "?"
-
-def analyze_pair_gap(df, col1, col2):
-    s1 = df[col1].apply(get_card_sign)
-    s2 = df[col2].apply(get_card_sign)
-    pairs_series = s1 + s2 
-
-    target_pairs = ["++", "--", "+-", "-+"]
-    results = []
-
-    for p in target_pairs:
-        matches = (pairs_series == p)
-        if matches.any():
-            last_idx = matches.idxmax()
-            results.append({'pair': p, 'ago': last_idx})
-        else:
-            results.append({'pair': p, 'ago': 9999})
-            
-    results.sort(key=lambda x: x['ago'], reverse=True)
-    return results
-
-# ==========================================
-# Pattern Parsing & Variations Logic
-# ==========================================
 def parse_shapes_strict(text):
     shapes = []
     text = text.replace('\r\n', '\n')
@@ -185,9 +166,6 @@ def generate_variations_strict(shape_idx, base_shape):
             
     return valid_variations
 
-# ==========================================
-# Premium CSS Styling
-# ==========================================
 st.markdown("""
 <style>
     @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&display=swap');
@@ -195,58 +173,47 @@ st.markdown("""
     .stApp { direction: ltr; text-align: left; background-color: #0E1117; color: #FAFAFA; font-family: 'Inter', sans-serif;}
     .block-container { padding-top: 1rem !important; padding-bottom: 2rem !important; }
     .stSelectbox, .stMultiSelect, div[data-testid="stExpander"] { direction: ltr; text-align: left; }
-    div.stButton > button { width: 100%; border-radius: 8px; height: 2.8rem; font-weight: 600; }
-    .grid-container { display: grid; grid-template-columns: repeat(4, 1fr); gap: 4px; background-color: #161B22; padding: 8px; border-radius: 12px; margin-top: 10px; border: 1px solid #30363D; }
-    .grid-cell { background-color: #21262D; color: #C9D1D9; padding: 0; text-align: center; border-radius: 6px; height: 40px; display: flex; align-items: center; justify-content: center; font-weight: 500; position: relative; border: 1px solid #30363D; }
-    .cell-plus { color: #3FB950 !important; font-weight: 900 !important; } 
-    .cell-minus { color: #F85149 !important; font-weight: 900 !important; } 
+    div[data-baseweb="select"] > div { background-color: #111827; border: 1px solid #1F2937; border-radius: 8px; }
     
-    /* THE GOLDEN CIRCLE YOU REQUESTED */
-    .missing-circle { 
-        background: linear-gradient(135deg, #F59E0B 0%, #D97706 100%); 
-        color: #FFFFFF; 
-        font-weight: 800; 
-        border-radius: 50%; 
-        width: 30px; 
-        height: 30px; 
-        display: flex; 
-        align-items: center; 
-        justify-content: center; 
-        box-shadow: 0 0 15px rgba(245, 158, 11, 0.7);
-        margin: auto;
-        border: 2px solid #FEF3C7;
+    div[data-baseweb="select"] input {
+        pointer-events: none !important;
+        user-select: none !important;
+        -webkit-user-select: none !important;
+        touch-action: none !important;
     }
+
+    div.stButton > button { width: 100%; border-radius: 8px; height: 2.8rem; font-weight: 600; transition: all 0.3s ease; border: 1px solid #374151; background: #1F2937; color: #F9FAFB; }
+    div.stButton > button:hover { border-color: #3B82F6; box-shadow: 0 0 10px rgba(59, 130, 246, 0.3); }
+    div.stButton > button[kind="primary"] { background: linear-gradient(135deg, #3B82F6 0%, #2563EB 100%); border: none; }
+    div.stButton > button[kind="primary"]:hover { background: linear-gradient(135deg, #60A5FA 0%, #3B82F6 100%); box-shadow: 0 0 15px rgba(59, 130, 246, 0.5); }
+
+    .grid-container { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; background: #111827; padding: 12px; border-radius: 16px; margin-top: 15px; border: 1px solid #1F2937; box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.3); }
+    .grid-cell { background-color: #1F2937; color: #D1D5DB; padding: 0; text-align: center; border-radius: 8px; height: 42px; display: flex; align-items: center; justify-content: center; font-weight: 600; font-size: 15px; position: relative; border: 1px solid #374151; box-shadow: inset 0 2px 4px rgba(0,0,0,0.1); transition: all 0.2s ease; }
     
-    .frame-box { position: absolute; top: 0; left: 0; right: 0; bottom: 0; border-style: solid; border-color: transparent; pointer-events: none; border-radius: 6px; }
-    .grid-header { text-align: center; padding-bottom: 6px; display: flex; flex-direction: column; align-items: center; justify-content: center; }
-    .suit-icon { font-size: 22px; line-height: 1; margin-bottom: 2px; }
-    .shape-preview-wrapper { background-color: #0D1117; border: 1px solid #30363D; border-radius: 8px; padding: 10px; display: flex; justify-content: center; align-items: center; height: 100%; }
+    .missing-selected { background: linear-gradient(135deg, #F59E0B 0%, #D97706 100%) !important; color: #000 !important; font-weight: 900 !important; border: 2px solid #FFF !important; box-shadow: 0 0 20px 5px rgba(245, 158, 11, 0.8) !important; transform: scale(1.15); z-index: 100; }
+    .missing-subtle { background-color: rgba(245, 158, 11, 0.15) !important; border: 1px dashed #F59E0B !important; color: #FCD34D !important; }
     
+    .missing-circle { background: linear-gradient(135deg, #F59E0B 0%, #D97706 100%); color: #FFFFFF; font-weight: 800; border-radius: 50%; width: 32px; height: 32px; display: flex; align-items: center; justify-content: center; box-shadow: 0 0 15px rgba(245, 158, 11, 0.7); margin: auto; border: 2px solid #FEF3C7; }
+    
+    .frame-box { position: absolute; top: 0; left: 0; right: 0; bottom: 0; border-style: solid; pointer-events: none; border-radius: 8px; z-index: 10; }
+    
+    .window-highlight { box-shadow: inset 0 0 15px rgba(245, 158, 11, 0.4) !important; border: 2px solid #F59E0B !important; background-color: #1F2937 !important; z-index: 5; }
+    .window-dim { opacity: 0.25 !important; filter: grayscale(50%); }
+
+    .grid-header { text-align: center; padding-bottom: 8px; display: flex; flex-direction: column; align-items: center; justify-content: center; }
+    .suit-icon { font-size: 24px; line-height: 1; margin-bottom: 4px; filter: drop-shadow(0 2px 4px rgba(0,0,0,0.3)); }
+    .shape-preview-wrapper { background: #111827; border: 1px solid #1F2937; border-radius: 12px; padding: 12px; display: flex; justify-content: center; align-items: center; height: 100%; box-shadow: inset 0 2px 10px rgba(0,0,0,0.2); }
+    
+    [data-testid="stDataFrame"] { border-radius: 12px; overflow: hidden; border: 1px solid #1F2937; }
     [data-testid="stDataFrame"] th, [data-testid="stDataFrame"] td { text-align: left !important; }
     
-    .legend-container { display: flex; gap: 8px; margin-bottom: 10px; justify-content: center; }
-    .legend-box { background: #161B22; border: 1px solid #30363D; border-radius: 8px; padding: 6px 15px; text-align: center; flex: 1; }
-    .legend-title { font-weight: 900; font-size: 14px; margin-bottom: 2px; display: flex; align-items: center; justify-content: center; gap: 6px; }
-    .legend-cards { font-size: 11px; color: #8B949E; letter-spacing: 0.5px; }
-    .txt-plus { color: #3FB950; }
-    .txt-minus { color: #F85149; }
-    
-    .result-card { background: linear-gradient(135deg, #1F2428 0%, #161B22 100%); border: 1px solid #30363D; border-radius: 12px; padding: 12px; text-align: center; margin-top: 5px; }
-    .result-split { display: flex; justify-content: space-around; align-items: center; margin-bottom: 8px; border-bottom: 1px solid #30363D; padding-bottom: 8px; }
-    .result-part { text-align: center; }
-    .res-suit { font-size: 11px; color: #8B949E; text-transform: uppercase; font-weight: bold; margin-bottom: 0px;}
-    .res-val { font-size: 16px; font-weight: 900; } 
-    .main-stat { font-size: 30px; font-weight: 900; color: #58A6FF; line-height: 1; margin: 2px 0; }
-    .sub-stat { font-size: 10px; color: #8B949E; text-transform: uppercase; letter-spacing: 0.5px; }
+    .winner-banner { background: linear-gradient(135deg, #1F2937 0%, #111827 100%); border: 1px solid #374151; border-radius: 12px; padding: 20px; box-shadow: 0 10px 25px rgba(0,0,0,0.4); margin-bottom: 15px; }
 
-    div[data-testid="stVerticalBlock"] > div { gap: 0.2rem; }
+    div[data-testid="stVerticalBlock"] > div { gap: 0.3rem; }
     div[data-testid="stHorizontalBlock"] { align-items: center; }
 </style>
 """, unsafe_allow_html=True)
 
-# ==========================================
-# UI & Render Helpers
-# ==========================================
 @st.cache_data
 def load_data_robust(uploaded_file):
     if uploaded_file is None: return None, "No file"
@@ -269,21 +236,22 @@ def draw_preview_html(shape_coords):
     max_r = max(r for r, c in shape_coords) + 1
     max_c = max(c for r, c in shape_coords) + 1
     
-    grid_html = f'<div style="display:grid; grid-template-columns: repeat({max_c}, 10px); gap: 3px;">'
+    grid_html = f'<div style="display:grid; grid-template-columns: repeat({max_c}, 14px); gap: 4px;">'
     for r in range(max_r):
         for c in range(max_c):
-            bg = "#58A6FF" if (r, c) in shape_coords else "#21262D"
-            border = "1px solid #30363D" if (r, c) not in shape_coords else "1px solid #79C0FF"
-            grid_html += f'<div style="width:10px; height:10px; border-radius:2px; background-color:{bg}; border:{border};"></div>'
+            bg = "#3B82F6" if (r, c) in shape_coords else "#1F2937"
+            border = "1px solid #60A5FA" if (r, c) in shape_coords else "1px solid #374151"
+            box_shadow = "box-shadow: 0 0 8px rgba(59, 130, 246, 0.5);" if (r, c) in shape_coords else ""
+            grid_html += f'<div style="width:14px; height:14px; border-radius:3px; background-color:{bg}; border:{border}; {box_shadow}"></div>'
     grid_html += '</div>'
     return f'<div class="shape-preview-wrapper">{grid_html}</div>'
 
 def create_sleeping_html_table(data_dict, required_cols):
     meta = {
-        'Clubs': {'icon': '♣', 'color': '#E1E4E8'},
-        'Diamonds': {'icon': '♦', 'color': '#FF4B4B'},
-        'Hearts': {'icon': '♥', 'color': '#FF4B4B'},
-        'Spades': {'icon': '♠', 'color': '#E1E4E8'}
+        'Clubs': {'icon': '♣', 'color': '#D1D5DB'},    
+        'Diamonds': {'icon': '♦', 'color': '#EF4444'}, 
+        'Hearts': {'icon': '♥', 'color': '#EF4444'},   
+        'Spades': {'icon': '♠', 'color': '#D1D5DB'}
     }
     
     max_rows = 0
@@ -292,24 +260,25 @@ def create_sleeping_html_table(data_dict, required_cols):
         clean_data[col] = data_dict.get(col, [])
         if len(clean_data[col]) > max_rows: max_rows = len(clean_data[col])
             
-    parts = ['<div style="overflow-x: auto; border: 1px solid #30363D; border-radius: 6px;">',
-             '<table style="width: 100%; border-collapse: collapse; font-family: sans-serif; font-size: 14px;">',
-             '<thead><tr style="background-color: #161B22; border-bottom: 1px solid #30363D;">']
+    parts = ['<div style="overflow-x: auto; border: 1px solid #1F2937; border-radius: 12px; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">',
+             '<table style="width: 100%; border-collapse: collapse; font-family: \'Inter\', sans-serif; font-size: 14px;">',
+             '<thead><tr style="background-color: #111827; border-bottom: 2px solid #374151;">']
     
     for col in required_cols:
         c_meta = meta.get(col, {'icon': '', 'color': '#fff'})
-        header_content = f'<div style="display: flex; flex-direction: column; align-items: center; justify-content: center;"><div style="font-size: 24px; line-height: 1; margin-bottom: 2px;">{c_meta["icon"]}</div><div style="font-size: 11px; text-transform: uppercase;">{col}</div></div>'
-        parts.append(f'<th style="padding: 10px; text-align: center; color: {c_meta["color"]}; font-weight: bold; border-right: 1px solid #30363D; width: 25%; vertical-align: middle;">{header_content}</th>')
+        header_content = f'<div style="display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 8px 0;"><div style="font-size: 26px; line-height: 1; margin-bottom: 4px;">{c_meta["icon"]}</div><div style="font-size: 11px; text-transform: uppercase; font-weight: 800; letter-spacing: 1px; color: #9CA3AF;">{col}</div></div>'
+        parts.append(f'<th style="text-align: center; color: {c_meta["color"]}; font-weight: bold; border-right: 1px solid #1F2937; width: 25%; vertical-align: middle;">{header_content}</th>')
     
     parts.append('</tr></thead><tbody>')
     
     for i in range(max_rows):
-        bg_color = "#0D1117" if i % 2 == 0 else "#161B22"
-        parts.append(f'<tr style="background-color: {bg_color};">')
+        bg_color = "#1F2937" if i % 2 == 0 else "#111827"
+        parts.append(f'<tr style="background-color: {bg_color}; transition: background 0.2s;">')
         for col in required_cols:
             val = clean_data[col][i] if i < len(clean_data[col]) else ""
             text_color = meta[col]['color'] if val != "" else "transparent"
-            parts.append(f'<td style="padding: 8px; text-align: center; border-right: 1px solid #30363D; color: {text_color};">{val}</td>')
+            font_w = "600" if val != "" else "normal"
+            parts.append(f'<td style="padding: 10px; text-align: center; border-right: 1px solid #374151; color: {text_color}; font-weight: {font_w}; border-bottom: 1px solid #374151;">{val}</td>')
         parts.append("</tr>")
         
     parts.append("</tbody></table></div>")
@@ -318,13 +287,13 @@ def create_sleeping_html_table(data_dict, required_cols):
 def generate_board_html(grid_data, row_limit, cell_styles):
     html = '<div class="grid-container">'
     headers = [
-        ('Spades', '♠', '#E1E4E8'),
-        ('Hearts', '♥', '#FF4B4B'),
-        ('Diamonds', '♦', '#FF4B4B'),
-        ('Clubs', '♣', '#E1E4E8')
+        ('Spades', '♠', '#D1D5DB'),
+        ('Hearts', '♥', '#EF4444'),
+        ('Diamonds', '♦', '#EF4444'),
+        ('Clubs', '♣', '#D1D5DB')
     ]
     for name, icon, color in headers:
-        html += f'<div class="grid-header"><div class="suit-icon" style="color:{color};">{icon}</div><div class="suit-name" style="font-size: 10px; color: #8B949E;">{name}</div></div>'
+        html += f'<div class="grid-header"><div class="suit-icon" style="color:{color};">{icon}</div><div class="suit-name" style="font-size: 11px; color: #9CA3AF; font-weight: 800; letter-spacing: 1px; text-transform: uppercase;">{name}</div></div>'
     
     for r in range(min(len(grid_data), row_limit)):
         for c in range(4):
@@ -334,14 +303,21 @@ def generate_board_html(grid_data, row_limit, cell_styles):
             style_extra = cell_styles.get((r, c), "")
             inner = val
             
+            if "MISSING_SELECTED" in style_extra:
+                style_extra = style_extra.replace("MISSING_SELECTED", "missing-selected")
+            elif "MISSING_SUBTLE" in style_extra:
+                style_extra = style_extra.replace("MISSING_SUBTLE", "missing-subtle")
+                
             if "MISSING_MARKER" in style_extra:
                 inner = f'<div class="missing-circle">{val}</div>'
                 style_extra = style_extra.replace("MISSING_MARKER", "")
             
-            if style_extra.strip().startswith("cell-"):
+            if style_extra.strip().startswith("cell-") or style_extra.strip().startswith("window-"):
+                 html += f'<div class="grid-cell {style_extra}">{inner}</div>'
+            elif style_extra.strip() != "":
                  html += f'<div class="grid-cell {style_extra}">{inner}</div>'
             else:
-                 html += f'<div class="grid-cell">{inner}{style_extra}</div>'
+                 html += f'<div class="grid-cell">{inner}</div>'
                  
     html += '</div>'
     return html
@@ -350,7 +326,7 @@ def find_matches_for_pattern(shape_idx, selected_cards, grid_data, row_limit):
     found = []
     variations = generate_variations_strict(shape_idx, base_shapes[shape_idx])
     rows = min(len(grid_data), row_limit)
-    colors = ['#FF7B72', '#D2A8FF', '#79C0FF', '#7EE787', '#FFA657']
+    colors = ['#3B82F6', '#8B5CF6', '#10B981', '#F59E0B', '#EF4444']
     
     raw_matches = []
     for shape in variations:
@@ -399,11 +375,12 @@ def find_matches_for_pattern(shape_idx, selected_cards, grid_data, row_limit):
         
     return found
 
-st.title("Chance Analyzer PRO")
+st.title("⚡ Chance Analyzer PRO")
 
 with st.sidebar:
-    st.header("Upload Data")
+    st.header("📂 Upload Data")
     csv_file = st.file_uploader("Choose a CSV file", type=None)
+    st.markdown("---")
 
 if 'uploaded_df' not in st.session_state: st.session_state['uploaded_df'] = None
 if 'current_shape_idx' not in st.session_state: st.session_state['current_shape_idx'] = 0
@@ -431,9 +408,7 @@ if df is not None:
     grid_data = df[required_cols].values
     ROW_LIMIT = 26
     
-    with st.expander("⚙️ Settings & Inputs", expanded=not st.session_state.get('search_done', False)):
-        
-        # --- THE FIX: Arrows instead of Selectbox ---
+    with st.expander("⚙️ Configuration & Target Inputs", expanded=not st.session_state.get('search_done', False)):
         col_conf, col_prev = st.columns([4, 1])
         with col_conf:
             st.markdown("<label style='font-size: 14px; font-weight: 600; color: #FAFAFA;'>Search Pattern</label>", unsafe_allow_html=True)
@@ -469,7 +444,6 @@ if df is not None:
         
         st.markdown("<div style='margin-bottom: 10px;'></div>", unsafe_allow_html=True)
 
-        # --- THE FIX: Removed the "Best 4th Card" Button ---
         b_search, b_empty, b_reset = st.columns([3, 3, 1])
         with b_search: run_search = st.button("🔍 Search", type="primary", use_container_width=True)
         with b_reset: reset_btn = st.button("Reset", use_container_width=True)
@@ -486,8 +460,7 @@ if df is not None:
             current_patt_idx = st.session_state.get('current_shape_idx', shape_idx)
             found_matches = find_matches_for_pattern(current_patt_idx, selected_cards, grid_data, ROW_LIMIT)
 
-    # --- THE FIX: Added Tab for "ALL SHAPES SUMMARY" ---
-    tab_matches, tab_summary, tab_sleep, tab_pairs = st.tabs(["📋 MATCHES", "📊 ALL SHAPES SUMMARY", "💤 SLEEPING", "⚖️ PAIRS"])
+    tab_matches, tab_summary, tab_3row, tab_sleep = st.tabs(["📋 PATTERN MATCHES", "📊 ALL SHAPES SUMMARY", "🔍 3-ROW ANALYSIS", "💤 SLEEPING CARDS"])
     selected_match_ids = None 
     
     with tab_matches:
@@ -534,7 +507,6 @@ if df is not None:
             
         st.markdown(generate_board_html(grid_data, ROW_LIMIT, cell_styles), unsafe_allow_html=True)
 
-    # --- LOGIC FOR THE NEW SUMMARY TAB ---
     with tab_summary:
         if len(selected_cards) == 3:
             all_missing_cards = []
@@ -553,6 +525,39 @@ if df is not None:
                 st.info("No matches found for these cards in any pattern.")
         else:
             st.info("Please select 3 cards to view the overall summary across all patterns.")
+
+    with tab_3row:
+        st.markdown("<p style='color: #9CA3AF; font-size: 13px; font-weight: 600; margin-bottom: 5px;'>SELECT A STARTING ROW TO ANALYZE A 3-DRAW WINDOW:</p>", unsafe_allow_html=True)
+        window_start = st.slider("Base Row", 0, max(0, ROW_LIMIT - 3), 0, key="window_start", label_visibility="collapsed")
+        
+        w_data = grid_data[window_start : window_start + 3, :]
+        
+        all_possible_cards = ['A', 'K', 'Q', 'J', '10', '9', '8', '7']
+        freq_dict = {suit: {c: 0 for c in all_possible_cards} for suit in required_cols}
+        
+        for r in range(min(3, len(w_data))):
+            for c_idx, suit in enumerate(required_cols):
+                val = str(w_data[r, c_idx]).strip().upper()
+                if val in freq_dict[suit]:
+                    freq_dict[suit][val] += 1
+                    
+        freq_df = pd.DataFrame(freq_dict)
+        freq_df['TOTAL'] = freq_df.sum(axis=1)
+        freq_df = freq_df.reset_index().rename(columns={'index': 'Card'})
+        
+        st.markdown("<h4 style='color: #FCD34D; margin-top: 10px; margin-bottom: 10px;'>📊 Suit & Card Frequencies (Selected 3 Rows)</h4>", unsafe_allow_html=True)
+        st.dataframe(freq_df, use_container_width=True, hide_index=True)
+        
+        st.markdown("<h4 style='margin-top: 15px; font-weight: 800; color: #F3F4F6;'>Live Game Board (Window Highlighted)</h4>", unsafe_allow_html=True)
+        cell_styles_3row = {}
+        for r in range(min(len(grid_data), ROW_LIMIT)):
+            for c in range(4):
+                if window_start <= r < window_start + 3:
+                    cell_styles_3row[(r, c)] = " window-highlight"
+                else:
+                    cell_styles_3row[(r, c)] = " window-dim"
+                    
+        st.markdown(generate_board_html(grid_data, ROW_LIMIT, cell_styles_3row), unsafe_allow_html=True)
 
     with tab_sleep:
         sleep_data_lists = {}
@@ -575,79 +580,6 @@ if df is not None:
             
         st.subheader("Game Board")
         st.markdown(generate_board_html(grid_data, ROW_LIMIT, {}), unsafe_allow_html=True)
-
-    with tab_pairs:
-        st.markdown("""
-        <div class="legend-container">
-            <div class="legend-box">
-                <div class="legend-title txt-plus">PLUS</div>
-                <div class="legend-cards">8, 10, Q, A</div>
-            </div>
-            <div class="legend-box">
-                <div class="legend-title txt-minus">MINUS</div>
-                <div class="legend-cards">7, 9, J, K</div>
-            </div>
-        </div>
-        """, unsafe_allow_html=True)
-        
-        all_suits = [c for c in required_cols if c in df.columns]
-        sc1, sc2, sc3 = st.columns([1.5, 1.5, 1])
-        with sc1: s_choice1 = st.selectbox("Suit 1", all_suits, index=0, label_visibility="collapsed") 
-        with sc2: s_choice2 = st.selectbox("Suit 2", all_suits, index=1, label_visibility="collapsed") 
-        with sc3: color_board = st.checkbox("🎨 Color Grid", value=False)
-        
-        if s_choice1 == s_choice2:
-            st.warning("Please select two different suits.")
-        else:
-            res = analyze_pair_gap(df, s_choice1, s_choice2)
-            best_sleeper = res[0] 
-            pair_code = best_sleeper['pair'] 
-            
-            s1_sign = "PLUS" if pair_code[0] == "+" else "MINUS"
-            s1_cls = "txt-plus" if pair_code[0] == "+" else "txt-minus"
-            
-            s2_sign = "PLUS" if pair_code[1] == "+" else "MINUS"
-            s2_cls = "txt-plus" if pair_code[1] == "+" else "txt-minus"
-            
-            s_icons = {'Clubs': '♣', 'Diamonds': '♦', 'Hearts': '♥', 'Spades': '♠'}
-            ic1 = s_icons.get(s_choice1, "")
-            ic2 = s_icons.get(s_choice2, "")
-
-            st.markdown(f"""
-            <div class="result-card">
-                <div class="result-split">
-                    <div class="result-part">
-                        <div class="res-suit">{ic1} {s_choice1}</div>
-                        <div class="res-val {s1_cls}">{s1_sign}</div>
-                    </div>
-                    <div class="result-part">
-                        <div class="res-suit">{ic2} {s_choice2}</div>
-                        <div class="res-val {s2_cls}">{s2_sign}</div>
-                    </div>
-                </div>
-                <div class="sub-stat">HAS NOT APPEARED FOR</div>
-                <div class="main-stat">{best_sleeper['ago']}</div>
-                <div class="sub-stat">DRAWS</div>
-            </div>
-            """, unsafe_allow_html=True)
-            
-            st.markdown("<br>", unsafe_allow_html=True)
-            mc1, mc2, mc3 = st.columns(3)
-            for i, other in enumerate(res[1:]):
-                with [mc1, mc2, mc3][i]:
-                    st.caption(f"{other['pair']} : {other['ago']} draws ago")
-                    
-        st.subheader("Game Board")
-        cell_styles = {}
-        if color_board:
-            for r in range(min(len(grid_data), ROW_LIMIT)):
-                for c in range(4):
-                    val = str(grid_data[r, c])
-                    sign = get_card_sign(val)
-                    if sign == "+": cell_styles[(r, c)] = " cell-plus"
-                    elif sign == "-": cell_styles[(r, c)] = " cell-minus"
-        
-        st.markdown(generate_board_html(grid_data, ROW_LIMIT, cell_styles), unsafe_allow_html=True)
 
 else:
     st.info("👋 Upload a CSV file to get started.")
