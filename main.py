@@ -393,6 +393,10 @@ with st.sidebar:
     st.header("📂 Upload Data")
     csv_file = st.file_uploader("Choose a CSV file", type=None)
     st.markdown("---")
+    
+    st.header("⚙️ Algorithm Settings")
+    search_depth = st.number_input("🔍 History Scan Depth", min_value=5, max_value=50000, value=26, step=1)
+    st.caption("Determines how many rows backwards the algorithm scans for patterns.")
 
 if 'uploaded_df' not in st.session_state: st.session_state['uploaded_df'] = None
 if 'current_shape_idx' not in st.session_state: st.session_state['current_shape_idx'] = 0
@@ -419,7 +423,6 @@ if df is not None:
         st.stop()
 
     grid_data = df[required_cols].values
-    ROW_LIMIT = 26
     
     tab_matches, tab_predictor, tab_sleep = st.tabs(["📋 PATTERN MATCHES", "🔍 3-ROW PREDICTOR", "💤 SLEEPING CARDS"])
     selected_match_ids = None 
@@ -474,7 +477,7 @@ if df is not None:
         if (run_search or st.session_state.get('search_done', False)) and len(selected_cards) == 3:
             st.session_state['search_done'] = True
             current_patt_idx = st.session_state.get('current_shape_idx', shape_idx)
-            found_matches = find_matches_for_pattern(current_patt_idx, selected_cards, grid_data, ROW_LIMIT)
+            found_matches = find_matches_for_pattern(current_patt_idx, selected_cards, grid_data, search_depth)
 
         if found_matches:
             raw_df = pd.DataFrame([
@@ -521,13 +524,18 @@ if df is not None:
                 cell_styles[miss] += " MISSING_SELECTED"
             else:
                 cell_styles[miss] += " MISSING_MARKER"
+                
+        draw_limit_matches = 30
+        if selected_match_ids is not None and matches_to_show:
+            max_r = max(coord[0] for m in matches_to_show for coord in m['full_coords_list'])
+            draw_limit_matches = max(30, max_r + 3)
             
-        st.markdown(generate_board_html(grid_data, 0, ROW_LIMIT, cell_styles), unsafe_allow_html=True)
+        st.markdown(generate_board_html(grid_data, 0, draw_limit_matches, cell_styles), unsafe_allow_html=True)
 
     with tab_predictor:
-        st.markdown("<p style='color: #9CA3AF; font-size: 13px; font-weight: 600; margin-bottom: 5px;'>SELECT A BASE ROW (ANALYZES THIS ROW + 25 ROWS HISTORICALLY BELOW IT):</p>", unsafe_allow_html=True)
+        st.markdown("<p style='color: #9CA3AF; font-size: 13px; font-weight: 600; margin-bottom: 5px;'>SELECT A BASE ROW FOR 3-ROW WINDOW:</p>", unsafe_allow_html=True)
         
-        max_val = max(0, len(grid_data) - ROW_LIMIT)
+        max_val = max(0, len(grid_data) - 3)
         
         c_minus, c_val, c_plus = st.columns([1, 2, 1])
         with c_minus:
@@ -547,7 +555,7 @@ if df is not None:
         has_actual = window_start > 0
         actual_row = grid_data[window_start - 1, :] if has_actual else [None, None, None, None]
         
-        historical_grid = grid_data[window_start : window_start + ROW_LIMIT]
+        historical_grid = grid_data[window_start : window_start + search_depth]
         
         if has_actual:
             st.markdown(f"""
@@ -593,7 +601,7 @@ if df is not None:
                 if len(triplet) == 3:
                     all_missing = []
                     for p_idx in range(len(base_shapes)):
-                        m = find_matches_for_pattern(p_idx, triplet, historical_grid, ROW_LIMIT)
+                        m = find_matches_for_pattern(p_idx, triplet, historical_grid, search_depth)
                         all_missing.extend([x['miss_val'].strip().upper() for x in m])
                     
                     if all_missing:
@@ -632,14 +640,15 @@ if df is not None:
                 
         st.markdown("<h4 style='margin-top: 25px; font-weight: 800; color: #FAFAFA;'>Historical Game Board</h4>", unsafe_allow_html=True)
         cell_styles_3row = {}
-        for r in range(max(0, window_start - 1), window_start + ROW_LIMIT):
+        draw_limit_pred = window_start + 30
+        for r in range(max(0, window_start - 1), min(len(grid_data), draw_limit_pred)):
             for c in range(4):
                 if window_start <= r < window_start + 3:
                     cell_styles_3row[(r, c)] = " window-highlight"
                 else:
                     cell_styles_3row[(r, c)] = " window-dim"
                     
-        st.markdown(generate_board_html(grid_data, max(0, window_start - 1), window_start + ROW_LIMIT, cell_styles_3row), unsafe_allow_html=True)
+        st.markdown(generate_board_html(grid_data, max(0, window_start - 1), draw_limit_pred, cell_styles_3row), unsafe_allow_html=True)
 
     with tab_sleep:
         sleep_data_lists = {}
@@ -661,7 +670,7 @@ if df is not None:
             st.write("No sleeping cards found.")
             
         st.markdown("<h4 style='margin-top: 15px; font-weight: 800; color: #F3F4F6;'>Live Game Board</h4>", unsafe_allow_html=True)
-        st.markdown(generate_board_html(grid_data, 0, ROW_LIMIT, {}), unsafe_allow_html=True)
+        st.markdown(generate_board_html(grid_data, 0, 30, {}), unsafe_allow_html=True)
 
 else:
     st.info("👋 Upload a CSV file to get started.")
