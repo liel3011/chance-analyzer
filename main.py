@@ -150,6 +150,8 @@ def generate_variations_strict(shape_idx, base_shape):
         
         if shape_idx in [0, 1]:
             pass 
+        elif shape_idx == 6:
+            variations.update([mirror_h, flip_v, rot_180])
         elif shape_idx in [9, 10, 11]:
             variations.update([flip_v])
         elif shape_idx == 12:
@@ -190,8 +192,11 @@ st.markdown("""
     .grid-container { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; background: #111827; padding: 12px; border-radius: 16px; margin-top: 15px; border: 1px solid #1F2937; box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.3); }
     .grid-cell { background-color: #1F2937; color: #D1D5DB; padding: 0; text-align: center; border-radius: 8px; height: 42px; display: flex; align-items: center; justify-content: center; font-weight: 600; font-size: 15px; position: relative; border: 1px solid #374151; box-shadow: inset 0 2px 4px rgba(0,0,0,0.1); transition: all 0.2s ease; }
     
-    .pattern-found { background-color: #FFF3CD !important; color: #000 !important; border-color: #FFE69C !important; }
-    .missing-target { background-color: #00FFFF !important; color: #000 !important; border: 3px solid #FF0000 !important; font-weight: 900 !important; z-index: 10; box-shadow: 0 0 10px rgba(255,0,0,0.5); transform: scale(1.05); }
+    .missing-selected { background: linear-gradient(135deg, #F59E0B 0%, #D97706 100%) !important; color: #000 !important; font-weight: 900 !important; border: 1px solid #FFF !important; box-shadow: 0 0 15px rgba(245, 158, 11, 0.8) !important; transform: scale(1.1); z-index: 100; }
+    .missing-marker { background-color: rgba(245, 158, 11, 0.15) !important; border: 1px dashed #F59E0B !important; color: #FCD34D !important; }
+    .missing-circle { background: linear-gradient(135deg, #F59E0B 0%, #D97706 100%); color: #FFFFFF; font-weight: 800; border-radius: 50%; width: 32px; height: 32px; display: flex; align-items: center; justify-content: center; box-shadow: 0 0 15px rgba(245, 158, 11, 0.7); margin: auto; border: 2px solid #FEF3C7; }
+    
+    .frame-box { position: absolute; top: 0; left: 0; right: 0; bottom: 0; border-style: solid; pointer-events: none; border-radius: 8px; z-index: 10; }
     
     .window-highlight { border: 1px solid #F59E0B !important; box-shadow: inset 0 0 15px rgba(245, 158, 11, 0.5), 0 0 8px rgba(245, 158, 11, 0.3) !important; background-color: #1F2937 !important; z-index: 5; }
     .window-dim { opacity: 0.3 !important; filter: grayscale(40%); }
@@ -283,7 +288,10 @@ def create_sleeping_html_table(data_dict, required_cols):
     parts.append("</tbody></table></div>")
     return "".join(parts)
 
-def generate_board_html(grid_data, start_row, end_row, cell_styles):
+def generate_board_html(grid_data, start_row, end_row, cell_classes, cell_inner_html=None):
+    if cell_inner_html is None:
+        cell_inner_html = {}
+        
     html = '<div class="grid-container">'
     headers = [
         ('Spades', '♠', '#D1D5DB'),
@@ -299,16 +307,19 @@ def generate_board_html(grid_data, start_row, end_row, cell_styles):
             val = str(grid_data[r, c])
             if val == 'nan' or not val: val = ''
             
-            raw_style = cell_styles.get((r, c), "")
-            classes = ["grid-cell"]
+            extra_classes = cell_classes.get((r, c), "")
+            classes = "grid-cell"
+            if extra_classes:
+                classes += " " + extra_classes
+                
+            inner = val
+            if "missing-marker" in classes or "missing-selected" in classes:
+                inner = f'<div class="missing-circle">{val}</div>'
+                classes = classes.replace("missing-marker", "")
             
-            if "PATTERN_FOUND" in raw_style: classes.append("pattern-found")
-            if "MISSING_TARGET" in raw_style: classes.append("missing-target")
-            if "window-highlight" in raw_style: classes.append("window-highlight")
-            if "window-dim" in raw_style: classes.append("window-dim")
+            extra_html = cell_inner_html.get((r, c), "")
             
-            class_str = " ".join(classes)
-            html += f'<div class="{class_str}">{val}</div>'
+            html += f'<div class="{classes.strip()}">{inner}{extra_html}</div>'
                  
     html += '</div>'
     return html
@@ -483,26 +494,34 @@ if df is not None:
                 selected_match_ids = display_df.iloc[event.selection['rows'][0]]['Hidden_ID']
             
         st.markdown("<h4 style='margin-top: 15px; font-weight: 800; color: #F3F4F6;'>Live Game Board</h4>", unsafe_allow_html=True)
-        cell_styles = {}
+        cell_classes = {}
+        cell_inner_html = {}
         matches_to_show = found_matches
         
         if selected_match_ids is not None:
             matches_to_show = [m for m in found_matches if m['id'] in selected_match_ids]
 
         for m in matches_to_show:
+            col = m['color']
             for coord in m['full_coords_list']:
-                if coord not in cell_styles: cell_styles[coord] = ""
                 if coord != m['miss_coords']:
-                    cell_styles[coord] += " PATTERN_FOUND"
-                else:
-                    cell_styles[coord] += " MISSING_TARGET"
+                    if coord not in cell_inner_html: cell_inner_html[coord] = ""
+                    count = cell_inner_html[coord].count("frame-box")
+                    inset = count * 3
+                    cell_inner_html[coord] += f'<div class="frame-box" style="border-width: 2px; border-color: {col}; box-shadow: inset 0 0 10px {col}, 0 0 8px {col}; top: {inset}px; left: {inset}px; right: {inset}px; bottom: {inset}px;"></div>'
+            miss = m['miss_coords']
+            if miss not in cell_classes: cell_classes[miss] = ""
+            if selected_match_ids is not None:
+                cell_classes[miss] += " missing-selected"
+            else:
+                cell_classes[miss] += " missing-marker"
                 
         draw_limit_matches = 30
         if selected_match_ids is not None and matches_to_show:
             max_r = max(coord[0] for m in matches_to_show for coord in m['full_coords_list'])
             draw_limit_matches = max(30, max_r + 3)
             
-        st.markdown(generate_board_html(grid_data, 0, draw_limit_matches, cell_styles), unsafe_allow_html=True)
+        st.markdown(generate_board_html(grid_data, 0, draw_limit_matches, cell_classes, cell_inner_html), unsafe_allow_html=True)
 
     with tab_predictor:
         max_val = max(0, len(grid_data) - 3)
@@ -617,26 +636,26 @@ if df is not None:
         
         c_head, c_info = st.columns([2, 1])
         with c_head:
-            st.markdown("<h3 style='margin: 0; color: #FAFAFA;'>🎲 Chance 3 Combinations</h3>", unsafe_allow_html=True)
+            st.markdown("<h3 style='margin: 0; color: #FAFAFA;'>🎲 Chance 3 Combinations (Safety Net)</h3>", unsafe_allow_html=True)
             num_combos = st.slider("Select Number of Tickets", min_value=1, max_value=10, value=6, step=1, label_visibility="collapsed")
             
         def get_c(s, r):
             preds = suit_predictions.get(s, [])
             if len(preds) > r: return preds[r]
-            if len(preds) > 0: return preds[0] 
+            if len(preds) > 0: return preds[0]
             return "-"
             
         combos = [
-            {"name": "Combo 1 (Drop ♠)", "cfg": [ ["-"], [get_c('Hearts',1)], [get_c('Diamonds',2), get_c('Diamonds',0)], [get_c('Clubs',0)] ]},
-            {"name": "Combo 2 (Drop ♥)", "cfg": [ [get_c('Spades',2), get_c('Spades',1)], ["-"], [get_c('Diamonds',0)], [get_c('Clubs',1)] ]},
-            {"name": "Combo 3 (Drop ♦)", "cfg": [ [get_c('Spades',1)], [get_c('Hearts',2), get_c('Hearts',0)], ["-"], [get_c('Clubs',0)] ]},
-            {"name": "Combo 4 (Drop ♣)", "cfg": [ [get_c('Spades',0)], [get_c('Hearts',1)], [get_c('Diamonds',2), get_c('Diamonds',1)], ["-"] ]},
-            {"name": "Combo 5 (Drop ♠)", "cfg": [ ["-"], [get_c('Hearts',2), get_c('Hearts',1)], [get_c('Diamonds',1)], [get_c('Clubs',0)] ]},
-            {"name": "Combo 6 (Drop ♥)", "cfg": [ [get_c('Spades',0)], ["-"], [get_c('Diamonds',2), get_c('Diamonds',0)], [get_c('Clubs',1)] ]},
-            {"name": "Combo 7 (Drop ♦)", "cfg": [ [get_c('Spades',1)], [get_c('Hearts',0)], ["-"], [get_c('Clubs',2), get_c('Clubs',1)] ]},
-            {"name": "Combo 8 (Drop ♣)", "cfg": [ [get_c('Spades',2), get_c('Spades',0)], [get_c('Hearts',1)], [get_c('Diamonds',0)], ["-"] ]},
-            {"name": "Combo 9 (Drop ♠)", "cfg": [ ["-"], [get_c('Hearts',0)], [get_c('Diamonds',1)], [get_c('Clubs',2), get_c('Clubs',0)] ]},
-            {"name": "Combo 10 (Drop ♥)","cfg": [ [get_c('Spades',1)], ["-"], [get_c('Diamonds',0)], [get_c('Clubs',2), get_c('Clubs',1)] ]}
+            {"name": "Ticket 1 (Drop ♠) [Safe ♦]", "cfg": [ ["-"], [get_c('Hearts',0)], [get_c('Diamonds',1), get_c('Diamonds',0)], [get_c('Clubs',0)] ]},
+            {"name": "Ticket 2 (Drop ♥) [Safe ♠]", "cfg": [ [get_c('Spades',1), get_c('Spades',0)], ["-"], [get_c('Diamonds',0)], [get_c('Clubs',0)] ]},
+            {"name": "Ticket 3 (Drop ♦) [Safe ♥]", "cfg": [ [get_c('Spades',0)], [get_c('Hearts',1), get_c('Hearts',0)], ["-"], [get_c('Clubs',0)] ]},
+            {"name": "Ticket 4 (Drop ♣) [Safe ♦]", "cfg": [ [get_c('Spades',0)], [get_c('Hearts',0)], [get_c('Diamonds',1), get_c('Diamonds',0)], ["-"] ]},
+            {"name": "Ticket 5 (Drop ♠) [Safe ♣]", "cfg": [ ["-"], [get_c('Hearts',0)], [get_c('Diamonds',0)], [get_c('Clubs',1), get_c('Clubs',0)] ]},
+            {"name": "Ticket 6 (Drop ♥) [Safe ♦]", "cfg": [ [get_c('Spades',0)], ["-"], [get_c('Diamonds',2), get_c('Diamonds',0)], [get_c('Clubs',0)] ]},
+            {"name": "Ticket 7 (Drop ♦) [Safe ♣]", "cfg": [ [get_c('Spades',0)], [get_c('Hearts',0)], ["-"], [get_c('Clubs',2), get_c('Clubs',0)] ]},
+            {"name": "Ticket 8 (Drop ♣) [Safe ♠]", "cfg": [ [get_c('Spades',2), get_c('Spades',0)], [get_c('Hearts',0)], [get_c('Diamonds',0)], ["-"] ]},
+            {"name": "Ticket 9 (Drop ♠) [Mix A]",  "cfg": [ ["-"], [get_c('Hearts',2), get_c('Hearts',0)], [get_c('Diamonds',1)], [get_c('Clubs',0)] ]},
+            {"name": "Ticket 10 (Drop ♥) [Mix B]", "cfg": [ [get_c('Spades',1)], ["-"], [get_c('Diamonds',2), get_c('Diamonds',0)], [get_c('Clubs',0)] ]}
         ]
         
         selected_combos = combos[:num_combos]
@@ -686,16 +705,16 @@ if df is not None:
         st.markdown(html_combos, unsafe_allow_html=True)
                 
         st.markdown("<h4 style='margin-top: 25px; font-weight: 800; color: #FAFAFA;'>Historical Game Board</h4>", unsafe_allow_html=True)
-        cell_styles_3row = {}
+        cell_classes_3row = {}
         draw_limit_pred = window_start + 30
         for r in range(max(0, window_start - 1), min(len(grid_data), draw_limit_pred)):
             for c in range(4):
                 if window_start <= r < window_start + 3:
-                    cell_styles_3row[(r, c)] = " window-highlight"
+                    cell_classes_3row[(r, c)] = " window-highlight"
                 else:
-                    cell_styles_3row[(r, c)] = " window-dim"
+                    cell_classes_3row[(r, c)] = " window-dim"
                     
-        st.markdown(generate_board_html(grid_data, max(0, window_start - 1), draw_limit_pred, cell_styles_3row), unsafe_allow_html=True)
+        st.markdown(generate_board_html(grid_data, max(0, window_start - 1), draw_limit_pred, cell_classes_3row, {}), unsafe_allow_html=True)
 
     with tab_sleep:
         sleep_data_lists = {}
@@ -715,7 +734,7 @@ if df is not None:
             st.markdown(create_sleeping_html_table(sleep_data_lists, required_cols), unsafe_allow_html=True)
             
         st.markdown("<h4 style='margin-top: 15px; font-weight: 800; color: #F3F4F6;'>Live Game Board</h4>", unsafe_allow_html=True)
-        st.markdown(generate_board_html(grid_data, 0, ROW_LIMIT, {}), unsafe_allow_html=True)
+        st.markdown(generate_board_html(grid_data, 0, ROW_LIMIT, {}, {}), unsafe_allow_html=True)
 
 else:
     st.info("👋 Upload a CSV file to get started.")
