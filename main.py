@@ -3,12 +3,14 @@ import streamlit.components.v1 as components
 import pandas as pd
 import numpy as np
 
+# --- Page Configuration ---
 st.set_page_config(
     page_title="Chance Analyzer PRO",
     layout="wide",
     initial_sidebar_state="collapsed"
 )
 
+# --- KILL MOBILE KEYBOARD HACK ---
 components.html(
     """
     <script>
@@ -28,6 +30,9 @@ components.html(
     height=0, width=0
 )
 
+# ==========================================
+# Fixed Patterns (A = Shape Block, X = Skip/Gap)
+# ==========================================
 FIXED_COMBOS_TXT = """
 A A A A
 
@@ -96,6 +101,9 @@ PATTERN_NAMES = {
     12: "13. C-Shape"
 }
 
+# ==========================================
+# Pattern Parsing & Variations Logic
+# ==========================================
 def parse_shapes_strict(text):
     shapes = []
     text = text.replace('\r\n', '\n')
@@ -166,6 +174,9 @@ def generate_variations_strict(shape_idx, base_shape):
             
     return valid_variations
 
+# ==========================================
+# Premium CSS Styling
+# ==========================================
 st.markdown("""
 <style>
     @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&display=swap');
@@ -365,6 +376,15 @@ def find_matches_for_pattern(shape_idx, selected_cards, grid_data, row_limit):
         found.append(m)
         
     return found
+
+def get_unique_valid(vals):
+    seen = set()
+    res = []
+    for v in vals:
+        if v != "-" and v not in seen:
+            seen.add(v)
+            res.append(v)
+    return res
 
 st.title("⚡ Chance Analyzer PRO")
 
@@ -606,19 +626,11 @@ if df is not None:
                 
         st.markdown("---")
         
-        c_slider, c_info = st.columns([2, 1])
-        with c_slider:
-            st.markdown("<h3 style='margin: 0; color: #FAFAFA;'>🎲 Chance 3 Combinations</h3>", unsafe_allow_html=True)
+        c_head, c_info = st.columns([2, 1])
+        with c_head:
+            st.markdown("<h3 style='margin: 0; color: #FAFAFA;'>🎲 Chance 3 Combinations (Safety Net)</h3>", unsafe_allow_html=True)
             num_combos = st.slider("Select Number of Tickets", min_value=1, max_value=10, value=6, step=1, label_visibility="collapsed")
-        with c_info:
-            total_cost = num_combos * 5
-            st.markdown(f"""
-            <div style="background: #1F2937; border: 1px solid #374151; border-radius: 8px; padding: 10px; text-align: center; height: 100%; display: flex; flex-direction: column; justify-content: center;">
-                <div style="font-size: 12px; color: #9CA3AF; text-transform: uppercase; font-weight: 600;">Total Investment</div>
-                <div style="font-size: 24px; color: #10B981; font-weight: 900;">₪{total_cost}</div>
-            </div>
-            """, unsafe_allow_html=True)
-
+            
         def get_c(s, r):
             preds = suit_predictions.get(s, [])
             if len(preds) > r: return preds[r]
@@ -626,27 +638,45 @@ if df is not None:
             return "-"
             
         combos = [
-            {"name": "Ticket 1 (Drop ♠)", "cfg": [ ["-"], [get_c('Hearts',0)], [get_c('Diamonds',0)], [get_c('Clubs',0)] ]},
-            {"name": "Ticket 2 (Drop ♥)", "cfg": [ [get_c('Spades',0)], ["-"], [get_c('Diamonds',0)], [get_c('Clubs',0)] ]},
-            {"name": "Ticket 3 (Drop ♦)", "cfg": [ [get_c('Spades',0)], [get_c('Hearts',0)], ["-"], [get_c('Clubs',0)] ]},
-            {"name": "Ticket 4 (Drop ♣)", "cfg": [ [get_c('Spades',0)], [get_c('Hearts',0)], [get_c('Diamonds',0)], ["-"] ]},
-            {"name": "Ticket 5 (Alt 1)",  "cfg": [ ["-"], [get_c('Hearts',1)], [get_c('Diamonds',0)], [get_c('Clubs',0)] ]},
-            {"name": "Ticket 6 (Alt 2)",  "cfg": [ [get_c('Spades',0)], ["-"], [get_c('Diamonds',1)], [get_c('Clubs',0)] ]},
-            {"name": "Ticket 7 (Alt 3)",  "cfg": [ [get_c('Spades',0)], [get_c('Hearts',0)], ["-"], [get_c('Clubs',1)] ]},
-            {"name": "Ticket 8 (Alt 4)",  "cfg": [ [get_c('Spades',1)], [get_c('Hearts',0)], [get_c('Diamonds',0)], ["-"] ]},
-            {"name": "Ticket 9 (Alt 5)",  "cfg": [ ["-"], [get_c('Hearts',0)], [get_c('Diamonds',1)], [get_c('Clubs',1)] ]},
-            {"name": "Ticket 10 (Alt 6)", "cfg": [ [get_c('Spades',1)], ["-"], [get_c('Diamonds',0)], [get_c('Clubs',1)] ]}
+            {"name": "Ticket 1 (Drop ♠) [Safe ♦]", "cfg": [ ["-"], [get_c('Hearts',0)], [get_c('Diamonds',1), get_c('Diamonds',0)], [get_c('Clubs',0)] ]},
+            {"name": "Ticket 2 (Drop ♥) [Safe ♠]", "cfg": [ [get_c('Spades',1), get_c('Spades',0)], ["-"], [get_c('Diamonds',0)], [get_c('Clubs',0)] ]},
+            {"name": "Ticket 3 (Drop ♦) [Safe ♥]", "cfg": [ [get_c('Spades',0)], [get_c('Hearts',1), get_c('Hearts',0)], ["-"], [get_c('Clubs',0)] ]},
+            {"name": "Ticket 4 (Drop ♣) [Safe ♦]", "cfg": [ [get_c('Spades',0)], [get_c('Hearts',0)], [get_c('Diamonds',1), get_c('Diamonds',0)], ["-"] ]},
+            {"name": "Ticket 5 (Drop ♠) [Safe ♣]", "cfg": [ ["-"], [get_c('Hearts',0)], [get_c('Diamonds',0)], [get_c('Clubs',1), get_c('Clubs',0)] ]},
+            {"name": "Ticket 6 (Drop ♥) [Safe ♦]", "cfg": [ [get_c('Spades',0)], ["-"], [get_c('Diamonds',2), get_c('Diamonds',0)], [get_c('Clubs',0)] ]},
+            {"name": "Ticket 7 (Drop ♦) [Safe ♣]", "cfg": [ [get_c('Spades',0)], [get_c('Hearts',0)], ["-"], [get_c('Clubs',2), get_c('Clubs',0)] ]},
+            {"name": "Ticket 8 (Drop ♣) [Safe ♠]", "cfg": [ [get_c('Spades',2), get_c('Spades',0)], [get_c('Hearts',0)], [get_c('Diamonds',0)], ["-"] ]},
+            {"name": "Ticket 9 (Drop ♠) [Mix A]",  "cfg": [ ["-"], [get_c('Hearts',2), get_c('Hearts',0)], [get_c('Diamonds',1)], [get_c('Clubs',0)] ]},
+            {"name": "Ticket 10 (Drop ♥) [Mix B]", "cfg": [ [get_c('Spades',1)], ["-"], [get_c('Diamonds',2), get_c('Diamonds',0)], [get_c('Clubs',0)] ]}
         ]
         
         selected_combos = combos[:num_combos]
+        
+        total_cost = 0
+        for cb in selected_combos:
+            ways = 1
+            for vals in cb["cfg"]:
+                u_vals = get_unique_valid(vals)
+                if u_vals:
+                    ways *= len(u_vals)
+            total_cost += ways * 5
 
-        html_combos = '<div style="display: flex; flex-wrap: wrap; gap: 15px; margin-bottom: 20px;">'
+        with c_info:
+            st.markdown(f"""
+            <div style="background: #1F2937; border: 1px solid #374151; border-radius: 8px; padding: 10px; text-align: center; height: 100%; display: flex; flex-direction: column; justify-content: center;">
+                <div style="font-size: 12px; color: #9CA3AF; text-transform: uppercase; font-weight: 600;">Total Investment</div>
+                <div style="font-size: 24px; color: #10B981; font-weight: 900;">₪{total_cost}</div>
+            </div>
+            """, unsafe_allow_html=True)
+
+        html_combos = '<div style="display: flex; flex-wrap: wrap; gap: 15px; margin-bottom: 20px; margin-top: 15px;">'
         for cb in selected_combos:
             html_combos += '<div style="flex: 1 1 300px; background: #1F2937; border: 1px solid #374151; border-radius: 10px; padding: 15px; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">'
             html_combos += '<div style="color: #FCD34D; font-weight: 800; font-size: 15px; border-bottom: 1px solid #374151; padding-bottom: 8px; margin-bottom: 10px; text-align: center;">' + cb["name"] + '</div>'
             html_combos += '<div style="display: flex; justify-content: space-around; align-items: center;">'
             for i, s in enumerate(suits):
-                val_str = cb["cfg"][i][0]
+                u_vals = get_unique_valid(cb["cfg"][i])
+                val_str = " + ".join(u_vals) if u_vals else "-"
                 icon = suit_icons[s]
                 
                 if val_str == "-":
@@ -654,7 +684,8 @@ if df is not None:
                     bg_style = "background: #111827; border: 1px dashed #374151; opacity: 0.4;"
                 else:
                     color = suit_colors[s]
-                    bg_style = "background: #111827; border: 1px solid #374151;"
+                    is_chizuk = len(u_vals) > 1
+                    bg_style = "background: rgba(59, 130, 246, 0.1); border: 1px dashed #3B82F6;" if is_chizuk else "background: #111827; border: 1px solid #374151;"
                 
                 html_combos += '<div style="text-align: center; padding: 8px; border-radius: 8px; ' + bg_style + ' width: 22%;">'
                 html_combos += '<div style="color: ' + color + '; font-size: 18px; margin-bottom: 4px;">' + icon + '</div>'
