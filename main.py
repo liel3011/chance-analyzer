@@ -540,8 +540,10 @@ if df is not None:
 
         suits = ['Spades', 'Hearts', 'Diamonds', 'Clubs']
         suit_icons = {'Spades': '♠', 'Hearts': '♥', 'Diamonds': '♦', 'Clubs': '♣'}
+        suit_colors = {'Spades': '#D1D5DB', 'Hearts': '#EF4444', 'Diamonds': '#EF4444', 'Clubs': '#D1D5DB'}
         
         suit_tabs = st.tabs([f"{suit_icons[s]} {s}" for s in suits])
+        suit_predictions = {}
         
         for i, suit in enumerate(suits):
             with suit_tabs[i]:
@@ -566,6 +568,8 @@ if df is not None:
                     
                     if all_missing:
                         counts = pd.Series(all_missing).value_counts()
+                        suit_predictions[suit] = list(counts.index)
+                        
                         for card, count in counts.items():
                             is_hit = has_actual and (card == actual_card)
                             
@@ -585,11 +589,13 @@ if df is not None:
                             html_table += f"<td style='padding: 8px; font-weight: 800; color: #FAFAFA; font-size: 16px; border-bottom: 1px solid #30363D;'>{count}</td>"
                             html_table += "</tr>"
                     else:
+                        suit_predictions[suit] = []
                         html_table += "<tr style='border-bottom: 1px solid #30363D;'>"
                         html_table += "<td style='padding: 8px; border-left: 3px solid transparent; color: #F85149; font-weight: 600;'>No Match</td>"
                         html_table += "<td style='padding: 8px; color: #8B949E;'>0</td>"
                         html_table += "</tr>"
                 else:
+                    suit_predictions[suit] = []
                     html_table += "<tr style='border-bottom: 1px solid #30363D;'>"
                     html_table += "<td style='padding: 8px; border-left: 3px solid transparent; color: #8B949E; font-weight: 600;'>Incomplete Triplet</td>"
                     html_table += "<td style='padding: 8px; color: #8B949E;'>-</td>"
@@ -597,6 +603,61 @@ if df is not None:
                     
                 html_table += "</tbody></table>"
                 st.markdown(html_table, unsafe_allow_html=True)
+                
+        st.markdown("---")
+        st.markdown("### 🎲 Smart Combinations (Safety Net)")
+        st.markdown("""
+        <div style="background: #111827; border: 1px solid #374151; border-radius: 12px; padding: 15px; margin-bottom: 20px; direction: rtl; text-align: right;">
+            <div style="color: #60A5FA; font-weight: 800; margin-bottom: 10px; font-size: 16px;">המטרה מאחורי 6 הקומבינציות: גידור וניהול שונות</div>
+            <ul style="color: #D1D5DB; font-size: 14px; line-height: 1.6; margin: 0; padding-right: 20px;">
+                <li><b style="color: #F9FAFB;">רוטציה של הסדרה החלשה (השמטה):</b> בכל פעם מתעלמים מסדרה אחת ומקצים לה דירוג 1 בלבד, כדי לגבות למקרה שהמודל יפספס בה.</li>
+                <li><b style="color: #F9FAFB;">פיזור דירוגים:</b> שילוב של דירוגי 1, 2 ו-3 לכיסוי פגיעות חלקיות.</li>
+                <li><b style="color: #F9FAFB;">מיקום אסטרטגי של החיזוק:</b> היכן שהסתמכנו על דירוג 3, הוספנו חיזוק (דירוג 1 או 2) באותה סדרה (עלות סמלית של עוד שורה).</li>
+            </ul>
+        </div>
+        """, unsafe_allow_html=True)
+
+        def get_c(s, r):
+            preds = suit_predictions.get(s, [])
+            if len(preds) > r: return preds[r]
+            if len(preds) > 0: return preds[0]
+            return "-"
+            
+        combos = [
+            {"name": "Combo 1 (Drop ♠)", "cfg": [ [get_c('Spades',0)], [get_c('Hearts',1)], [get_c('Diamonds',2), get_c('Diamonds',0)], [get_c('Clubs',1)] ]},
+            {"name": "Combo 2 (Drop ♥)", "cfg": [ [get_c('Spades',2), get_c('Spades',0)], [get_c('Hearts',0)], [get_c('Diamonds',1)], [get_c('Clubs',1)] ]},
+            {"name": "Combo 3 (Drop ♦)", "cfg": [ [get_c('Spades',1)], [get_c('Hearts',2), get_c('Hearts',0)], [get_c('Diamonds',0)], [get_c('Clubs',1)] ]},
+            {"name": "Combo 4 (Drop ♣)", "cfg": [ [get_c('Spades',1)], [get_c('Hearts',1)], [get_c('Diamonds',2), get_c('Diamonds',0)], [get_c('Clubs',0)] ]},
+            {"name": "Combo 5 (Mix A)",  "cfg": [ [get_c('Spades',0)], [get_c('Hearts',2), get_c('Hearts',1)], [get_c('Diamonds',1)], [get_c('Clubs',0)] ]},
+            {"name": "Combo 6 (Mix B)",  "cfg": [ [get_c('Spades',2), get_c('Spades',1)], [get_c('Hearts',0)], [get_c('Diamonds',0)], [get_c('Clubs',1)] ]}
+        ]
+
+        html_combos = '<div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 15px; margin-bottom: 20px;">'
+        for cb in combos:
+            html_combos += f'''
+            <div style="background: #1F2937; border: 1px solid #374151; border-radius: 10px; padding: 15px; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">
+                <div style="color: #FCD34D; font-weight: 800; font-size: 15px; border-bottom: 1px solid #374151; padding-bottom: 8px; margin-bottom: 10px; text-align: center;">{cb["name"]}</div>
+                <div style="display: flex; justify-content: space-around; align-items: center;">
+            '''
+            for i, s in enumerate(suits):
+                vals = cb["cfg"][i]
+                val_str = " + ".join([v for v in vals if v != "-"]) if any(v != "-" for v in vals) else "-"
+                icon = suit_icons[s]
+                color = suit_colors[s]
+                
+                is_chizuk = len(vals) > 1 and "-" not in vals
+                bg_style = "background: rgba(59, 130, 246, 0.1); border: 1px dashed #3B82F6;" if is_chizuk else "background: #111827; border: 1px solid #374151;"
+                
+                html_combos += f'''
+                    <div style="text-align: center; padding: 8px; border-radius: 8px; {bg_style} width: 22%;">
+                        <div style="color: {color}; font-size: 18px; margin-bottom: 4px;">{icon}</div>
+                        <div style="color: #FFF; font-weight: 900; font-size: 14px;">{val_str}</div>
+                    </div>
+                '''
+            html_combos += '</div></div>'
+        html_combos += '</div>'
+        
+        st.markdown(html_combos, unsafe_allow_html=True)
                 
         st.markdown("<h4 style='margin-top: 25px; font-weight: 800; color: #FAFAFA;'>Historical Game Board</h4>", unsafe_allow_html=True)
         cell_styles_3row = {}
