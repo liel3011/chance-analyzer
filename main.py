@@ -623,20 +623,20 @@ if df is not None:
         def get_c(s, r):
             preds = suit_predictions.get(s, [])
             if len(preds) > r: return preds[r]
-            if len(preds) > 0: return preds[0]
+            if len(preds) > 0: return preds[0] 
             return "-"
             
         combos = [
-            {"name": "Ticket 1 (Drop ♠)", "cfg": [ ["-"], [get_c('Hearts',1)], [get_c('Diamonds',2), get_c('Diamonds',0)], [get_c('Clubs',0)] ]},
-            {"name": "Ticket 2 (Drop ♥)", "cfg": [ [get_c('Spades',2), get_c('Spades',0)], ["-"], [get_c('Diamonds',1)], [get_c('Clubs',0)] ]},
-            {"name": "Ticket 3 (Drop ♦)", "cfg": [ [get_c('Spades',0)], [get_c('Hearts',2), get_c('Hearts',0)], ["-"], [get_c('Clubs',1)] ]},
-            {"name": "Ticket 4 (Drop ♣)", "cfg": [ [get_c('Spades',1)], [get_c('Hearts',0)], [get_c('Diamonds',2), get_c('Diamonds',0)], ["-"] ]},
-            {"name": "Ticket 5 (Drop ♠)", "cfg": [ ["-"], [get_c('Hearts',2), get_c('Hearts',1)], [get_c('Diamonds',0)], [get_c('Clubs',1)] ]},
-            {"name": "Ticket 6 (Drop ♥)", "cfg": [ [get_c('Spades',1)], ["-"], [get_c('Diamonds',2), get_c('Diamonds',1)], [get_c('Clubs',0)] ]},
-            {"name": "Ticket 7 (Drop ♦)", "cfg": [ [get_c('Spades',0)], [get_c('Hearts',1)], ["-"], [get_c('Clubs',2), get_c('Clubs',1)] ]},
-            {"name": "Ticket 8 (Drop ♣)", "cfg": [ [get_c('Spades',2), get_c('Spades',1)], [get_c('Hearts',0)], [get_c('Diamonds',1)], ["-"] ]},
-            {"name": "Ticket 9 (Drop ♠)", "cfg": [ ["-"], [get_c('Hearts',1)], [get_c('Diamonds',1)], [get_c('Clubs',2), get_c('Clubs',0)] ]},
-            {"name": "Ticket 10 (Drop ♥)","cfg": [ [get_c('Spades',2), get_c('Spades',0)], ["-"], [get_c('Diamonds',1)], [get_c('Clubs',1)] ]}
+            {"name": "Combo 1 (Drop ♠)", "cfg": [ ["-"], [get_c('Hearts',1)], [get_c('Diamonds',2), get_c('Diamonds',0)], [get_c('Clubs',0)] ]},
+            {"name": "Combo 2 (Drop ♥)", "cfg": [ [get_c('Spades',2), get_c('Spades',1)], ["-"], [get_c('Diamonds',0)], [get_c('Clubs',1)] ]},
+            {"name": "Combo 3 (Drop ♦)", "cfg": [ [get_c('Spades',1)], [get_c('Hearts',2), get_c('Hearts',0)], ["-"], [get_c('Clubs',0)] ]},
+            {"name": "Combo 4 (Drop ♣)", "cfg": [ [get_c('Spades',0)], [get_c('Hearts',1)], [get_c('Diamonds',2), get_c('Diamonds',1)], ["-"] ]},
+            {"name": "Combo 5 (Drop ♠)", "cfg": [ ["-"], [get_c('Hearts',2), get_c('Hearts',1)], [get_c('Diamonds',1)], [get_c('Clubs',0)] ]},
+            {"name": "Combo 6 (Drop ♥)", "cfg": [ [get_c('Spades',0)], ["-"], [get_c('Diamonds',2), get_c('Diamonds',0)], [get_c('Clubs',1)] ]},
+            {"name": "Combo 7 (Drop ♦)", "cfg": [ [get_c('Spades',1)], [get_c('Hearts',0)], ["-"], [get_c('Clubs',2), get_c('Clubs',1)] ]},
+            {"name": "Combo 8 (Drop ♣)", "cfg": [ [get_c('Spades',2), get_c('Spades',0)], [get_c('Hearts',1)], [get_c('Diamonds',0)], ["-"] ]},
+            {"name": "Combo 9 (Drop ♠)", "cfg": [ ["-"], [get_c('Hearts',0)], [get_c('Diamonds',1)], [get_c('Clubs',2), get_c('Clubs',0)] ]},
+            {"name": "Combo 10 (Drop ♥)","cfg": [ [get_c('Spades',1)], ["-"], [get_c('Diamonds',0)], [get_c('Clubs',2), get_c('Clubs',1)] ]}
         ]
         
         selected_combos = combos[:num_combos]
