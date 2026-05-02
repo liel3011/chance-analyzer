@@ -2,6 +2,7 @@ import streamlit as st
 import streamlit.components.v1 as components
 import pandas as pd
 import numpy as np
+import re
 
 # --- Page Configuration ---
 st.set_page_config(
@@ -113,8 +114,8 @@ def parse_shapes_strict(text):
         lines = block.strip().split('\n')
         coords = []
         for r, line in enumerate(lines):
-            chars = line.replace(' ', '')
-            for c, char in enumerate(chars):
+            tokens = line.split()
+            for c, char in enumerate(tokens):
                 if char == 'A':
                     coords.append((r, c))
         if not coords: continue
@@ -208,7 +209,6 @@ st.markdown("""
     
     .frame-box { position: absolute; top: 0; left: 0; right: 0; bottom: 0; border-style: solid; pointer-events: none; border-radius: 8px; z-index: 10; }
     
-    /* תיקון הסימונים של הלוח כדי שלא ישבור את המבנה */
     .window-highlight { 
         border: 1px solid #F59E0B !important; 
         box-shadow: inset 0 0 15px rgba(245, 158, 11, 0.5), 0 0 8px rgba(245, 158, 11, 0.3) !important; 
@@ -244,6 +244,11 @@ def load_data_robust(uploaded_file):
             
     hebrew_map = {'תלתן': 'Clubs', 'יהלום': 'Diamonds', 'לב': 'Hearts', 'עלה': 'Spades'}
     df.rename(columns=hebrew_map, inplace=True)
+    
+    for col in df.columns:
+        df[col] = df[col].astype(str).str.replace(r'[^0-9a-zA-Z]', '', regex=True)
+        df[col] = df[col].replace('nan', '')
+        
     return df, "ok"
 
 def draw_preview_html(shape_coords):
@@ -313,7 +318,7 @@ def generate_board_html(grid_data, start_row, end_row, cell_styles):
     for r in range(start_row, min(len(grid_data), end_row)):
         for c in range(4):
             val = str(grid_data[r, c])
-            if val == 'nan': val = ''
+            if val == 'nan' or not val: val = ''
             
             style_extra = cell_styles.get((r, c), "")
             inner = val
