@@ -627,16 +627,16 @@ if df is not None:
             return "-"
             
         combos = [
-            {"name": "Ticket 1", "cfg": [ ["-"], [get_c('Hearts',1)], [get_c('Diamonds',2), get_c('Diamonds',0)], [get_c('Clubs',0)] ]},
-            {"name": "Ticket 2", "cfg": [ [get_c('Spades',2), get_c('Spades',0)], ["-"], [get_c('Diamonds',1)], [get_c('Clubs',0)] ]},
-            {"name": "Ticket 3", "cfg": [ [get_c('Spades',0)], [get_c('Hearts',2), get_c('Hearts',0)], ["-"], [get_c('Clubs',1)] ]},
-            {"name": "Ticket 4", "cfg": [ [get_c('Spades',1)], [get_c('Hearts',0)], [get_c('Diamonds',2), get_c('Diamonds',0)], ["-"] ]},
-            {"name": "Ticket 5", "cfg": [ ["-"], [get_c('Hearts',2), get_c('Hearts',1)], [get_c('Diamonds',0)], [get_c('Clubs',1)] ]},
-            {"name": "Ticket 6", "cfg": [ [get_c('Spades',1)], ["-"], [get_c('Diamonds',2), get_c('Diamonds',1)], [get_c('Clubs',0)] ]},
-            {"name": "Ticket 7", "cfg": [ [get_c('Spades',0)], [get_c('Hearts',1)], ["-"], [get_c('Clubs',2), get_c('Clubs',1)] ]},
-            {"name": "Ticket 8", "cfg": [ [get_c('Spades',2), get_c('Spades',1)], [get_c('Hearts',0)], [get_c('Diamonds',1)], ["-"] ]},
-            {"name": "Ticket 9", "cfg": [ ["-"], [get_c('Hearts',1)], [get_c('Diamonds',1)], [get_c('Clubs',2), get_c('Clubs',0)] ]},
-            {"name": "Ticket 10","cfg": [ [get_c('Spades',2), get_c('Spades',0)], ["-"], [get_c('Diamonds',0)], [get_c('Clubs',1)] ]}
+            {"name": "Ticket 1 (Drop ♠)", "cfg": [ ["-"], [get_c('Hearts',1)], [get_c('Diamonds',2), get_c('Diamonds',0)], [get_c('Clubs',0)] ]},
+            {"name": "Ticket 2 (Drop ♥)", "cfg": [ [get_c('Spades',2), get_c('Spades',0)], ["-"], [get_c('Diamonds',1)], [get_c('Clubs',0)] ]},
+            {"name": "Ticket 3 (Drop ♦)", "cfg": [ [get_c('Spades',0)], [get_c('Hearts',2), get_c('Hearts',0)], ["-"], [get_c('Clubs',1)] ]},
+            {"name": "Ticket 4 (Drop ♣)", "cfg": [ [get_c('Spades',1)], [get_c('Hearts',0)], [get_c('Diamonds',2), get_c('Diamonds',0)], ["-"] ]},
+            {"name": "Ticket 5 (Drop ♠)", "cfg": [ ["-"], [get_c('Hearts',2), get_c('Hearts',1)], [get_c('Diamonds',0)], [get_c('Clubs',1)] ]},
+            {"name": "Ticket 6 (Drop ♥)", "cfg": [ [get_c('Spades',1)], ["-"], [get_c('Diamonds',2), get_c('Diamonds',1)], [get_c('Clubs',0)] ]},
+            {"name": "Ticket 7 (Drop ♦)", "cfg": [ [get_c('Spades',0)], [get_c('Hearts',1)], ["-"], [get_c('Clubs',2), get_c('Clubs',1)] ]},
+            {"name": "Ticket 8 (Drop ♣)", "cfg": [ [get_c('Spades',2), get_c('Spades',1)], [get_c('Hearts',0)], [get_c('Diamonds',1)], ["-"] ]},
+            {"name": "Ticket 9 (Drop ♠)", "cfg": [ ["-"], [get_c('Hearts',1)], [get_c('Diamonds',1)], [get_c('Clubs',2), get_c('Clubs',0)] ]},
+            {"name": "Ticket 10 (Drop ♥)","cfg": [ [get_c('Spades',2), get_c('Spades',0)], ["-"], [get_c('Diamonds',1)], [get_c('Clubs',1)] ]}
         ]
         
         selected_combos = combos[:num_combos]
