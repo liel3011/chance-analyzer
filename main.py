@@ -605,9 +605,19 @@ if df is not None:
                 st.markdown(html_table, unsafe_allow_html=True)
                 
         st.markdown("---")
-        st.markdown("### 🎲 Smart Combinations")
         
-        num_combos = st.slider("Select Number of Combinations", min_value=1, max_value=6, value=6, step=1)
+        c_slider, c_info = st.columns([2, 1])
+        with c_slider:
+            st.markdown("<h3 style='margin: 0; color: #FAFAFA;'>🎲 Chance 3 Combinations</h3>", unsafe_allow_html=True)
+            num_combos = st.slider("Select Number of Tickets", min_value=1, max_value=10, value=6, step=1, label_visibility="collapsed")
+        with c_info:
+            total_cost = num_combos * 5
+            st.markdown(f"""
+            <div style="background: #1F2937; border: 1px solid #374151; border-radius: 8px; padding: 10px; text-align: center; height: 100%; display: flex; flex-direction: column; justify-content: center;">
+                <div style="font-size: 12px; color: #9CA3AF; text-transform: uppercase; font-weight: 600;">Total Investment</div>
+                <div style="font-size: 24px; color: #10B981; font-weight: 900;">₪{total_cost}</div>
+            </div>
+            """, unsafe_allow_html=True)
 
         def get_c(s, r):
             preds = suit_predictions.get(s, [])
@@ -616,12 +626,16 @@ if df is not None:
             return "-"
             
         combos = [
-            {"name": "Combo 1 (Drop ♠)", "cfg": [ [get_c('Spades',0)], [get_c('Hearts',1)], [get_c('Diamonds',2), get_c('Diamonds',0)], [get_c('Clubs',1)] ]},
-            {"name": "Combo 2 (Drop ♥)", "cfg": [ [get_c('Spades',2), get_c('Spades',0)], [get_c('Hearts',0)], [get_c('Diamonds',1)], [get_c('Clubs',1)] ]},
-            {"name": "Combo 3 (Drop ♦)", "cfg": [ [get_c('Spades',1)], [get_c('Hearts',2), get_c('Hearts',0)], [get_c('Diamonds',0)], [get_c('Clubs',1)] ]},
-            {"name": "Combo 4 (Drop ♣)", "cfg": [ [get_c('Spades',1)], [get_c('Hearts',1)], [get_c('Diamonds',2), get_c('Diamonds',0)], [get_c('Clubs',0)] ]},
-            {"name": "Combo 5 (Mix A)",  "cfg": [ [get_c('Spades',0)], [get_c('Hearts',2), get_c('Hearts',1)], [get_c('Diamonds',1)], [get_c('Clubs',0)] ]},
-            {"name": "Combo 6 (Mix B)",  "cfg": [ [get_c('Spades',2), get_c('Spades',1)], [get_c('Hearts',0)], [get_c('Diamonds',0)], [get_c('Clubs',1)] ]}
+            {"name": "Ticket 1 (Drop ♠)", "cfg": [ ["-"], [get_c('Hearts',0)], [get_c('Diamonds',0)], [get_c('Clubs',0)] ]},
+            {"name": "Ticket 2 (Drop ♥)", "cfg": [ [get_c('Spades',0)], ["-"], [get_c('Diamonds',0)], [get_c('Clubs',0)] ]},
+            {"name": "Ticket 3 (Drop ♦)", "cfg": [ [get_c('Spades',0)], [get_c('Hearts',0)], ["-"], [get_c('Clubs',0)] ]},
+            {"name": "Ticket 4 (Drop ♣)", "cfg": [ [get_c('Spades',0)], [get_c('Hearts',0)], [get_c('Diamonds',0)], ["-"] ]},
+            {"name": "Ticket 5 (Alt 1)",  "cfg": [ ["-"], [get_c('Hearts',1)], [get_c('Diamonds',0)], [get_c('Clubs',0)] ]},
+            {"name": "Ticket 6 (Alt 2)",  "cfg": [ [get_c('Spades',0)], ["-"], [get_c('Diamonds',1)], [get_c('Clubs',0)] ]},
+            {"name": "Ticket 7 (Alt 3)",  "cfg": [ [get_c('Spades',0)], [get_c('Hearts',0)], ["-"], [get_c('Clubs',1)] ]},
+            {"name": "Ticket 8 (Alt 4)",  "cfg": [ [get_c('Spades',1)], [get_c('Hearts',0)], [get_c('Diamonds',0)], ["-"] ]},
+            {"name": "Ticket 9 (Alt 5)",  "cfg": [ ["-"], [get_c('Hearts',0)], [get_c('Diamonds',1)], [get_c('Clubs',1)] ]},
+            {"name": "Ticket 10 (Alt 6)", "cfg": [ [get_c('Spades',1)], ["-"], [get_c('Diamonds',0)], [get_c('Clubs',1)] ]}
         ]
         
         selected_combos = combos[:num_combos]
@@ -629,20 +643,22 @@ if df is not None:
         html_combos = '<div style="display: flex; flex-wrap: wrap; gap: 15px; margin-bottom: 20px;">'
         for cb in selected_combos:
             html_combos += '<div style="flex: 1 1 300px; background: #1F2937; border: 1px solid #374151; border-radius: 10px; padding: 15px; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">'
-            html_combos += f'<div style="color: #FCD34D; font-weight: 800; font-size: 15px; border-bottom: 1px solid #374151; padding-bottom: 8px; margin-bottom: 10px; text-align: center;">{cb["name"]}</div>'
+            html_combos += '<div style="color: #FCD34D; font-weight: 800; font-size: 15px; border-bottom: 1px solid #374151; padding-bottom: 8px; margin-bottom: 10px; text-align: center;">' + cb["name"] + '</div>'
             html_combos += '<div style="display: flex; justify-content: space-around; align-items: center;">'
             for i, s in enumerate(suits):
-                vals = cb["cfg"][i]
-                val_str = " + ".join([v for v in vals if v != "-"]) if any(v != "-" for v in vals) else "-"
+                val_str = cb["cfg"][i][0]
                 icon = suit_icons[s]
-                color = suit_colors[s]
                 
-                is_chizuk = len(vals) > 1 and "-" not in vals
-                bg_style = "background: rgba(59, 130, 246, 0.1); border: 1px dashed #3B82F6;" if is_chizuk else "background: #111827; border: 1px solid #374151;"
+                if val_str == "-":
+                    color = "#4B5563"
+                    bg_style = "background: #111827; border: 1px dashed #374151; opacity: 0.4;"
+                else:
+                    color = suit_colors[s]
+                    bg_style = "background: #111827; border: 1px solid #374151;"
                 
-                html_combos += f'<div style="text-align: center; padding: 8px; border-radius: 8px; {bg_style} width: 22%;">'
-                html_combos += f'<div style="color: {color}; font-size: 18px; margin-bottom: 4px;">{icon}</div>'
-                html_combos += f'<div style="color: #FFF; font-weight: 900; font-size: 14px;">{val_str}</div>'
+                html_combos += '<div style="text-align: center; padding: 8px; border-radius: 8px; ' + bg_style + ' width: 22%;">'
+                html_combos += '<div style="color: ' + color + '; font-size: 18px; margin-bottom: 4px;">' + icon + '</div>'
+                html_combos += '<div style="color: #FFF; font-weight: 900; font-size: 14px;">' + val_str + '</div>'
                 html_combos += '</div>'
             html_combos += '</div></div>'
         html_combos += '</div>'
