@@ -2,16 +2,13 @@ import streamlit as st
 import streamlit.components.v1 as components
 import pandas as pd
 import numpy as np
-import re
 
-# --- Page Configuration ---
 st.set_page_config(
     page_title="Chance Analyzer PRO",
     layout="wide",
     initial_sidebar_state="collapsed"
 )
 
-# --- KILL MOBILE KEYBOARD HACK ---
 components.html(
     """
     <script>
@@ -31,9 +28,6 @@ components.html(
     height=0, width=0
 )
 
-# ==========================================
-# Fixed Patterns (A = Shape Block, X = Skip/Gap)
-# ==========================================
 FIXED_COMBOS_TXT = """
 A A A A
 
@@ -102,9 +96,6 @@ PATTERN_NAMES = {
     12: "13. C-Shape"
 }
 
-# ==========================================
-# Pattern Parsing & Variations Logic
-# ==========================================
 def parse_shapes_strict(text):
     shapes = []
     text = text.replace('\r\n', '\n')
@@ -175,9 +166,6 @@ def generate_variations_strict(shape_idx, base_shape):
             
     return valid_variations
 
-# ==========================================
-# Premium CSS Styling
-# ==========================================
 st.markdown("""
 <style>
     @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&display=swap');
@@ -202,19 +190,10 @@ st.markdown("""
     .grid-container { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; background: #111827; padding: 12px; border-radius: 16px; margin-top: 15px; border: 1px solid #1F2937; box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.3); }
     .grid-cell { background-color: #1F2937; color: #D1D5DB; padding: 0; text-align: center; border-radius: 8px; height: 42px; display: flex; align-items: center; justify-content: center; font-weight: 600; font-size: 15px; position: relative; border: 1px solid #374151; box-shadow: inset 0 2px 4px rgba(0,0,0,0.1); transition: all 0.2s ease; }
     
-    .missing-selected { background: linear-gradient(135deg, #F59E0B 0%, #D97706 100%) !important; color: #000 !important; font-weight: 900 !important; border: 1px solid #FFF !important; box-shadow: 0 0 15px rgba(245, 158, 11, 0.8) !important; transform: scale(1.1); z-index: 100; }
-    .missing-subtle { background-color: rgba(245, 158, 11, 0.15) !important; border: 1px dashed #F59E0B !important; color: #FCD34D !important; }
+    .pattern-found { background-color: #FFF3CD !important; color: #000 !important; border-color: #FFE69C !important; }
+    .missing-target { background-color: #00FFFF !important; color: #000 !important; border: 3px solid #FF0000 !important; font-weight: 900 !important; z-index: 10; box-shadow: 0 0 10px rgba(255,0,0,0.5); transform: scale(1.05); }
     
-    .missing-circle { background: linear-gradient(135deg, #F59E0B 0%, #D97706 100%); color: #FFFFFF; font-weight: 800; border-radius: 50%; width: 32px; height: 32px; display: flex; align-items: center; justify-content: center; box-shadow: 0 0 15px rgba(245, 158, 11, 0.7); margin: auto; border: 2px solid #FEF3C7; }
-    
-    .frame-box { position: absolute; top: 0; left: 0; right: 0; bottom: 0; border-style: solid; pointer-events: none; border-radius: 8px; z-index: 10; }
-    
-    .window-highlight { 
-        border: 1px solid #F59E0B !important; 
-        box-shadow: inset 0 0 15px rgba(245, 158, 11, 0.5), 0 0 8px rgba(245, 158, 11, 0.3) !important; 
-        background-color: #1F2937 !important; 
-        z-index: 5; 
-    }
+    .window-highlight { border: 1px solid #F59E0B !important; box-shadow: inset 0 0 15px rgba(245, 158, 11, 0.5), 0 0 8px rgba(245, 158, 11, 0.3) !important; background-color: #1F2937 !important; z-index: 5; }
     .window-dim { opacity: 0.3 !important; filter: grayscale(40%); }
 
     .grid-header { text-align: center; padding-bottom: 8px; display: flex; flex-direction: column; align-items: center; justify-content: center; }
@@ -320,24 +299,16 @@ def generate_board_html(grid_data, start_row, end_row, cell_styles):
             val = str(grid_data[r, c])
             if val == 'nan' or not val: val = ''
             
-            style_extra = cell_styles.get((r, c), "")
-            inner = val
+            raw_style = cell_styles.get((r, c), "")
+            classes = ["grid-cell"]
             
-            if "MISSING_SELECTED" in style_extra:
-                style_extra = style_extra.replace("MISSING_SELECTED", "missing-selected")
-            elif "MISSING_SUBTLE" in style_extra:
-                style_extra = style_extra.replace("MISSING_SUBTLE", "missing-subtle")
-                
-            if "MISSING_MARKER" in style_extra:
-                inner = f'<div class="missing-circle">{val}</div>'
-                style_extra = style_extra.replace("MISSING_MARKER", "")
+            if "PATTERN_FOUND" in raw_style: classes.append("pattern-found")
+            if "MISSING_TARGET" in raw_style: classes.append("missing-target")
+            if "window-highlight" in raw_style: classes.append("window-highlight")
+            if "window-dim" in raw_style: classes.append("window-dim")
             
-            if style_extra.strip().startswith("cell-") or style_extra.strip().startswith("window-"):
-                 html += f'<div class="grid-cell {style_extra}">{inner}</div>'
-            elif style_extra.strip() != "":
-                 html += f'<div class="grid-cell {style_extra}">{inner}</div>'
-            else:
-                 html += f'<div class="grid-cell">{inner}</div>'
+            class_str = " ".join(classes)
+            html += f'<div class="{class_str}">{val}</div>'
                  
     html += '</div>'
     return html
@@ -395,9 +366,6 @@ def find_matches_for_pattern(shape_idx, selected_cards, grid_data, row_limit):
         
     return found
 
-# ==========================================
-# Main Interface
-# ==========================================
 st.title("⚡ Chance Analyzer PRO")
 
 with st.sidebar:
@@ -407,7 +375,6 @@ with st.sidebar:
     
     st.header("⚙️ Algorithm Settings")
     search_depth = st.number_input("🔍 History Scan Depth", min_value=5, max_value=50000, value=26, step=1)
-    st.caption("Determines how many rows backwards the algorithm scans for patterns.")
 
 if 'uploaded_df' not in st.session_state: st.session_state['uploaded_df'] = None
 if 'current_shape_idx' not in st.session_state: st.session_state['current_shape_idx'] = 0
@@ -419,8 +386,6 @@ if csv_file:
     temp_df, msg = load_data_robust(csv_file)
     if temp_df is not None:
         st.session_state['uploaded_df'] = temp_df
-    elif msg != "ok":
-        st.error(f"Error: {msg}")
 
 df = st.session_state['uploaded_df']
 
@@ -430,7 +395,6 @@ if df is not None:
     missing = [c for c in required_cols if c not in df.columns]
     
     if missing:
-        st.error(f"Missing columns in dataset: {missing}")
         st.stop()
 
     grid_data = df[required_cols].values
@@ -443,7 +407,6 @@ if df is not None:
         with st.expander("⚙️ Configuration & Target Inputs", expanded=not st.session_state.get('search_done', False)):
             col_conf, col_prev = st.columns([4, 1])
             with col_conf:
-                st.markdown("<label style='font-size: 14px; font-weight: 600; color: #FAFAFA;'>Search Pattern</label>", unsafe_allow_html=True)
                 nav_col1, nav_col2, nav_col3 = st.columns([1, 4, 1])
                 with nav_col1:
                     if st.button("◀", use_container_width=True, key="prev_pat"):
@@ -506,13 +469,9 @@ if df is not None:
             display_df = grouped_df[['Missing Card', 'Count', 'Row Indexes', 'Hidden_ID']]
             calc_height = (len(display_df) + 1) * 36 + 3
             
-            st.markdown("<p style='color: #9CA3AF; font-size: 13px; font-weight: 600; margin-bottom: 5px;'>SELECT A ROW TO HIGHLIGHT ON BOARD:</p>", unsafe_allow_html=True)
             event = st.dataframe(display_df.drop(columns=['Hidden_ID']), hide_index=True, use_container_width=True, selection_mode="single-row", on_select="rerun", height=calc_height)
             if len(event.selection['rows']) > 0:
                 selected_match_ids = display_df.iloc[event.selection['rows'][0]]['Hidden_ID']
-        else:
-            if st.session_state.get('search_done', False): 
-                st.info("No matches found for the currently selected pattern.")
             
         st.markdown("<h4 style='margin-top: 15px; font-weight: 800; color: #F3F4F6;'>Live Game Board</h4>", unsafe_allow_html=True)
         cell_styles = {}
@@ -522,20 +481,12 @@ if df is not None:
             matches_to_show = [m for m in found_matches if m['id'] in selected_match_ids]
 
         for m in matches_to_show:
-            col = m['color']
             for coord in m['full_coords_list']:
+                if coord not in cell_styles: cell_styles[coord] = ""
                 if coord != m['miss_coords']:
-                    if coord not in cell_styles: cell_styles[coord] = ""
-                    count = cell_styles[coord].count("frame-box")
-                    inset = count * 3
-                    cell_styles[coord] += f'<div class="frame-box" style="border-width: 2px; border-color: {col}; box-shadow: inset 0 0 10px {col}, 0 0 8px {col}; top: {inset}px; left: {inset}px; right: {inset}px; bottom: {inset}px;"></div>'
-            miss = m['miss_coords']
-            if miss not in cell_styles: cell_styles[miss] = ""
-            
-            if selected_match_ids is not None:
-                cell_styles[miss] += " MISSING_SELECTED"
-            else:
-                cell_styles[miss] += " MISSING_MARKER"
+                    cell_styles[coord] += " PATTERN_FOUND"
+                else:
+                    cell_styles[coord] += " MISSING_TARGET"
                 
         draw_limit_matches = 30
         if selected_match_ids is not None and matches_to_show:
@@ -545,8 +496,6 @@ if df is not None:
         st.markdown(generate_board_html(grid_data, 0, draw_limit_matches, cell_styles), unsafe_allow_html=True)
 
     with tab_predictor:
-        st.markdown("<p style='color: #9CA3AF; font-size: 13px; font-weight: 600; margin-bottom: 5px;'>SELECT A BASE ROW FOR 3-ROW WINDOW:</p>", unsafe_allow_html=True)
-        
         max_val = max(0, len(grid_data) - 3)
         
         c_minus, c_val, c_plus = st.columns([1, 2, 1])
@@ -677,11 +626,7 @@ if df is not None:
 
         if any(sleep_data_lists.values()):
             st.markdown(create_sleeping_html_table(sleep_data_lists, required_cols), unsafe_allow_html=True)
-        else:
-            st.write("No sleeping cards found.")
             
         st.markdown("<h4 style='margin-top: 15px; font-weight: 800; color: #F3F4F6;'>Live Game Board</h4>", unsafe_allow_html=True)
         st.markdown(generate_board_html(grid_data, 0, ROW_LIMIT, {}), unsafe_allow_html=True)
 
-else:
-    st.info("👋 Upload a CSV file to get started.")
