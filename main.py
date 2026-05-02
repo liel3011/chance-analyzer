@@ -3,14 +3,12 @@ import streamlit.components.v1 as components
 import pandas as pd
 import numpy as np
 
-# --- Page Configuration ---
 st.set_page_config(
     page_title="Chance Analyzer PRO",
     layout="wide",
     initial_sidebar_state="collapsed"
 )
 
-# --- KILL MOBILE KEYBOARD HACK ---
 components.html(
     """
     <script>
@@ -30,9 +28,6 @@ components.html(
     height=0, width=0
 )
 
-# ==========================================
-# Fixed Patterns (A = Shape Block, X = Skip/Gap)
-# ==========================================
 FIXED_COMBOS_TXT = """
 A A A A
 
@@ -101,9 +96,6 @@ PATTERN_NAMES = {
     12: "13. C-Shape"
 }
 
-# ==========================================
-# Pattern Parsing & Variations Logic
-# ==========================================
 def parse_shapes_strict(text):
     shapes = []
     text = text.replace('\r\n', '\n')
@@ -174,9 +166,6 @@ def generate_variations_strict(shape_idx, base_shape):
             
     return valid_variations
 
-# ==========================================
-# Premium CSS Styling
-# ==========================================
 st.markdown("""
 <style>
     @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&display=swap');
@@ -628,7 +617,7 @@ if df is not None:
         
         c_head, c_info = st.columns([2, 1])
         with c_head:
-            st.markdown("<h3 style='margin: 0; color: #FAFAFA;'>🎲 Chance 3 Combinations (Safety Net)</h3>", unsafe_allow_html=True)
+            st.markdown("<h3 style='margin: 0; color: #FAFAFA;'>🎲 Chance 3 Combinations</h3>", unsafe_allow_html=True)
             num_combos = st.slider("Select Number of Tickets", min_value=1, max_value=10, value=6, step=1, label_visibility="collapsed")
             
         def get_c(s, r):
@@ -638,16 +627,16 @@ if df is not None:
             return "-"
             
         combos = [
-            {"name": "Ticket 1 (Drop ♠) [Safe ♦]", "cfg": [ ["-"], [get_c('Hearts',0)], [get_c('Diamonds',1), get_c('Diamonds',0)], [get_c('Clubs',0)] ]},
-            {"name": "Ticket 2 (Drop ♥) [Safe ♠]", "cfg": [ [get_c('Spades',1), get_c('Spades',0)], ["-"], [get_c('Diamonds',0)], [get_c('Clubs',0)] ]},
-            {"name": "Ticket 3 (Drop ♦) [Safe ♥]", "cfg": [ [get_c('Spades',0)], [get_c('Hearts',1), get_c('Hearts',0)], ["-"], [get_c('Clubs',0)] ]},
-            {"name": "Ticket 4 (Drop ♣) [Safe ♦]", "cfg": [ [get_c('Spades',0)], [get_c('Hearts',0)], [get_c('Diamonds',1), get_c('Diamonds',0)], ["-"] ]},
-            {"name": "Ticket 5 (Drop ♠) [Safe ♣]", "cfg": [ ["-"], [get_c('Hearts',0)], [get_c('Diamonds',0)], [get_c('Clubs',1), get_c('Clubs',0)] ]},
-            {"name": "Ticket 6 (Drop ♥) [Safe ♦]", "cfg": [ [get_c('Spades',0)], ["-"], [get_c('Diamonds',2), get_c('Diamonds',0)], [get_c('Clubs',0)] ]},
-            {"name": "Ticket 7 (Drop ♦) [Safe ♣]", "cfg": [ [get_c('Spades',0)], [get_c('Hearts',0)], ["-"], [get_c('Clubs',2), get_c('Clubs',0)] ]},
-            {"name": "Ticket 8 (Drop ♣) [Safe ♠]", "cfg": [ [get_c('Spades',2), get_c('Spades',0)], [get_c('Hearts',0)], [get_c('Diamonds',0)], ["-"] ]},
-            {"name": "Ticket 9 (Drop ♠) [Mix A]",  "cfg": [ ["-"], [get_c('Hearts',2), get_c('Hearts',0)], [get_c('Diamonds',1)], [get_c('Clubs',0)] ]},
-            {"name": "Ticket 10 (Drop ♥) [Mix B]", "cfg": [ [get_c('Spades',1)], ["-"], [get_c('Diamonds',2), get_c('Diamonds',0)], [get_c('Clubs',0)] ]}
+            {"name": "Ticket 1", "cfg": [ ["-"], [get_c('Hearts',1)], [get_c('Diamonds',2), get_c('Diamonds',0)], [get_c('Clubs',0)] ]},
+            {"name": "Ticket 2", "cfg": [ [get_c('Spades',2), get_c('Spades',0)], ["-"], [get_c('Diamonds',1)], [get_c('Clubs',0)] ]},
+            {"name": "Ticket 3", "cfg": [ [get_c('Spades',0)], [get_c('Hearts',2), get_c('Hearts',0)], ["-"], [get_c('Clubs',1)] ]},
+            {"name": "Ticket 4", "cfg": [ [get_c('Spades',1)], [get_c('Hearts',0)], [get_c('Diamonds',2), get_c('Diamonds',0)], ["-"] ]},
+            {"name": "Ticket 5", "cfg": [ ["-"], [get_c('Hearts',2), get_c('Hearts',1)], [get_c('Diamonds',0)], [get_c('Clubs',1)] ]},
+            {"name": "Ticket 6", "cfg": [ [get_c('Spades',1)], ["-"], [get_c('Diamonds',2), get_c('Diamonds',1)], [get_c('Clubs',0)] ]},
+            {"name": "Ticket 7", "cfg": [ [get_c('Spades',0)], [get_c('Hearts',1)], ["-"], [get_c('Clubs',2), get_c('Clubs',1)] ]},
+            {"name": "Ticket 8", "cfg": [ [get_c('Spades',2), get_c('Spades',1)], [get_c('Hearts',0)], [get_c('Diamonds',1)], ["-"] ]},
+            {"name": "Ticket 9", "cfg": [ ["-"], [get_c('Hearts',1)], [get_c('Diamonds',1)], [get_c('Clubs',2), get_c('Clubs',0)] ]},
+            {"name": "Ticket 10","cfg": [ [get_c('Spades',2), get_c('Spades',0)], ["-"], [get_c('Diamonds',0)], [get_c('Clubs',1)] ]}
         ]
         
         selected_combos = combos[:num_combos]
