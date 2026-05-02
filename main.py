@@ -605,17 +605,9 @@ if df is not None:
                 st.markdown(html_table, unsafe_allow_html=True)
                 
         st.markdown("---")
-        st.markdown("### 🎲 Smart Combinations (Safety Net)")
-        st.markdown("""
-        <div style="background: #111827; border: 1px solid #374151; border-radius: 12px; padding: 15px; margin-bottom: 20px; direction: rtl; text-align: right;">
-            <div style="color: #60A5FA; font-weight: 800; margin-bottom: 10px; font-size: 16px;">המטרה מאחורי 6 הקומבינציות: גידור וניהול שונות</div>
-            <ul style="color: #D1D5DB; font-size: 14px; line-height: 1.6; margin: 0; padding-right: 20px;">
-                <li><b style="color: #F9FAFB;">רוטציה של הסדרה החלשה (השמטה):</b> בכל פעם מתעלמים מסדרה אחת ומקצים לה דירוג 1 בלבד, כדי לגבות למקרה שהמודל יפספס בה.</li>
-                <li><b style="color: #F9FAFB;">פיזור דירוגים:</b> שילוב של דירוגי 1, 2 ו-3 לכיסוי פגיעות חלקיות.</li>
-                <li><b style="color: #F9FAFB;">מיקום אסטרטגי של החיזוק:</b> היכן שהסתמכנו על דירוג 3, הוספנו חיזוק (דירוג 1 או 2) באותה סדרה (עלות סמלית של עוד שורה).</li>
-            </ul>
-        </div>
-        """, unsafe_allow_html=True)
+        st.markdown("### 🎲 Smart Combinations")
+        
+        num_combos = st.slider("Select Number of Combinations", min_value=1, max_value=6, value=6, step=1)
 
         def get_c(s, r):
             preds = suit_predictions.get(s, [])
@@ -631,14 +623,14 @@ if df is not None:
             {"name": "Combo 5 (Mix A)",  "cfg": [ [get_c('Spades',0)], [get_c('Hearts',2), get_c('Hearts',1)], [get_c('Diamonds',1)], [get_c('Clubs',0)] ]},
             {"name": "Combo 6 (Mix B)",  "cfg": [ [get_c('Spades',2), get_c('Spades',1)], [get_c('Hearts',0)], [get_c('Diamonds',0)], [get_c('Clubs',1)] ]}
         ]
+        
+        selected_combos = combos[:num_combos]
 
-        html_combos = '<div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 15px; margin-bottom: 20px;">'
-        for cb in combos:
-            html_combos += f'''
-            <div style="background: #1F2937; border: 1px solid #374151; border-radius: 10px; padding: 15px; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">
-                <div style="color: #FCD34D; font-weight: 800; font-size: 15px; border-bottom: 1px solid #374151; padding-bottom: 8px; margin-bottom: 10px; text-align: center;">{cb["name"]}</div>
-                <div style="display: flex; justify-content: space-around; align-items: center;">
-            '''
+        html_combos = '<div style="display: flex; flex-wrap: wrap; gap: 15px; margin-bottom: 20px;">'
+        for cb in selected_combos:
+            html_combos += '<div style="flex: 1 1 300px; background: #1F2937; border: 1px solid #374151; border-radius: 10px; padding: 15px; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">'
+            html_combos += f'<div style="color: #FCD34D; font-weight: 800; font-size: 15px; border-bottom: 1px solid #374151; padding-bottom: 8px; margin-bottom: 10px; text-align: center;">{cb["name"]}</div>'
+            html_combos += '<div style="display: flex; justify-content: space-around; align-items: center;">'
             for i, s in enumerate(suits):
                 vals = cb["cfg"][i]
                 val_str = " + ".join([v for v in vals if v != "-"]) if any(v != "-" for v in vals) else "-"
@@ -648,12 +640,10 @@ if df is not None:
                 is_chizuk = len(vals) > 1 and "-" not in vals
                 bg_style = "background: rgba(59, 130, 246, 0.1); border: 1px dashed #3B82F6;" if is_chizuk else "background: #111827; border: 1px solid #374151;"
                 
-                html_combos += f'''
-                    <div style="text-align: center; padding: 8px; border-radius: 8px; {bg_style} width: 22%;">
-                        <div style="color: {color}; font-size: 18px; margin-bottom: 4px;">{icon}</div>
-                        <div style="color: #FFF; font-weight: 900; font-size: 14px;">{val_str}</div>
-                    </div>
-                '''
+                html_combos += f'<div style="text-align: center; padding: 8px; border-radius: 8px; {bg_style} width: 22%;">'
+                html_combos += f'<div style="color: {color}; font-size: 18px; margin-bottom: 4px;">{icon}</div>'
+                html_combos += f'<div style="color: #FFF; font-weight: 900; font-size: 14px;">{val_str}</div>'
+                html_combos += '</div>'
             html_combos += '</div></div>'
         html_combos += '</div>'
         
@@ -691,3 +681,5 @@ if df is not None:
         st.markdown("<h4 style='margin-top: 15px; font-weight: 800; color: #F3F4F6;'>Live Game Board</h4>", unsafe_allow_html=True)
         st.markdown(generate_board_html(grid_data, 0, ROW_LIMIT, {}), unsafe_allow_html=True)
 
+else:
+    st.info("👋 Upload a CSV file to get started.")
