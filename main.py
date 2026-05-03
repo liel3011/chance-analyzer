@@ -383,6 +383,20 @@ def get_unique_valid(vals):
             res.append(v)
     return res
 
+# --- Session State Initialization for Persistence ---
+if 'uploaded_df' not in st.session_state: st.session_state['uploaded_df'] = None
+if 'current_shape_idx' not in st.session_state: st.session_state['current_shape_idx'] = 0
+if 'window_start' not in st.session_state: st.session_state['window_start'] = 0
+
+for k in PATTERN_NAMES.keys():
+    if f'chk_pat_{k}' not in st.session_state:
+        st.session_state[f'chk_pat_{k}'] = False
+
+if 'num_combos_val' not in st.session_state:
+    st.session_state['num_combos_val'] = 6
+
+base_shapes = parse_shapes_strict(FIXED_COMBOS_TXT)
+
 st.title("⚡ Chance Analyzer PRO")
 
 with st.sidebar:
@@ -392,12 +406,6 @@ with st.sidebar:
     
     st.header("⚙️ Algorithm Settings")
     search_depth = st.number_input("🔍 History Scan Depth", min_value=5, max_value=50000, value=26, step=1)
-
-if 'uploaded_df' not in st.session_state: st.session_state['uploaded_df'] = None
-if 'current_shape_idx' not in st.session_state: st.session_state['current_shape_idx'] = 0
-if 'window_start' not in st.session_state: st.session_state['window_start'] = 0
-
-base_shapes = parse_shapes_strict(FIXED_COMBOS_TXT)
 
 if csv_file:
     temp_df, msg = load_data_robust(csv_file)
@@ -547,7 +555,7 @@ if df is not None:
             
             for i, (k, v) in enumerate(items):
                 target_col = [col1, col2, col3][i % 3]
-                if target_col.checkbox(v, value=False, key=f"chk_pat_{k}"):
+                if target_col.checkbox(v, key=f"chk_pat_{k}"):
                     active_pattern_indices.append(k)
                     
         st.markdown("<div style='height: 10px;'></div>", unsafe_allow_html=True)
@@ -655,7 +663,7 @@ if df is not None:
         c_head, c_info = st.columns([2, 1])
         with c_head:
             st.markdown("<h3 style='margin: 0; color: #FAFAFA;'>🎲 Chance 3 Combinations (Safety Net)</h3>", unsafe_allow_html=True)
-            num_combos = st.slider("Select Number of Tickets", min_value=1, max_value=10, value=6, step=1, label_visibility="collapsed")
+            num_combos = st.slider("Select Number of Tickets", min_value=1, max_value=10, key="num_combos_val", step=1, label_visibility="collapsed")
             
         def get_c(s, r):
             preds = suit_predictions.get(s, [])
