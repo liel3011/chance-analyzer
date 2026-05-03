@@ -192,11 +192,8 @@ st.markdown("""
     .grid-container { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; background: #111827; padding: 12px; border-radius: 16px; margin-top: 15px; border: 1px solid #1F2937; box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.3); }
     .grid-cell { background-color: #1F2937; color: #D1D5DB; padding: 0; text-align: center; border-radius: 8px; height: 42px; display: flex; align-items: center; justify-content: center; font-weight: 600; font-size: 15px; position: relative; border: 1px solid #374151; box-shadow: inset 0 2px 4px rgba(0,0,0,0.1); transition: all 0.2s ease; }
     
-    .missing-selected { background: linear-gradient(135deg, #F59E0B 0%, #D97706 100%) !important; color: #000 !important; font-weight: 900 !important; border: 1px solid #FFF !important; box-shadow: 0 0 15px rgba(245, 158, 11, 0.8) !important; transform: scale(1.1); z-index: 100; }
-    .missing-marker { background-color: rgba(245, 158, 11, 0.15) !important; border: 1px dashed #F59E0B !important; color: #FCD34D !important; }
-    .missing-circle { background: linear-gradient(135deg, #F59E0B 0%, #D97706 100%); color: #FFFFFF; font-weight: 800; border-radius: 50%; width: 32px; height: 32px; display: flex; align-items: center; justify-content: center; box-shadow: 0 0 15px rgba(245, 158, 11, 0.7); margin: auto; border: 2px solid #FEF3C7; }
-    
-    .frame-box { position: absolute; top: 0; left: 0; right: 0; bottom: 0; border-style: solid; pointer-events: none; border-radius: 8px; z-index: 10; }
+    .pattern-found { background-color: #FFF3CD !important; color: #000 !important; border-color: #FFE69C !important; }
+    .missing-target { background-color: #00FFFF !important; color: #000 !important; border: 3px solid #FF0000 !important; font-weight: 900 !important; z-index: 10; box-shadow: 0 0 10px rgba(255,0,0,0.5); transform: scale(1.05); }
     
     .window-highlight { border: 1px solid #F59E0B !important; box-shadow: inset 0 0 15px rgba(245, 158, 11, 0.5), 0 0 8px rgba(245, 158, 11, 0.3) !important; background-color: #1F2937 !important; z-index: 5; }
     .window-dim { opacity: 0.3 !important; filter: grayscale(40%); }
@@ -541,20 +538,18 @@ if df is not None:
         window_start = st.session_state['window_start']
 
         st.markdown("<div style='height: 10px;'></div>", unsafe_allow_html=True)
-        with st.expander("⚙️ Pattern Filter Checklist", expanded=False):
-            st.markdown("<div style='color: #9CA3AF; font-size: 13px; margin-bottom: 10px;'>Uncheck patterns to exclude them from the prediction calculation:</div>", unsafe_allow_html=True)
+        with st.expander("⚙️ Pattern Filter Checklist", expanded=True):
+            st.markdown("<div style='color: #9CA3AF; font-size: 13px; margin-bottom: 10px;'>Select patterns to include in the prediction calculation:</div>", unsafe_allow_html=True)
             active_pattern_indices = []
-            col1, col2 = st.columns(2)
-            items = list(PATTERN_NAMES.items())
-            mid = (len(items) + 1) // 2
             
-            for k, v in items[:mid]:
-                if col1.checkbox(v, value=True, key=f"chk_pat_{k}"):
+            col1, col2, col3 = st.columns(3)
+            items = list(PATTERN_NAMES.items())
+            
+            for i, (k, v) in enumerate(items):
+                target_col = [col1, col2, col3][i % 3]
+                if target_col.checkbox(v, value=False, key=f"chk_pat_{k}"):
                     active_pattern_indices.append(k)
                     
-            for k, v in items[mid:]:
-                if col2.checkbox(v, value=True, key=f"chk_pat_{k}"):
-                    active_pattern_indices.append(k)
         st.markdown("<div style='height: 10px;'></div>", unsafe_allow_html=True)
         
         w_data = grid_data[window_start : window_start + 3, :]
@@ -606,39 +601,45 @@ if df is not None:
                 html_table += "</tr></thead><tbody>"
                 
                 if len(triplet) == 3:
-                    all_missing = []
-                    for p_idx in active_pattern_indices:
-                        m = find_matches_for_pattern(p_idx, triplet, historical_grid, search_depth)
-                        all_missing.extend([x['miss_val'].strip().upper() for x in m])
-                    
-                    if all_missing:
-                        counts = pd.Series(all_missing).value_counts()
-                        suit_predictions[suit] = list(counts.index)
-                        
-                        for card, count in counts.items():
-                            is_hit = has_actual and (card == actual_card)
-                            
-                            if is_hit:
-                                row_bg = "background: rgba(16, 185, 129, 0.1);"
-                                border_left = "border-left: 3px solid #10B981;"
-                                card_color = "#10B981"
-                                icon_check = "<span style='background: #10B981; color: white; padding: 2px 6px; border-radius: 4px; font-size: 9px; margin-left: 8px; vertical-align: middle; letter-spacing: 0.5px;'>HIT</span>"
-                            else:
-                                row_bg = ""
-                                border_left = "border-left: 3px solid transparent;"
-                                card_color = "#58A6FF"
-                                icon_check = ""
-                            
-                            html_table += f"<tr style='{row_bg} border-bottom: 1px solid #30363D;'>"
-                            html_table += f"<td style='padding: 8px; {border_left} font-weight: 900; font-size: 18px; color: {card_color}; border-bottom: 1px solid #30363D;'>{card}{icon_check}</td>"
-                            html_table += f"<td style='padding: 8px; font-weight: 800; color: #FAFAFA; font-size: 16px; border-bottom: 1px solid #30363D;'>{count}</td>"
-                            html_table += "</tr>"
-                    else:
+                    if not active_pattern_indices:
                         suit_predictions[suit] = []
                         html_table += "<tr style='border-bottom: 1px solid #30363D;'>"
-                        html_table += "<td style='padding: 8px; border-left: 3px solid transparent; color: #F85149; font-weight: 600;'>No Match</td>"
-                        html_table += "<td style='padding: 8px; color: #8B949E;'>0</td>"
+                        html_table += "<td colspan='2' style='padding: 15px; color: #FCD34D; font-weight: 600;'>Select at least one pattern above to see predictions.</td>"
                         html_table += "</tr>"
+                    else:
+                        all_missing = []
+                        for p_idx in active_pattern_indices:
+                            m = find_matches_for_pattern(p_idx, triplet, historical_grid, search_depth)
+                            all_missing.extend([x['miss_val'].strip().upper() for x in m])
+                        
+                        if all_missing:
+                            counts = pd.Series(all_missing).value_counts()
+                            suit_predictions[suit] = list(counts.index)
+                            
+                            for card, count in counts.items():
+                                is_hit = has_actual and (card == actual_card)
+                                
+                                if is_hit:
+                                    row_bg = "background: rgba(16, 185, 129, 0.1);"
+                                    border_left = "border-left: 3px solid #10B981;"
+                                    card_color = "#10B981"
+                                    icon_check = "<span style='background: #10B981; color: white; padding: 2px 6px; border-radius: 4px; font-size: 9px; margin-left: 8px; vertical-align: middle; letter-spacing: 0.5px;'>HIT</span>"
+                                else:
+                                    row_bg = ""
+                                    border_left = "border-left: 3px solid transparent;"
+                                    card_color = "#58A6FF"
+                                    icon_check = ""
+                                
+                                html_table += f"<tr style='{row_bg} border-bottom: 1px solid #30363D;'>"
+                                html_table += f"<td style='padding: 8px; {border_left} font-weight: 900; font-size: 18px; color: {card_color}; border-bottom: 1px solid #30363D;'>{card}{icon_check}</td>"
+                                html_table += f"<td style='padding: 8px; font-weight: 800; color: #FAFAFA; font-size: 16px; border-bottom: 1px solid #30363D;'>{count}</td>"
+                                html_table += "</tr>"
+                        else:
+                            suit_predictions[suit] = []
+                            html_table += "<tr style='border-bottom: 1px solid #30363D;'>"
+                            html_table += "<td style='padding: 8px; border-left: 3px solid transparent; color: #F85149; font-weight: 600;'>No Match</td>"
+                            html_table += "<td style='padding: 8px; color: #8B949E;'>0</td>"
+                            html_table += "</tr>"
                 else:
                     suit_predictions[suit] = []
                     html_table += "<tr style='border-bottom: 1px solid #30363D;'>"
@@ -678,13 +679,14 @@ if df is not None:
         selected_combos = combos[:num_combos]
         
         total_cost = 0
-        for cb in selected_combos:
-            ways = 1
-            for vals in cb["cfg"]:
-                u_vals = get_unique_valid(vals)
-                if u_vals:
-                    ways *= len(u_vals)
-            total_cost += ways * 5
+        if active_pattern_indices:
+            for cb in selected_combos:
+                ways = 1
+                for vals in cb["cfg"]:
+                    u_vals = get_unique_valid(vals)
+                    if u_vals:
+                        ways *= len(u_vals)
+                total_cost += ways * 5
 
         with c_info:
             st.markdown(f"""
@@ -694,32 +696,35 @@ if df is not None:
             </div>
             """, unsafe_allow_html=True)
 
-        html_combos = '<div style="display: flex; flex-wrap: wrap; gap: 15px; margin-bottom: 20px; margin-top: 15px;">'
-        for cb in selected_combos:
-            html_combos += '<div style="flex: 1 1 300px; background: #1F2937; border: 1px solid #374151; border-radius: 10px; padding: 15px; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">'
-            html_combos += '<div style="color: #FCD34D; font-weight: 800; font-size: 15px; border-bottom: 1px solid #374151; padding-bottom: 8px; margin-bottom: 10px; text-align: center;">' + cb["name"] + '</div>'
-            html_combos += '<div style="display: flex; justify-content: space-around; align-items: center;">'
-            for i, s in enumerate(suits):
-                u_vals = get_unique_valid(cb["cfg"][i])
-                val_str = " + ".join(u_vals) if u_vals else "-"
-                icon = suit_icons[s]
-                
-                if val_str == "-":
-                    color = "#4B5563"
-                    bg_style = "background: #111827; border: 1px dashed #374151; opacity: 0.4;"
-                else:
-                    color = suit_colors[s]
-                    is_chizuk = len(u_vals) > 1
-                    bg_style = "background: rgba(59, 130, 246, 0.1); border: 1px dashed #3B82F6;" if is_chizuk else "background: #111827; border: 1px solid #374151;"
-                
-                html_combos += '<div style="text-align: center; padding: 8px; border-radius: 8px; ' + bg_style + ' width: 22%;">'
-                html_combos += '<div style="color: ' + color + '; font-size: 18px; margin-bottom: 4px;">' + icon + '</div>'
-                html_combos += '<div style="color: #FFF; font-weight: 900; font-size: 14px;">' + val_str + '</div>'
-                html_combos += '</div>'
-            html_combos += '</div></div>'
-        html_combos += '</div>'
-        
-        st.markdown(html_combos, unsafe_allow_html=True)
+        if not active_pattern_indices:
+            st.info("👆 Please select patterns from the checklist above to generate combinations.")
+        else:
+            html_combos = '<div style="display: flex; flex-wrap: wrap; gap: 15px; margin-bottom: 20px; margin-top: 15px;">'
+            for cb in selected_combos:
+                html_combos += '<div style="flex: 1 1 300px; background: #1F2937; border: 1px solid #374151; border-radius: 10px; padding: 15px; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">'
+                html_combos += '<div style="color: #FCD34D; font-weight: 800; font-size: 15px; border-bottom: 1px solid #374151; padding-bottom: 8px; margin-bottom: 10px; text-align: center;">' + cb["name"] + '</div>'
+                html_combos += '<div style="display: flex; justify-content: space-around; align-items: center;">'
+                for i, s in enumerate(suits):
+                    u_vals = get_unique_valid(cb["cfg"][i])
+                    val_str = " + ".join(u_vals) if u_vals else "-"
+                    icon = suit_icons[s]
+                    
+                    if val_str == "-":
+                        color = "#4B5563"
+                        bg_style = "background: #111827; border: 1px dashed #374151; opacity: 0.4;"
+                    else:
+                        color = suit_colors[s]
+                        is_chizuk = len(u_vals) > 1
+                        bg_style = "background: rgba(59, 130, 246, 0.1); border: 1px dashed #3B82F6;" if is_chizuk else "background: #111827; border: 1px solid #374151;"
+                    
+                    html_combos += '<div style="text-align: center; padding: 8px; border-radius: 8px; ' + bg_style + ' width: 22%;">'
+                    html_combos += '<div style="color: ' + color + '; font-size: 18px; margin-bottom: 4px;">' + icon + '</div>'
+                    html_combos += '<div style="color: #FFF; font-weight: 900; font-size: 14px;">' + val_str + '</div>'
+                    html_combos += '</div>'
+                html_combos += '</div></div>'
+            html_combos += '</div>'
+            
+            st.markdown(html_combos, unsafe_allow_html=True)
                 
         st.markdown("<h4 style='margin-top: 25px; font-weight: 800; color: #FAFAFA;'>Historical Game Board</h4>", unsafe_allow_html=True)
         cell_classes_3row = {}
