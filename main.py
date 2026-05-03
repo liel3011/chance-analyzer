@@ -389,6 +389,10 @@ if 'current_shape_idx' not in st.session_state: st.session_state['current_shape_
 if 'window_start' not in st.session_state: st.session_state['window_start'] = 0
 if 'num_combos_val' not in st.session_state: st.session_state['num_combos_val'] = 6
 
+for k in PATTERN_NAMES.keys():
+    if f'chk_pat_{k}' not in st.session_state:
+        st.session_state[f'chk_pat_{k}'] = False
+
 base_shapes = parse_shapes_strict(FIXED_COMBOS_TXT)
 
 st.title("⚡ Chance Analyzer PRO")
@@ -420,7 +424,6 @@ if df is not None:
     ROW_LIMIT = 26
     max_val = max(0, len(grid_data) - 3)
 
-    # --- Button Callbacks for proper state handling ---
     def dec_win():
         st.session_state['window_start'] = max(0, st.session_state['window_start'] - 1)
     
@@ -445,12 +448,12 @@ if df is not None:
             with col_conf:
                 nav_col1, nav_col2, nav_col3 = st.columns([1, 4, 1])
                 with nav_col1:
-                    st.button("◀", use_container_width=True, key="prev_pat", on_click=prev_pat)
+                    st.button("◀", use_container_width=True, key="prev_pat_btn", on_click=prev_pat)
                 with nav_col2:
                     curr_name = PATTERN_NAMES[st.session_state['current_shape_idx']]
                     st.markdown(f"<div style='display: flex; align-items: center; justify-content: center; height: 2.8rem; background-color: #161B22; border: 1px solid #30363D; border-radius: 8px; font-weight: 600; color: #58A6FF; font-size: 15px;'>{curr_name}</div>", unsafe_allow_html=True)
                 with nav_col3:
-                    st.button("▶", use_container_width=True, key="next_pat", on_click=next_pat)
+                    st.button("▶", use_container_width=True, key="next_pat_btn", on_click=next_pat)
                         
                 shape_idx = st.session_state['current_shape_idx']
 
@@ -534,11 +537,11 @@ if df is not None:
     with tab_predictor:
         c_minus, c_val, c_plus = st.columns([1, 2, 1])
         with c_minus:
-            st.button("➖", use_container_width=True, key="btn_minus", on_click=dec_win)
+            st.button("➖", use_container_width=True, key="btn_minus_pred", on_click=dec_win)
         with c_val:
             st.markdown(f"<div style='text-align:center; font-size: 18px; font-weight: 800; background: #1F2937; padding: 5px; border-radius: 8px; border: 1px solid #374151; color: #60A5FA;'>Row: {st.session_state['window_start']}</div>", unsafe_allow_html=True)
         with c_plus:
-            st.button("➕", use_container_width=True, key="btn_plus", on_click=inc_win)
+            st.button("➕", use_container_width=True, key="btn_plus_pred", on_click=inc_win)
                 
         window_start = st.session_state['window_start']
 
@@ -547,12 +550,8 @@ if df is not None:
             st.markdown("<div style='color: #9CA3AF; font-size: 13px; margin-bottom: 10px;'>Select patterns to include in the prediction calculation:</div>", unsafe_allow_html=True)
             active_pattern_indices = []
             
-            col1, col2, col3 = st.columns(3)
-            items = list(PATTERN_NAMES.items())
-            
-            for i, (k, v) in enumerate(items):
-                target_col = [col1, col2, col3][i % 3]
-                if target_col.checkbox(v, key=f"chk_pat_{k}"):
+            for k, v in PATTERN_NAMES.items():
+                if st.checkbox(v, key=f"chk_pat_{k}"):
                     active_pattern_indices.append(k)
                     
         st.markdown("<div style='height: 10px;'></div>", unsafe_allow_html=True)
