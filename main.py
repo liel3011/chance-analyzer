@@ -214,7 +214,7 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 @st.cache_data
-def load_data_robust(uploaded_file):
+def load_data_v3(uploaded_file):
     if uploaded_file is None: return None, "No file"
     try:
         uploaded_file.seek(0)
@@ -229,10 +229,11 @@ def load_data_robust(uploaded_file):
     hebrew_map = {'תלתן': 'Clubs', 'יהלום': 'Diamonds', 'לב': 'Hearts', 'עלה': 'Spades'}
     df.rename(columns=hebrew_map, inplace=True)
     
-    for col in df.columns:
-        # Force all data to uppercase to prevent 'K' and 'k' duplication
-        df[col] = df[col].astype(str).str.upper().str.replace(r'[^0-9A-Z]', '', regex=True)
-        df[col] = df[col].replace('NAN', '')
+    required_cols = ['Spades', 'Hearts', 'Diamonds', 'Clubs']
+    for col in required_cols:
+        if col in df.columns:
+            df[col] = df[col].astype(str).str.upper().str.replace(r'[^0-9JQKA]', '', regex=True).str.strip()
+            df[col] = df[col].replace('NAN', '')
         
     return df, "ok"
 
@@ -410,7 +411,7 @@ with st.sidebar:
     search_depth = st.number_input("🔍 History Scan Depth", min_value=5, max_value=50000, value=26, step=1)
 
 if csv_file:
-    temp_df, msg = load_data_robust(csv_file)
+    temp_df, msg = load_data_v3(csv_file)
     if temp_df is not None:
         st.session_state['uploaded_df'] = temp_df
 
