@@ -213,8 +213,9 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
+# ---> CACHE BUSTER & STRICT CLEANING <---
 @st.cache_data
-def load_data_robust(uploaded_file):
+def load_data_final_v1(uploaded_file):
     if uploaded_file is None: return None, "No file"
     try:
         uploaded_file.seek(0)
@@ -226,14 +227,17 @@ def load_data_robust(uploaded_file):
         except:
             return None, "Error loading file"
             
+    # Strip column names first to prevent mapping failures
+    df.columns = df.columns.str.strip()
+            
     hebrew_map = {'תלתן': 'Clubs', 'יהלום': 'Diamonds', 'לב': 'Hearts', 'עלה': 'Spades'}
     df.rename(columns=hebrew_map, inplace=True)
     
     required_cols = ['Spades', 'Hearts', 'Diamonds', 'Clubs']
     for col in required_cols:
         if col in df.columns:
-            # FORCE UPPERCASE AND KEEP ONLY VALID CARDS
-            df[col] = df[col].astype(str).str.upper().str.replace(r'[^0-9JQKA]', '', regex=True).str.strip()
+            # Force string -> Upper case -> Keep only 0-9 and A-Z -> Strip spaces
+            df[col] = df[col].astype(str).str.upper().str.replace(r'[^0-9A-Z]', '', regex=True).str.strip()
             df[col] = df[col].replace('NAN', '')
             
     return df, "ok"
@@ -413,7 +417,7 @@ with st.sidebar:
     search_depth = st.number_input("🔍 History Scan Depth", min_value=5, max_value=50000, value=26, step=1)
 
 if csv_file:
-    temp_df, msg = load_data_robust(csv_file)
+    temp_df, msg = load_data_final_v1(csv_file)
     if temp_df is not None:
         st.session_state['uploaded_df'] = temp_df
 
