@@ -213,8 +213,8 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-# ---> NUCLEAR OPTION: No Cache, Strict Mapping <---
-def load_data_bulletproof(uploaded_file):
+@st.cache_data
+def load_data_final_v2(uploaded_file):
     if uploaded_file is None: return None, "No file"
     try:
         uploaded_file.seek(0)
@@ -424,7 +424,7 @@ with st.sidebar:
     search_depth = st.number_input("🔍 History Scan Depth", min_value=5, max_value=50000, value=26, step=1)
 
 if csv_file:
-    temp_df, msg = load_data_bulletproof(csv_file)
+    temp_df, msg = load_data_final_v2(csv_file)
     if temp_df is not None:
         st.session_state['uploaded_df'] = temp_df
 
@@ -785,7 +785,7 @@ if df is not None:
             tracking_depth = st.number_input("Chain Reaction Tracking Depth", min_value=1, max_value=20, value=5, step=1)
             
         sleep_data_lists = {}
-        sleepers_set = set()
+        active_sleepers = set()
         
         for col_idx, col_name in enumerate(required_cols):
             if sleep_window_start + 1 >= len(grid_data):
@@ -801,7 +801,7 @@ if df is not None:
                 gap = locs[0] if len(locs) > 0 else len(col_data)
                 if gap >= sleep_threshold: 
                     lst.append((c, gap))
-                    sleepers_set.add((col_idx, str(c)))
+                    active_sleepers.add((col_idx, str(c)))
             lst.sort(key=lambda x: x[1], reverse=True)
             sleep_data_lists[col_name] = [f"{item[0]} : {item[1]}" for item in lst]
 
@@ -817,20 +817,23 @@ if df is not None:
         
         cell_classes_sleep = {}
         end_draw = max(0, sleep_window_start - tracking_depth)
-        draw_limit_sleep = sleep_window_start + 3
+        draw_limit_sleep = min(len(grid_data), sleep_window_start + 3)
         
-        for r in range(end_draw, min(len(grid_data), draw_limit_sleep)):
+        for r in range(sleep_window_start + 1, draw_limit_sleep):
+            for c in range(4):
+                cell_classes_sleep[(r, c)] = "window-dim"
+                
+        for r in range(sleep_window_start, end_draw - 1, -1):
             for c in range(4):
                 val = str(grid_data[r, c])
                 classes = ""
                 
                 if r == sleep_window_start:
                     classes += " trigger-row"
-                elif r > sleep_window_start:
-                    classes += " window-dim"
                     
-                if r <= sleep_window_start and (c, val) in sleepers_set:
+                if (c, val) in active_sleepers:
                     classes += " awakened-card"
+                    active_sleepers.remove((c, val)) 
                     
                 if classes:
                     cell_classes_sleep[(r, c)] = classes.strip()
