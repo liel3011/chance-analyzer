@@ -230,8 +230,9 @@ def load_data_robust(uploaded_file):
     df.rename(columns=hebrew_map, inplace=True)
     
     for col in df.columns:
-        df[col] = df[col].astype(str).str.replace(r'[^0-9a-zA-Z]', '', regex=True)
-        df[col] = df[col].replace('nan', '')
+        # Force all data to uppercase to prevent 'K' and 'k' duplication
+        df[col] = df[col].astype(str).str.upper().str.replace(r'[^0-9A-Z]', '', regex=True)
+        df[col] = df[col].replace('NAN', '')
         
     return df, "ok"
 
