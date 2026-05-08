@@ -214,7 +214,7 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 @st.cache_data
-def load_data_v3(uploaded_file):
+def load_data_robust(uploaded_file):
     if uploaded_file is None: return None, "No file"
     try:
         uploaded_file.seek(0)
@@ -232,9 +232,10 @@ def load_data_v3(uploaded_file):
     required_cols = ['Spades', 'Hearts', 'Diamonds', 'Clubs']
     for col in required_cols:
         if col in df.columns:
+            # FORCE UPPERCASE AND KEEP ONLY VALID CARDS
             df[col] = df[col].astype(str).str.upper().str.replace(r'[^0-9JQKA]', '', regex=True).str.strip()
             df[col] = df[col].replace('NAN', '')
-        
+            
     return df, "ok"
 
 def draw_preview_html(shape_coords):
@@ -388,6 +389,7 @@ def get_unique_valid(vals):
             res.append(v)
     return res
 
+# --- Session State Initialization ---
 if 'uploaded_df' not in st.session_state: st.session_state['uploaded_df'] = None
 if 'current_shape_idx' not in st.session_state: st.session_state['current_shape_idx'] = 0
 if 'window_start' not in st.session_state: st.session_state['window_start'] = 0
@@ -411,7 +413,7 @@ with st.sidebar:
     search_depth = st.number_input("🔍 History Scan Depth", min_value=5, max_value=50000, value=26, step=1)
 
 if csv_file:
-    temp_df, msg = load_data_v3(csv_file)
+    temp_df, msg = load_data_robust(csv_file)
     if temp_df is not None:
         st.session_state['uploaded_df'] = temp_df
 
