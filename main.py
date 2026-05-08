@@ -213,9 +213,8 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-# ---> CACHE BUSTER & STRICT CLEANING <---
-@st.cache_data
-def load_data_final_v1(uploaded_file):
+# ---> NUCLEAR OPTION: No Cache, Strict Mapping <---
+def load_data_bulletproof(uploaded_file):
     if uploaded_file is None: return None, "No file"
     try:
         uploaded_file.seek(0)
@@ -227,18 +226,26 @@ def load_data_final_v1(uploaded_file):
         except:
             return None, "Error loading file"
             
-    # Strip column names first to prevent mapping failures
     df.columns = df.columns.str.strip()
-            
     hebrew_map = {'תלתן': 'Clubs', 'יהלום': 'Diamonds', 'לב': 'Hearts', 'עלה': 'Spades'}
     df.rename(columns=hebrew_map, inplace=True)
     
+    def strict_card_mapper(val):
+        v = str(val).upper()
+        if '10' in v: return '10'
+        if 'A' in v: return 'A'
+        if 'K' in v: return 'K'
+        if 'Q' in v: return 'Q'
+        if 'J' in v: return 'J'
+        if '9' in v: return '9'
+        if '8' in v: return '8'
+        if '7' in v: return '7'
+        return ''
+
     required_cols = ['Spades', 'Hearts', 'Diamonds', 'Clubs']
     for col in required_cols:
         if col in df.columns:
-            # Force string -> Upper case -> Keep only 0-9 and A-Z -> Strip spaces
-            df[col] = df[col].astype(str).str.upper().str.replace(r'[^0-9A-Z]', '', regex=True).str.strip()
-            df[col] = df[col].replace('NAN', '')
+            df[col] = df[col].apply(strict_card_mapper)
             
     return df, "ok"
 
@@ -417,7 +424,7 @@ with st.sidebar:
     search_depth = st.number_input("🔍 History Scan Depth", min_value=5, max_value=50000, value=26, step=1)
 
 if csv_file:
-    temp_df, msg = load_data_final_v1(csv_file)
+    temp_df, msg = load_data_bulletproof(csv_file)
     if temp_df is not None:
         st.session_state['uploaded_df'] = temp_df
 
