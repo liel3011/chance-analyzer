@@ -581,7 +581,7 @@ if df is not None:
         with st.expander("⚙️ Pattern Filter Checklist", expanded=True):
             st.markdown("<div style='color: #9CA3AF; font-size: 13px; margin-bottom: 10px;'>Select patterns to include in the prediction calculation:</div>", unsafe_allow_html=True)
             
-            st.checkbox("✅ Select / Deselect All", key="chk_all", on_click=toggle_all)
+            st.checkbox("✅ Select / Deselect All", key="chk_all", on_change=toggle_all)
             st.markdown("<hr style='margin: 8px 0; border-color: #374151;'>", unsafe_allow_html=True)
             
             active_pattern_indices = []
