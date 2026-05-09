@@ -192,6 +192,7 @@ st.markdown("""
     .grid-container { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; background: #111827; padding: 12px; border-radius: 16px; margin-top: 15px; border: 1px solid #1F2937; box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.3); }
     .grid-cell { background-color: #1F2937; color: #D1D5DB; padding: 0; text-align: center; border-radius: 8px; height: 42px; display: flex; align-items: center; justify-content: center; font-weight: 600; font-size: 15px; position: relative; border: 1px solid #374151; box-shadow: inset 0 2px 4px rgba(0,0,0,0.1); transition: all 0.2s ease; }
     
+    .pattern-found { font-weight: 900 !important; color: #FFF !important; }
     .missing-selected { background: linear-gradient(135deg, #F59E0B 0%, #D97706 100%) !important; color: #000 !important; font-weight: 900 !important; border: 1px solid #FFF !important; box-shadow: 0 0 15px rgba(245, 158, 11, 0.8) !important; transform: scale(1.1); z-index: 100; }
     .missing-marker { background-color: rgba(245, 158, 11, 0.15) !important; border: 1px dashed #F59E0B !important; color: #FCD34D !important; }
     .missing-circle { background: linear-gradient(135deg, #F59E0B 0%, #D97706 100%); color: #FFFFFF; font-weight: 800; border-radius: 50%; width: 32px; height: 32px; display: flex; align-items: center; justify-content: center; box-shadow: 0 0 15px rgba(245, 158, 11, 0.7); margin: auto; border: 2px solid #FEF3C7; }
@@ -215,7 +216,7 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 @st.cache_data
-def load_data_final_v1(uploaded_file):
+def load_data_bulletproof(uploaded_file):
     if uploaded_file is None: return None, "No file"
     try:
         uploaded_file.seek(0)
@@ -407,9 +408,17 @@ if 'window_start' not in st.session_state: st.session_state['window_start'] = 0
 if 'sleep_window_start' not in st.session_state: st.session_state['sleep_window_start'] = 0
 if 'num_combos_val' not in st.session_state: st.session_state['num_combos_val'] = 6
 
+if 'chk_all' not in st.session_state:
+    st.session_state['chk_all'] = False
+
 for k in PATTERN_NAMES.keys():
     if f'chk_pat_{k}' not in st.session_state:
         st.session_state[f'chk_pat_{k}'] = False
+
+def toggle_all():
+    val = st.session_state.chk_all
+    for k in PATTERN_NAMES.keys():
+        st.session_state[f'chk_pat_{k}'] = val
 
 base_shapes = parse_shapes_strict(FIXED_COMBOS_TXT)
 
@@ -424,7 +433,7 @@ with st.sidebar:
     search_depth = st.number_input("🔍 History Scan Depth", min_value=5, max_value=50000, value=26, step=1)
 
 if csv_file:
-    temp_df, msg = load_data_final_v1(csv_file)
+    temp_df, msg = load_data_bulletproof(csv_file)
     if temp_df is not None:
         st.session_state['uploaded_df'] = temp_df
 
@@ -541,7 +550,10 @@ if df is not None:
             col = m['color']
             for coord in m['full_coords_list']:
                 if coord != m['miss_coords']:
-                    cell_styles[coord] = f"background-color: {col} !important; color: #FFF !important; border-color: {col} !important; font-weight: 900 !important;"
+                    if coord not in cell_classes: cell_classes[coord] = ""
+                    cell_classes[coord] += " pattern-found"
+                    cell_styles[coord] = f"background-color: {col}; color: #FFF; border-color: {col};"
+                    
             miss = m['miss_coords']
             if miss not in cell_classes: cell_classes[miss] = ""
             if selected_match_ids is not None:
@@ -570,10 +582,17 @@ if df is not None:
         st.markdown("<div style='height: 10px;'></div>", unsafe_allow_html=True)
         with st.expander("⚙️ Pattern Filter Checklist", expanded=True):
             st.markdown("<div style='color: #9CA3AF; font-size: 13px; margin-bottom: 10px;'>Select patterns to include in the prediction calculation:</div>", unsafe_allow_html=True)
-            active_pattern_indices = []
             
-            for k, v in PATTERN_NAMES.items():
-                if st.checkbox(v, key=f"chk_pat_{k}"):
+            st.checkbox("✅ Select / Deselect All", key="chk_all", on_click=toggle_all)
+            st.markdown("<hr style='margin: 8px 0; border-color: #374151;'>", unsafe_allow_html=True)
+            
+            active_pattern_indices = []
+            col1, col2, col3 = st.columns(3)
+            items = list(PATTERN_NAMES.items())
+            
+            for i, (k, v) in enumerate(items):
+                target_col = [col1, col2, col3][i % 3]
+                if target_col.checkbox(v, key=f"chk_pat_{k}"):
                     active_pattern_indices.append(k)
                     
         st.markdown("<div style='height: 10px;'></div>", unsafe_allow_html=True)
