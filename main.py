@@ -192,7 +192,12 @@ st.markdown("""
     .grid-container { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; background: #111827; padding: 12px; border-radius: 16px; margin-top: 15px; border: 1px solid #1F2937; box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.3); }
     .grid-cell { background-color: #1F2937; color: #D1D5DB; padding: 0; text-align: center; border-radius: 8px; height: 42px; display: flex; align-items: center; justify-content: center; font-weight: 600; font-size: 15px; position: relative; border: 1px solid #374151; box-shadow: inset 0 2px 4px rgba(0,0,0,0.1); transition: all 0.2s ease; }
     
-    .pattern-found { font-weight: 900 !important; color: #FFF !important; }
+    .match-color-0 { background-color: #3B82F6 !important; color: #FFF !important; border-color: #3B82F6 !important; font-weight: 900 !important; }
+    .match-color-1 { background-color: #8B5CF6 !important; color: #FFF !important; border-color: #8B5CF6 !important; font-weight: 900 !important; }
+    .match-color-2 { background-color: #10B981 !important; color: #FFF !important; border-color: #10B981 !important; font-weight: 900 !important; }
+    .match-color-3 { background-color: #F59E0B !important; color: #FFF !important; border-color: #F59E0B !important; font-weight: 900 !important; }
+    .match-color-4 { background-color: #EF4444 !important; color: #FFF !important; border-color: #EF4444 !important; font-weight: 900 !important; }
+    
     .missing-selected { background: linear-gradient(135deg, #F59E0B 0%, #D97706 100%) !important; color: #000 !important; font-weight: 900 !important; border: 1px solid #FFF !important; box-shadow: 0 0 15px rgba(245, 158, 11, 0.8) !important; transform: scale(1.1); z-index: 100; }
     .missing-marker { background-color: rgba(245, 158, 11, 0.15) !important; border: 1px dashed #F59E0B !important; color: #FCD34D !important; }
     .missing-circle { background: linear-gradient(135deg, #F59E0B 0%, #D97706 100%); color: #FFFFFF; font-weight: 800; border-radius: 50%; width: 32px; height: 32px; display: flex; align-items: center; justify-content: center; box-shadow: 0 0 15px rgba(245, 158, 11, 0.7); margin: auto; border: 2px solid #FEF3C7; }
@@ -304,9 +309,7 @@ def create_sleeping_html_table(data_dict, required_cols):
     parts.append("</tbody></table></div>")
     return "".join(parts)
 
-def generate_board_html(grid_data, start_row, end_row, cell_classes, cell_styles=None):
-    if cell_styles is None: cell_styles = {}
-        
+def generate_board_html(grid_data, start_row, end_row, cell_classes):
     html = '<div class="grid-container">'
     headers = [
         ('Spades', '♠', '#D1D5DB'),
@@ -327,14 +330,12 @@ def generate_board_html(grid_data, start_row, end_row, cell_classes, cell_styles
             if extra_classes:
                 classes += " " + extra_classes
                 
-            style = cell_styles.get((r, c), "")
-                
             inner = val
             if "missing-marker" in classes or "missing-selected" in classes:
                 inner = f'<div class="missing-circle">{val}</div>'
                 classes = classes.replace("missing-marker", "").replace("missing-selected", "")
             
-            html += f'<div class="{classes.strip()}" style="{style}">{inner}</div>'
+            html += f'<div class="{classes.strip()}">{inner}</div>'
                  
     html += '</div>'
     return html
@@ -343,7 +344,6 @@ def find_matches_for_pattern(shape_idx, selected_cards, grid_data, row_limit):
     found = []
     variations = generate_variations_strict(shape_idx, base_shapes[shape_idx])
     rows = min(len(grid_data), row_limit)
-    colors = ['#3B82F6', '#8B5CF6', '#10B981', '#F59E0B', '#EF4444']
     
     raw_matches = []
     for shape in variations:
@@ -387,7 +387,7 @@ def find_matches_for_pattern(shape_idx, selected_cards, grid_data, row_limit):
     raw_matches.sort(key=lambda x: x['miss_coords'][0])
     for i, m in enumerate(raw_matches):
         m['id'] = i + 1
-        m['color'] = colors[i % len(colors)]
+        m['color_idx'] = i % 5 
         found.append(m)
         
     return found
@@ -540,19 +540,17 @@ if df is not None:
             
         st.markdown("<h4 style='margin-top: 15px; font-weight: 800; color: #F3F4F6;'>Live Game Board</h4>", unsafe_allow_html=True)
         cell_classes = {}
-        cell_styles = {}
         matches_to_show = found_matches
         
         if selected_match_ids is not None:
             matches_to_show = [m for m in found_matches if m['id'] in selected_match_ids]
 
         for m in matches_to_show:
-            col = m['color']
+            col_idx = m['color_idx']
             for coord in m['full_coords_list']:
                 if coord != m['miss_coords']:
                     if coord not in cell_classes: cell_classes[coord] = ""
-                    cell_classes[coord] += " pattern-found"
-                    cell_styles[coord] = f"background-color: {col}; color: #FFF; border-color: {col};"
+                    cell_classes[coord] += f" match-color-{col_idx}"
                     
             miss = m['miss_coords']
             if miss not in cell_classes: cell_classes[miss] = ""
@@ -566,7 +564,7 @@ if df is not None:
             max_r = max(coord[0] for m in matches_to_show for coord in m['full_coords_list'])
             draw_limit_matches = max(30, max_r + 3)
             
-        st.markdown(generate_board_html(grid_data, 0, draw_limit_matches, cell_classes, cell_styles), unsafe_allow_html=True)
+        st.markdown(generate_board_html(grid_data, 0, draw_limit_matches, cell_classes), unsafe_allow_html=True)
 
     with tab_predictor:
         c_minus, c_val, c_plus = st.columns([1, 2, 1])
@@ -781,7 +779,7 @@ if df is not None:
                 else:
                     cell_classes_3row[(r, c)] = " window-dim"
                     
-        st.markdown(generate_board_html(grid_data, max(0, window_start - 1), draw_limit_pred, cell_classes_3row, {}), unsafe_allow_html=True)
+        st.markdown(generate_board_html(grid_data, max(0, window_start - 1), draw_limit_pred, cell_classes_3row), unsafe_allow_html=True)
 
     with tab_sleep:
         c_minus_s, c_val_s, c_plus_s = st.columns([1, 2, 1])
@@ -803,7 +801,6 @@ if df is not None:
         sleep_data_lists = {}
         active_sleepers = set()
         
-        # Calculate sleepers based on data FROM the target row (inclusive) to the past
         for col_idx, col_name in enumerate(required_cols):
             if sleep_window_start >= len(grid_data):
                 col_data = np.array([])
@@ -840,7 +837,6 @@ if df is not None:
             for c in range(4):
                 cell_classes_sleep[(r, c)] = "window-dim"
                 
-        # Traverse from oldest tracked row (sleep_window_start) to newest tracked row (end_draw)
         for r in range(sleep_window_start, end_draw - 1, -1):
             for c in range(4):
                 val = str(grid_data[r, c])
@@ -851,13 +847,12 @@ if df is not None:
                     
                 if (c, val) in active_sleepers:
                     classes += " awakened-card"
-                    # Remove from set so it doesn't stay green if drawn again
                     active_sleepers.remove((c, val)) 
                     
                 if classes:
                     cell_classes_sleep[(r, c)] = classes.strip()
                     
-        st.markdown(generate_board_html(grid_data, end_draw, draw_limit_sleep, cell_classes_sleep, {}), unsafe_allow_html=True)
+        st.markdown(generate_board_html(grid_data, end_draw, draw_limit_sleep, cell_classes_sleep), unsafe_allow_html=True)
 
 else:
     st.info("👋 Upload a CSV file to get started.")
