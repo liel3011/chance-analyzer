@@ -309,7 +309,9 @@ def create_sleeping_html_table(data_dict, required_cols):
     parts.append("</tbody></table></div>")
     return "".join(parts)
 
-def generate_board_html(grid_data, start_row, end_row, cell_classes):
+def generate_board_html(grid_data, start_row, end_row, cell_classes, cell_styles=None):
+    if cell_styles is None: cell_styles = {}
+        
     html = '<div class="grid-container">'
     headers = [
         ('Spades', '♠', '#D1D5DB'),
@@ -330,12 +332,14 @@ def generate_board_html(grid_data, start_row, end_row, cell_classes):
             if extra_classes:
                 classes += " " + extra_classes
                 
+            style = cell_styles.get((r, c), "")
+                
             inner = val
             if "missing-marker" in classes or "missing-selected" in classes:
                 inner = f'<div class="missing-circle">{val}</div>'
                 classes = classes.replace("missing-marker", "").replace("missing-selected", "")
             
-            html += f'<div class="{classes.strip()}">{inner}</div>'
+            html += f'<div class="{classes.strip()}" style="{style}">{inner}</div>'
                  
     html += '</div>'
     return html
@@ -344,6 +348,7 @@ def find_matches_for_pattern(shape_idx, selected_cards, grid_data, row_limit):
     found = []
     variations = generate_variations_strict(shape_idx, base_shapes[shape_idx])
     rows = min(len(grid_data), row_limit)
+    colors = ['#3B82F6', '#8B5CF6', '#10B981', '#F59E0B', '#EF4444']
     
     raw_matches = []
     for shape in variations:
@@ -792,20 +797,16 @@ if df is not None:
             
         sleep_window_start = st.session_state['sleep_window_start']
         
-        c_thresh, c_depth = st.columns(2)
-        with c_thresh:
-            sleep_threshold = st.number_input("Sleep Threshold (Gap)", min_value=3, max_value=20, value=7, step=1)
-        with c_depth:
-            tracking_depth = st.number_input("Chain Reaction Tracking Depth", min_value=1, max_value=20, value=5, step=1)
+        sleep_threshold = st.number_input("Sleep Threshold (Gap)", min_value=3, max_value=20, value=7, step=1)
             
         sleep_data_lists = {}
         active_sleepers = set()
         
         for col_idx, col_name in enumerate(required_cols):
-            if sleep_window_start >= len(grid_data):
+            if sleep_window_start + 1 >= len(grid_data):
                 col_data = np.array([])
             else:
-                col_data = grid_data[sleep_window_start:, col_idx]
+                col_data = grid_data[sleep_window_start + 1:, col_idx]
                 
             c_unique = np.unique(grid_data[:, col_idx].astype(str))
             lst = []
@@ -819,40 +820,36 @@ if df is not None:
             lst.sort(key=lambda x: x[1], reverse=True)
             sleep_data_lists[col_name] = [f"{item[0]} : {item[1]}" for item in lst]
 
-        st.markdown(f"<h4 style='margin-top: 15px; font-weight: 800; color: #F3F4F6;'>Sleeping Cards (At Row {sleep_window_start})</h4>", unsafe_allow_html=True)
+        st.markdown(f"<h4 style='margin-top: 15px; font-weight: 800; color: #F3F4F6;'>Sleeping Cards (Just Before Row {sleep_window_start})</h4>", unsafe_allow_html=True)
         
         if any(sleep_data_lists.values()):
             st.markdown(create_sleeping_html_table(sleep_data_lists, required_cols), unsafe_allow_html=True)
         else:
             st.info("No sleeping cards found for the selected threshold.")
             
-        st.markdown(f"<h4 style='margin-top: 25px; font-weight: 800; color: #F3F4F6;'>Awakening Chain Reaction Tracker</h4>", unsafe_allow_html=True)
-        st.markdown("<div style='color: #9CA3AF; font-size: 13px; margin-bottom: 10px;'>Green highlighted cells indicate sleeping cards the exact moment they woke up.</div>", unsafe_allow_html=True)
+        st.markdown(f"<h4 style='margin-top: 25px; font-weight: 800; color: #F3F4F6;'>Awakening Tracker</h4>", unsafe_allow_html=True)
+        st.markdown("<div style='color: #9CA3AF; font-size: 13px; margin-bottom: 10px;'>Green highlighted cells indicate sleeping cards the exact moment they woke up in the target draw.</div>", unsafe_allow_html=True)
         
         cell_classes_sleep = {}
-        end_draw = max(0, sleep_window_start - tracking_depth)
-        draw_limit_sleep = min(len(grid_data), sleep_window_start + 3)
+        start_draw = max(0, sleep_window_start - 2)
+        end_draw = min(len(grid_data), sleep_window_start + 5)
         
-        for r in range(sleep_window_start + 1, draw_limit_sleep):
-            for c in range(4):
-                cell_classes_sleep[(r, c)] = "window-dim"
-                
-        for r in range(sleep_window_start, end_draw - 1, -1):
+        for r in range(start_draw, end_draw):
             for c in range(4):
                 val = str(grid_data[r, c])
                 classes = ""
                 
                 if r == sleep_window_start:
                     classes += " trigger-row"
-                    
-                if (c, val) in active_sleepers:
-                    classes += " awakened-card"
-                    active_sleepers.remove((c, val)) 
+                    if (c, val) in active_sleepers:
+                        classes += " awakened-card"
+                else:
+                    classes += " window-dim"
                     
                 if classes:
                     cell_classes_sleep[(r, c)] = classes.strip()
                     
-        st.markdown(generate_board_html(grid_data, end_draw, draw_limit_sleep, cell_classes_sleep), unsafe_allow_html=True)
+        st.markdown(generate_board_html(grid_data, start_draw, end_draw, cell_classes_sleep), unsafe_allow_html=True)
 
 else:
     st.info("👋 Upload a CSV file to get started.")
