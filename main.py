@@ -192,8 +192,9 @@ st.markdown("""
     .grid-container { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; background: #111827; padding: 12px; border-radius: 16px; margin-top: 15px; border: 1px solid #1F2937; box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.3); }
     .grid-cell { background-color: #1F2937; color: #D1D5DB; padding: 0; text-align: center; border-radius: 8px; height: 42px; display: flex; align-items: center; justify-content: center; font-weight: 600; font-size: 15px; position: relative; border: 1px solid #374151; box-shadow: inset 0 2px 4px rgba(0,0,0,0.1); transition: all 0.2s ease; }
     
-    .pattern-found { background-color: #FFF3CD !important; color: #000 !important; border-color: #FFE69C !important; }
-    .missing-target { background-color: #00FFFF !important; color: #000 !important; border: 3px solid #FF0000 !important; font-weight: 900 !important; z-index: 10; box-shadow: 0 0 10px rgba(255,0,0,0.5); transform: scale(1.05); }
+    .missing-selected { background: linear-gradient(135deg, #F59E0B 0%, #D97706 100%) !important; color: #000 !important; font-weight: 900 !important; border: 1px solid #FFF !important; box-shadow: 0 0 15px rgba(245, 158, 11, 0.8) !important; transform: scale(1.1); z-index: 100; }
+    .missing-marker { background-color: rgba(245, 158, 11, 0.15) !important; border: 1px dashed #F59E0B !important; color: #FCD34D !important; }
+    .missing-circle { background: linear-gradient(135deg, #F59E0B 0%, #D97706 100%); color: #FFFFFF; font-weight: 800; border-radius: 50%; width: 32px; height: 32px; display: flex; align-items: center; justify-content: center; box-shadow: 0 0 15px rgba(245, 158, 11, 0.7); margin: auto; border: 2px solid #FEF3C7; }
     
     .window-highlight { border: 1px solid #F59E0B !important; box-shadow: inset 0 0 15px rgba(245, 158, 11, 0.5), 0 0 8px rgba(245, 158, 11, 0.3) !important; background-color: #1F2937 !important; z-index: 5; }
     .window-dim { opacity: 0.3 !important; filter: grayscale(40%); }
@@ -214,7 +215,7 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 @st.cache_data
-def load_data_final_v2(uploaded_file):
+def load_data_final_v1(uploaded_file):
     if uploaded_file is None: return None, "No file"
     try:
         uploaded_file.seek(0)
@@ -302,9 +303,8 @@ def create_sleeping_html_table(data_dict, required_cols):
     parts.append("</tbody></table></div>")
     return "".join(parts)
 
-def generate_board_html(grid_data, start_row, end_row, cell_classes, cell_inner_html=None):
-    if cell_inner_html is None:
-        cell_inner_html = {}
+def generate_board_html(grid_data, start_row, end_row, cell_classes, cell_styles=None):
+    if cell_styles is None: cell_styles = {}
         
     html = '<div class="grid-container">'
     headers = [
@@ -326,14 +326,14 @@ def generate_board_html(grid_data, start_row, end_row, cell_classes, cell_inner_
             if extra_classes:
                 classes += " " + extra_classes
                 
+            style = cell_styles.get((r, c), "")
+                
             inner = val
             if "missing-marker" in classes or "missing-selected" in classes:
                 inner = f'<div class="missing-circle">{val}</div>'
-                classes = classes.replace("missing-marker", "")
+                classes = classes.replace("missing-marker", "").replace("missing-selected", "")
             
-            extra_html = cell_inner_html.get((r, c), "")
-            
-            html += f'<div class="{classes.strip()}">{inner}{extra_html}</div>'
+            html += f'<div class="{classes.strip()}" style="{style}">{inner}</div>'
                  
     html += '</div>'
     return html
@@ -424,7 +424,7 @@ with st.sidebar:
     search_depth = st.number_input("🔍 History Scan Depth", min_value=5, max_value=50000, value=26, step=1)
 
 if csv_file:
-    temp_df, msg = load_data_final_v2(csv_file)
+    temp_df, msg = load_data_final_v1(csv_file)
     if temp_df is not None:
         st.session_state['uploaded_df'] = temp_df
 
@@ -531,7 +531,7 @@ if df is not None:
             
         st.markdown("<h4 style='margin-top: 15px; font-weight: 800; color: #F3F4F6;'>Live Game Board</h4>", unsafe_allow_html=True)
         cell_classes = {}
-        cell_inner_html = {}
+        cell_styles = {}
         matches_to_show = found_matches
         
         if selected_match_ids is not None:
@@ -541,10 +541,7 @@ if df is not None:
             col = m['color']
             for coord in m['full_coords_list']:
                 if coord != m['miss_coords']:
-                    if coord not in cell_inner_html: cell_inner_html[coord] = ""
-                    count = cell_inner_html[coord].count("frame-box")
-                    inset = count * 3
-                    cell_inner_html[coord] += f'<div class="frame-box" style="border-width: 2px; border-color: {col}; box-shadow: inset 0 0 10px {col}, 0 0 8px {col}; top: {inset}px; left: {inset}px; right: {inset}px; bottom: {inset}px;"></div>'
+                    cell_styles[coord] = f"background-color: {col} !important; color: #FFF !important; border-color: {col} !important; font-weight: 900 !important;"
             miss = m['miss_coords']
             if miss not in cell_classes: cell_classes[miss] = ""
             if selected_match_ids is not None:
@@ -557,7 +554,7 @@ if df is not None:
             max_r = max(coord[0] for m in matches_to_show for coord in m['full_coords_list'])
             draw_limit_matches = max(30, max_r + 3)
             
-        st.markdown(generate_board_html(grid_data, 0, draw_limit_matches, cell_classes, cell_inner_html), unsafe_allow_html=True)
+        st.markdown(generate_board_html(grid_data, 0, draw_limit_matches, cell_classes, cell_styles), unsafe_allow_html=True)
 
     with tab_predictor:
         c_minus, c_val, c_plus = st.columns([1, 2, 1])
@@ -787,11 +784,12 @@ if df is not None:
         sleep_data_lists = {}
         active_sleepers = set()
         
+        # Calculate sleepers based on data FROM the target row (inclusive) to the past
         for col_idx, col_name in enumerate(required_cols):
-            if sleep_window_start + 1 >= len(grid_data):
+            if sleep_window_start >= len(grid_data):
                 col_data = np.array([])
             else:
-                col_data = grid_data[sleep_window_start + 1:, col_idx]
+                col_data = grid_data[sleep_window_start:, col_idx]
                 
             c_unique = np.unique(grid_data[:, col_idx].astype(str))
             lst = []
@@ -805,7 +803,7 @@ if df is not None:
             lst.sort(key=lambda x: x[1], reverse=True)
             sleep_data_lists[col_name] = [f"{item[0]} : {item[1]}" for item in lst]
 
-        st.markdown(f"<h4 style='margin-top: 15px; font-weight: 800; color: #F3F4F6;'>Sleeping Cards (Just Before Row {sleep_window_start})</h4>", unsafe_allow_html=True)
+        st.markdown(f"<h4 style='margin-top: 15px; font-weight: 800; color: #F3F4F6;'>Sleeping Cards (At Row {sleep_window_start})</h4>", unsafe_allow_html=True)
         
         if any(sleep_data_lists.values()):
             st.markdown(create_sleeping_html_table(sleep_data_lists, required_cols), unsafe_allow_html=True)
@@ -813,7 +811,7 @@ if df is not None:
             st.info("No sleeping cards found for the selected threshold.")
             
         st.markdown(f"<h4 style='margin-top: 25px; font-weight: 800; color: #F3F4F6;'>Awakening Chain Reaction Tracker</h4>", unsafe_allow_html=True)
-        st.markdown("<div style='color: #9CA3AF; font-size: 13px; margin-bottom: 10px;'>Green highlighted cells indicate sleeping cards that 'woke up'. The blue framed row is the target draw.</div>", unsafe_allow_html=True)
+        st.markdown("<div style='color: #9CA3AF; font-size: 13px; margin-bottom: 10px;'>Green highlighted cells indicate sleeping cards the exact moment they woke up.</div>", unsafe_allow_html=True)
         
         cell_classes_sleep = {}
         end_draw = max(0, sleep_window_start - tracking_depth)
@@ -823,6 +821,7 @@ if df is not None:
             for c in range(4):
                 cell_classes_sleep[(r, c)] = "window-dim"
                 
+        # Traverse from oldest tracked row (sleep_window_start) to newest tracked row (end_draw)
         for r in range(sleep_window_start, end_draw - 1, -1):
             for c in range(4):
                 val = str(grid_data[r, c])
@@ -833,6 +832,7 @@ if df is not None:
                     
                 if (c, val) in active_sleepers:
                     classes += " awakened-card"
+                    # Remove from set so it doesn't stay green if drawn again
                     active_sleepers.remove((c, val)) 
                     
                 if classes:
