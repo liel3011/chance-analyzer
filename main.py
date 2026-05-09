@@ -791,22 +791,27 @@ if df is not None:
         with c_minus_s:
             st.button("➖", use_container_width=True, key="btn_minus_sleep", on_click=dec_sleep_win)
         with c_val_s:
-            st.markdown(f"<div style='text-align:center; font-size: 18px; font-weight: 800; background: #1F2937; padding: 5px; border-radius: 8px; border: 1px solid #374151; color: #10B981;'>Target Draw Row: {st.session_state['sleep_window_start']}</div>", unsafe_allow_html=True)
+            if st.session_state['sleep_window_start'] == 0:
+                header_text = "Row: 0 (🔮 Predicting Next Draw)"
+            else:
+                header_text = f"Row: {st.session_state['sleep_window_start']} (🎯 Target: Row {st.session_state['sleep_window_start'] - 1})"
+            st.markdown(f"<div style='text-align:center; font-size: 18px; font-weight: 800; background: #1F2937; padding: 5px; border-radius: 8px; border: 1px solid #374151; color: #10B981;'>{header_text}</div>", unsafe_allow_html=True)
         with c_plus_s:
             st.button("➕", use_container_width=True, key="btn_plus_sleep", on_click=inc_sleep_win)
             
         sleep_window_start = st.session_state['sleep_window_start']
-        
         sleep_threshold = st.number_input("Sleep Threshold (Gap)", min_value=3, max_value=20, value=7, step=1)
             
         sleep_data_lists = {}
         active_sleepers = set()
         
+        calc_start_idx = sleep_window_start
+        
         for col_idx, col_name in enumerate(required_cols):
-            if sleep_window_start + 1 >= len(grid_data):
+            if calc_start_idx >= len(grid_data):
                 col_data = np.array([])
             else:
-                col_data = grid_data[sleep_window_start + 1:, col_idx]
+                col_data = grid_data[calc_start_idx:, col_idx]
                 
             c_unique = np.unique(grid_data[:, col_idx].astype(str))
             lst = []
@@ -820,36 +825,55 @@ if df is not None:
             lst.sort(key=lambda x: x[1], reverse=True)
             sleep_data_lists[col_name] = [f"{item[0]} : {item[1]}" for item in lst]
 
-        st.markdown(f"<h4 style='margin-top: 15px; font-weight: 800; color: #F3F4F6;'>Sleeping Cards (Just Before Row {sleep_window_start})</h4>", unsafe_allow_html=True)
+        if sleep_window_start == 0:
+            st.markdown(f"<h4 style='margin-top: 15px; font-weight: 800; color: #F3F4F6;'>Sleeping Cards (Right Now, Heading into Next Draw)</h4>", unsafe_allow_html=True)
+        else:
+            st.markdown(f"<h4 style='margin-top: 15px; font-weight: 800; color: #F3F4F6;'>Sleeping Cards (Just Before Row {sleep_window_start - 1})</h4>", unsafe_allow_html=True)
         
         if any(sleep_data_lists.values()):
             st.markdown(create_sleeping_html_table(sleep_data_lists, required_cols), unsafe_allow_html=True)
         else:
             st.info("No sleeping cards found for the selected threshold.")
             
-        st.markdown(f"<h4 style='margin-top: 25px; font-weight: 800; color: #F3F4F6;'>Awakening Tracker</h4>", unsafe_allow_html=True)
-        st.markdown("<div style='color: #9CA3AF; font-size: 13px; margin-bottom: 10px;'>Green highlighted cells indicate sleeping cards the exact moment they woke up in the target draw.</div>", unsafe_allow_html=True)
-        
         cell_classes_sleep = {}
-        start_draw = max(0, sleep_window_start - 2)
-        end_draw = min(len(grid_data), sleep_window_start + 5)
         
-        for r in range(start_draw, end_draw):
-            for c in range(4):
-                val = str(grid_data[r, c])
-                classes = ""
-                
-                if r == sleep_window_start:
-                    classes += " trigger-row"
+        if sleep_window_start == 0:
+            st.markdown(f"<h4 style='margin-top: 25px; font-weight: 800; color: #F3F4F6;'>Current History Board</h4>", unsafe_allow_html=True)
+            st.markdown("<div style='color: #9CA3AF; font-size: 13px; margin-bottom: 10px;'>Showing the most recent draws. No chain reactions exist yet because the next draw hasn't happened.</div>", unsafe_allow_html=True)
+            
+            for r in range(1, min(len(grid_data), 6)):
+                for c in range(4):
+                    cell_classes_sleep[(r, c)] = "window-dim"
+                    
+            st.markdown(generate_board_html(grid_data, 0, min(len(grid_data), 6), cell_classes_sleep), unsafe_allow_html=True)
+            
+        else:
+            st.markdown(f"<h4 style='margin-top: 25px; font-weight: 800; color: #F3F4F6;'>Awakening Chain Reaction Tracker</h4>", unsafe_allow_html=True)
+            st.markdown("<div style='color: #9CA3AF; font-size: 13px; margin-bottom: 10px;'>Green highlighted cells indicate sleeping cards the exact moment they woke up. The blue framed row is the target draw.</div>", unsafe_allow_html=True)
+            
+            target_draw = sleep_window_start - 1
+            draw_limit_sleep = min(len(grid_data), target_draw + 4)
+            
+            for r in range(target_draw + 1, draw_limit_sleep):
+                for c in range(4):
+                    cell_classes_sleep[(r, c)] = "window-dim"
+                    
+            for r in range(calc_start_idx - 1, -1, -1):
+                for c in range(4):
+                    val = str(grid_data[r, c])
+                    classes = ""
+                    
+                    if r == target_draw:
+                        classes += " trigger-row"
+                        
                     if (c, val) in active_sleepers:
                         classes += " awakened-card"
-                else:
-                    classes += " window-dim"
-                    
-                if classes:
-                    cell_classes_sleep[(r, c)] = classes.strip()
-                    
-        st.markdown(generate_board_html(grid_data, start_draw, end_draw, cell_classes_sleep), unsafe_allow_html=True)
+                        active_sleepers.remove((c, val)) 
+                        
+                    if classes:
+                        cell_classes_sleep[(r, c)] = classes.strip()
+                        
+            st.markdown(generate_board_html(grid_data, 0, draw_limit_sleep, cell_classes_sleep), unsafe_allow_html=True)
 
 else:
     st.info("👋 Upload a CSV file to get started.")
