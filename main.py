@@ -207,6 +207,8 @@ st.markdown("""
     
     .awakened-card { background: linear-gradient(135deg, #10B981 0%, #059669 100%) !important; color: #FFF !important; border: 2px solid #34D399 !important; box-shadow: 0 0 15px rgba(16, 185, 129, 0.6) !important; font-weight: 900 !important; transform: scale(1.05); z-index: 10; }
     .trigger-row { background-color: rgba(59, 130, 246, 0.1) !important; border-left: 2px solid #3B82F6 !important; border-right: 2px solid #3B82F6 !important; }
+    
+    .history-hit-3row { background: linear-gradient(135deg, #3B82F6 0%, #1D4ED8 100%) !important; color: #FFF !important; border: 2px solid #93C5FD !important; box-shadow: 0 0 15px rgba(59, 130, 246, 0.8) !important; font-weight: 900 !important; transform: scale(1.05); z-index: 10; }
 
     .grid-header { text-align: center; padding-bottom: 8px; display: flex; flex-direction: column; align-items: center; justify-content: center; }
     .suit-icon { font-size: 24px; line-height: 1; margin-bottom: 4px; filter: drop-shadow(0 2px 4px rgba(0,0,0,0.3)); }
@@ -217,6 +219,13 @@ st.markdown("""
     
     div[data-testid="stVerticalBlock"] > div { gap: 0.3rem; }
     div[data-testid="stHorizontalBlock"] { align-items: center; }
+    
+    /* Scrollable areas */
+    .scrollable-board { max-height: 700px; overflow-y: auto; padding-right: 15px; margin-top: 10px; border: 1px solid #374151; border-radius: 12px; background: #0E1117; }
+    .scrollable-board::-webkit-scrollbar { width: 8px; }
+    .scrollable-board::-webkit-scrollbar-track { background: #1F2937; border-radius: 8px; }
+    .scrollable-board::-webkit-scrollbar-thumb { background: #4B5563; border-radius: 8px; }
+    .scrollable-board::-webkit-scrollbar-thumb:hover { background: #6B7280; }
 </style>
 """, unsafe_allow_html=True)
 
@@ -309,9 +318,7 @@ def create_sleeping_html_table(data_dict, required_cols):
     parts.append("</tbody></table></div>")
     return "".join(parts)
 
-def generate_board_html(grid_data, start_row, end_row, cell_classes, cell_styles=None):
-    if cell_styles is None: cell_styles = {}
-        
+def generate_board_html(grid_data, start_row, end_row, cell_classes):
     html = '<div class="grid-container">'
     headers = [
         ('Spades', '♠', '#D1D5DB'),
@@ -332,14 +339,12 @@ def generate_board_html(grid_data, start_row, end_row, cell_classes, cell_styles
             if extra_classes:
                 classes += " " + extra_classes
                 
-            style = cell_styles.get((r, c), "")
-                
             inner = val
             if "missing-marker" in classes or "missing-selected" in classes:
                 inner = f'<div class="missing-circle">{val}</div>'
                 classes = classes.replace("missing-marker", "").replace("missing-selected", "")
             
-            html += f'<div class="{classes.strip()}" style="{style}">{inner}</div>'
+            html += f'<div class="{classes.strip()}">{inner}</div>'
                  
     html += '</div>'
     return html
@@ -348,7 +353,6 @@ def find_matches_for_pattern(shape_idx, selected_cards, grid_data, row_limit):
     found = []
     variations = generate_variations_strict(shape_idx, base_shapes[shape_idx])
     rows = min(len(grid_data), row_limit)
-    colors = ['#3B82F6', '#8B5CF6', '#10B981', '#F59E0B', '#EF4444']
     
     raw_matches = []
     for shape in variations:
@@ -478,7 +482,14 @@ if df is not None:
     def reset_search():
         st.session_state['search_done'] = False
 
-    tab_matches, tab_predictor, tab_sleep = st.tabs(["📋 PATTERN MATCHES", "🔍 3-ROW PREDICTOR", "💤 SLEEPING CARDS"])
+    tab_matches, tab_predictor, tab_sleep, tab_3row_hist, tab_sleep_hist = st.tabs([
+        "📋 PATTERN MATCHES", 
+        "🔍 3-ROW PREDICTOR", 
+        "💤 SLEEPING CARDS",
+        "📊 3-ROW HISTORY (200)",
+        "📊 SLEEPING HISTORY (200)"
+    ])
+    
     selected_match_ids = None 
     
     with tab_matches:
@@ -874,6 +885,70 @@ if df is not None:
                         cell_classes_sleep[(r, c)] = classes.strip()
                         
             st.markdown(generate_board_html(grid_data, 0, draw_limit_sleep, cell_classes_sleep), unsafe_allow_html=True)
+
+    with tab_3row_hist:
+        st.markdown("<h3 style='color: #F9FAFB;'>📊 3-Row Predictor History (Last 200 Draws)</h3>", unsafe_allow_html=True)
+        st.markdown("This board runs the 3-Row Predictor logic on the last 200 draws. Cells highlighted in **BLUE** indicate a successful prediction based on your selected patterns.")
+        
+        if st.button("🚀 Run Backtest", key="btn_run_backtest"):
+            with st.spinner("Calculating predictions..."):
+                history_3row_classes = {}
+                active_pattern_indices = [k for k in PATTERN_NAMES.keys() if st.session_state.get(f"chk_pat_{k}", False)]
+                
+                if not active_pattern_indices:
+                    st.error("Please select at least one pattern in the 3-ROW PREDICTOR tab.")
+                else:
+                    for r in range(1, min(201, len(grid_data)-2)):
+                        for c in range(4):
+                            triplet = [str(grid_data[x, c]) for x in range(r, r+3)]
+                            if "" in triplet or "nan" in triplet or "NAN" in triplet: continue
+                            
+                            all_missing = set()
+                            for p_idx in active_pattern_indices:
+                                m = find_matches_for_pattern(p_idx, triplet, grid_data[r:], search_depth)
+                                for x in m:
+                                    all_missing.add(x['miss_val'].strip().upper())
+                            
+                            actual = str(grid_data[r-1, c]).strip().upper()
+                            if all_missing and actual in all_missing:
+                                history_3row_classes[(r-1, c)] = "history-hit-3row"
+                    
+                    st.session_state['history_3row_classes'] = history_3row_classes
+                    st.session_state['backtest_run'] = True
+        
+        if st.session_state.get('backtest_run', False):
+            classes_map = st.session_state['history_3row_classes']
+            st.markdown(f"**Hits Found:** {len(classes_map)}")
+            html_board = generate_board_html(grid_data, 0, min(200, len(grid_data)), classes_map)
+            st.markdown(f'<div class="scrollable-board">{html_board}</div>', unsafe_allow_html=True)
+
+    with tab_sleep_hist:
+        st.markdown("<h3 style='color: #F9FAFB;'>📊 Sleeping Cards History (Last 200 Draws)</h3>", unsafe_allow_html=True)
+        st.markdown("This board shows a macroscopic view of the chain reaction. Cells highlighted in **GREEN** are cards that woke up after sleeping for at least the specified threshold.")
+        
+        hist_sleep_thresh = st.number_input("Sleep Threshold (Gap)", min_value=3, max_value=20, value=7, step=1, key="hist_sleep_thresh")
+        
+        if st.button("🚀 Analyze Sleeping History"):
+            with st.spinner("Analyzing history..."):
+                history_sleep_classes = {}
+                for r in range(min(200, len(grid_data)-1)):
+                    for c in range(4):
+                        val = str(grid_data[r, c])
+                        if not val or val == 'nan' or val == 'NAN': continue
+                        col_data = grid_data[r+1:, c]
+                        locs = np.where(col_data == val)[0]
+                        gap = locs[0] if len(locs) > 0 else len(col_data)
+                        if gap >= hist_sleep_thresh:
+                            history_sleep_classes[(r, c)] = "awakened-card"
+                
+                st.session_state['history_sleep_classes'] = history_sleep_classes
+                st.session_state['sleep_hist_run'] = True
+            
+        if st.session_state.get('sleep_hist_run', False):
+            classes_map = st.session_state['history_sleep_classes']
+            st.markdown(f"**Awakenings Found:** {len(classes_map)}")
+            html_board = generate_board_html(grid_data, 0, min(200, len(grid_data)), classes_map)
+            st.markdown(f'<div class="scrollable-board">{html_board}</div>', unsafe_allow_html=True)
 
 else:
     st.info("👋 Upload a CSV file to get started.")
