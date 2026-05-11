@@ -208,7 +208,7 @@ st.markdown("""
     .awakened-card { background: linear-gradient(135deg, #10B981 0%, #059669 100%) !important; color: #FFF !important; border: 2px solid #34D399 !important; box-shadow: 0 0 15px rgba(16, 185, 129, 0.6) !important; font-weight: 900 !important; transform: scale(1.05); z-index: 10; }
     .trigger-row { background-color: rgba(59, 130, 246, 0.1) !important; border-left: 2px solid #3B82F6 !important; border-right: 2px solid #3B82F6 !important; }
     
-    .history-hit-3row { background: linear-gradient(135deg, #3B82F6 0%, #1D4ED8 100%) !important; color: #FFF !important; border: 2px solid #93C5FD !important; box-shadow: 0 0 15px rgba(59, 130, 246, 0.8) !important; font-weight: 900 !important; transform: scale(1.05); z-index: 10; }
+    .history-hit-3row { background: linear-gradient(135deg, #3B82F6 0%, #1D4ED8 100%) !important; color: #FFF !important; border: 2px solid #93C5FD !important; box-shadow: 0 0 15px rgba(59, 130, 246, 0.5) !important; font-weight: 900 !important; z-index: 10; }
 
     .grid-header { text-align: center; padding-bottom: 8px; display: flex; flex-direction: column; align-items: center; justify-content: center; }
     .suit-icon { font-size: 24px; line-height: 1; margin-bottom: 4px; filter: drop-shadow(0 2px 4px rgba(0,0,0,0.3)); }
@@ -486,8 +486,8 @@ if df is not None:
         "📋 PATTERN MATCHES", 
         "🔍 3-ROW PREDICTOR", 
         "💤 SLEEPING CARDS",
-        "📊 3-ROW HISTORY (200)",
-        "📊 SLEEPING HISTORY (200)"
+        "📊 3-ROW HISTORY",
+        "📊 SLEEPING HISTORY"
     ])
     
     selected_match_ids = None 
@@ -811,6 +811,7 @@ if df is not None:
             st.button("➕", use_container_width=True, key="btn_plus_sleep", on_click=inc_sleep_win)
             
         sleep_window_start = st.session_state['sleep_window_start']
+        
         sleep_threshold = st.number_input("Sleep Threshold (Gap)", min_value=3, max_value=20, value=7, step=1)
             
         sleep_data_lists = {}
@@ -888,38 +889,54 @@ if df is not None:
 
     with tab_3row_hist:
         st.markdown("<h3 style='color: #F9FAFB;'>📊 3-Row Predictor History (Last 200 Draws)</h3>", unsafe_allow_html=True)
-        st.markdown("This board runs the 3-Row Predictor logic on the last 200 draws. Cells highlighted in **BLUE** indicate a successful prediction based on your selected patterns.")
+        st.markdown("This board runs the 3-Row Predictor logic on the last 200 draws. Rows highlighted in **BLUE** are draws where the actual outcome matched one of the **Top 3 predictions** in at least 3 out of the 4 suits.")
         
         if st.button("🚀 Run Backtest", key="btn_run_backtest"):
             with st.spinner("Calculating predictions..."):
                 history_3row_classes = {}
+                for r in range(min(200, len(grid_data))):
+                    for c in range(4):
+                        history_3row_classes[(r, c)] = "window-dim"
+                
                 active_pattern_indices = [k for k in PATTERN_NAMES.keys() if st.session_state.get(f"chk_pat_{k}", False)]
+                wins = 0
                 
                 if not active_pattern_indices:
                     st.error("Please select at least one pattern in the 3-ROW PREDICTOR tab.")
                 else:
                     for r in range(1, min(201, len(grid_data)-2)):
+                        hit_count = 0
                         for c in range(4):
                             triplet = [str(grid_data[x, c]) for x in range(r, r+3)]
-                            if "" in triplet or "nan" in triplet or "NAN" in triplet: continue
+                            if "" in triplet or "nan" in triplet or "NAN" in triplet or len(triplet) < 3: 
+                                continue
                             
-                            all_missing = set()
+                            all_missing = []
                             for p_idx in active_pattern_indices:
                                 m = find_matches_for_pattern(p_idx, triplet, grid_data[r:], search_depth)
-                                for x in m:
-                                    all_missing.add(x['miss_val'].strip().upper())
+                                all_missing.extend([x['miss_val'].strip().upper() for x in m])
                             
-                            actual = str(grid_data[r-1, c]).strip().upper()
-                            if all_missing and actual in all_missing:
+                            if all_missing:
+                                counts = pd.Series(all_missing).value_counts()
+                                top_3_preds = list(counts.index)[:3]
+                                actual = str(grid_data[r-1, c]).strip().upper()
+                                
+                                if actual in top_3_preds:
+                                    hit_count += 1
+                        
+                        if hit_count >= 3:
+                            wins += 1
+                            for c in range(4):
                                 history_3row_classes[(r-1, c)] = "history-hit-3row"
                     
                     st.session_state['history_3row_classes'] = history_3row_classes
+                    st.session_state['history_3row_wins'] = wins
                     st.session_state['backtest_run'] = True
         
         if st.session_state.get('backtest_run', False):
-            classes_map = st.session_state['history_3row_classes']
-            st.markdown(f"**Hits Found:** {len(classes_map)}")
-            html_board = generate_board_html(grid_data, 0, min(200, len(grid_data)), classes_map)
+            wins = st.session_state.get('history_3row_wins', 0)
+            st.markdown(f"**Total Winning Draws (3+ hits in Top-3):** {wins}")
+            html_board = generate_board_html(grid_data, 0, min(200, len(grid_data)), st.session_state['history_3row_classes'])
             st.markdown(f'<div class="scrollable-board">{html_board}</div>', unsafe_allow_html=True)
 
     with tab_sleep_hist:
