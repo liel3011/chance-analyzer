@@ -56,7 +56,6 @@ st.markdown("""
     .window-dim { opacity: 0.25 !important; filter: grayscale(60%); }
     
     .awakened-card { background: linear-gradient(135deg, #10B981 0%, #059669 100%) !important; color: #FFF !important; border: 2px solid #34D399 !important; box-shadow: 0 0 15px rgba(16, 185, 129, 0.6) !important; font-weight: 900 !important; transform: scale(1.05); z-index: 10; }
-    .trigger-row { background-color: rgba(59, 130, 246, 0.1) !important; border-left: 2px solid #3B82F6 !important; border-right: 2px solid #3B82F6 !important; }
     .history-hit-3row { background: linear-gradient(135deg, #3B82F6 0%, #1D4ED8 100%) !important; color: #FFF !important; border: 2px solid #93C5FD !important; box-shadow: 0 0 15px rgba(59, 130, 246, 0.5) !important; font-weight: 900 !important; z-index: 10; transform: scale(1.05); }
 
     .grid-header { text-align: center; padding-bottom: 8px; display: flex; flex-direction: column; align-items: center; justify-content: center; }
@@ -284,18 +283,18 @@ def draw_preview_html(shape_coords):
             html += f'<div style="width:14px; height:14px; border-radius:3px; background-color:{bg}; border:{border};"></div>'
     return f'<div style="background: #111827; border: 1px solid #1F2937; border-radius: 12px; padding: 12px; display: flex; justify-content: center; align-items: center; height: 100%; box-shadow: inset 0 2px 10px rgba(0,0,0,0.2);">{html}</div>'
 
-def create_sleeping_html_table(data_dict):
+def create_sleeping_html_table(data_dict, required_cols):
     max_rows = max([len(v) for v in data_dict.values()] + [0])
     parts = ['<div style="overflow-x: auto; border: 1px solid #1F2937; border-radius: 12px; box-shadow: 0 4px 6px rgba(0,0,0,0.1);"><table style="width: 100%; border-collapse: collapse; font-family: \'Inter\', sans-serif; font-size: 14px;"><thead><tr style="background-color: #111827; border-bottom: 2px solid #374151;">']
     
-    for col in SUITS:
+    for col in required_cols:
         meta = SUIT_META[col]
         parts.append(f'<th style="text-align: center; color: {meta["color"]}; border-right: 1px solid #1F2937; width: 25%;"><div style="padding: 8px 0;"><div style="font-size: 26px; line-height: 1; margin-bottom: 4px;">{meta["icon"]}</div><div style="font-size: 11px; text-transform: uppercase; font-weight: 800; letter-spacing: 1px; color: #9CA3AF;">{col}</div></div></th>')
     parts.append('</tr></thead><tbody>')
     
     for i in range(max_rows):
         parts.append(f'<tr style="background-color: {"#1F2937" if i % 2 == 0 else "#111827"};">')
-        for col in SUITS:
+        for col in required_cols:
             val = data_dict.get(col, [])[i] if i < len(data_dict.get(col, [])) else ""
             color = SUIT_META[col]['color'] if val else "transparent"
             parts.append(f'<td style="padding: 10px; text-align: center; border-right: 1px solid #374151; color: {color}; font-weight: {"600" if val else "normal"}; border-bottom: 1px solid #374151;">{val}</td>')
@@ -331,7 +330,6 @@ def generate_board_html(grid_data, start_row, end_row, cell_classes):
 if 'uploaded_df' not in st.session_state: st.session_state['uploaded_df'] = None
 if 'current_shape_idx' not in st.session_state: st.session_state['current_shape_idx'] = 0
 if 'window_start' not in st.session_state: st.session_state['window_start'] = 0
-if 'sleep_window_start' not in st.session_state: st.session_state['sleep_window_start'] = 0
 if 'chk_all' not in st.session_state: st.session_state['chk_all'] = False
 if 'num_combos_val' not in st.session_state: st.session_state['num_combos_val'] = 6
 
@@ -350,7 +348,7 @@ st.title("⚡ Chance Analyzer PRO")
 with st.sidebar:
     st.image("https://upload.wikimedia.org/wikipedia/commons/thumb/c/c2/Mifal_Hapayis_logo.svg/512px-Mifal_Hapayis_logo.svg.png", width=100)
     st.header("📂 Global Settings")
-    csv_file = st.file_uploader("Upload CSV Data", type=None) # CHANGED BACK TO TYPE=NONE
+    csv_file = st.file_uploader("Upload CSV Data", type=None)
     st.markdown("---")
     st.header("⚙️ Algorithm Params")
     global_search_depth = st.number_input("🔍 History Scan Depth", min_value=5, max_value=50000, value=26, step=1)
@@ -373,23 +371,22 @@ if missing_cols:
 
 grid_data = df[SUITS].values
 max_val = max(0, len(grid_data) - 3)
-max_sleep_val = max(0, len(grid_data) - 1)
 
-# Helper UI Callbacks
 def dec_win(): st.session_state['window_start'] = max(0, st.session_state['window_start'] - 1)
 def inc_win(): st.session_state['window_start'] = min(max_val, st.session_state['window_start'] + 1)
-def dec_sleep_win(): st.session_state['sleep_window_start'] = max(0, st.session_state['sleep_window_start'] - 1)
-def inc_sleep_win(): st.session_state['sleep_window_start'] = min(max_sleep_val, st.session_state['sleep_window_start'] + 1)
+def prev_pat(): st.session_state['current_shape_idx'] = (st.session_state['current_shape_idx'] - 1) % len(PATTERN_NAMES)
+def next_pat(): st.session_state['current_shape_idx'] = (st.session_state['current_shape_idx'] + 1) % len(PATTERN_NAMES)
+def reset_search(): st.session_state['search_done'] = False
 
 # ==========================================
 # 7. MAIN DASHBOARD TABS
 # ==========================================
-tab_pred, tab_sleep, tab_lab, tab_hist_pred, tab_hist_sleep = st.tabs([
+tab_pred, tab_matches, tab_lab, tab_hist_pred, tab_sleepers = st.tabs([
     "🔮 SMART PREDICTOR", 
-    "💤 SLEEPERS RADAR", 
+    "📋 PATTERN MATCHES", 
     "🧪 PATTERN LAB",
-    "📈 BACKTEST: PREDICTOR",
-    "📉 BACKTEST: SLEEPERS"
+    "📈 3-ROW BACKTEST",
+    "💤 SLEEPERS (LIVE & HISTORY)"
 ])
 
 # ------------------------------------------
@@ -399,7 +396,7 @@ with tab_pred:
     st.markdown("<h3 style='color: #F9FAFB; margin-bottom: 5px;'>Smart 3-Row Predictor</h3>", unsafe_allow_html=True)
     
     c_nav1, c_nav2, c_nav3 = st.columns([1, 2, 1])
-    with c_nav1: st.button("➖ Older Draw", use_container_width=True, on_click=inc_win, key="btn_inc_pred") # Note: + goes to older (higher index)
+    with c_nav1: st.button("➖ Older Draw", use_container_width=True, on_click=inc_win, key="btn_inc_pred") 
     with c_nav2: st.markdown(f"<div style='text-align:center; font-size: 18px; font-weight: 800; background: #1F2937; padding: 5px; border-radius: 8px; border: 1px solid #3B82F6; color: #60A5FA; box-shadow: 0 0 10px rgba(59,130,246,0.2);'>Target Row: {st.session_state['window_start']}</div>", unsafe_allow_html=True)
     with c_nav3: st.button("➕ Newer Draw", use_container_width=True, on_click=dec_win, key="btn_dec_pred")
             
@@ -418,7 +415,6 @@ with tab_pred:
     actual_row = grid_data[win_start - 1, :] if has_actual else [None]*4
     historical_scan = grid_data[win_start : win_start + global_search_depth]
     
-    # Target visualizer
     if has_actual:
         st.markdown(f"""
         <div style="background: linear-gradient(135deg, #1E3A8A 0%, #111827 100%); border: 1px solid #3B82F6; border-radius: 12px; padding: 15px; margin: 15px 0; text-align: center; box-shadow: 0 4px 10px rgba(59,130,246,0.2);">
@@ -517,61 +513,64 @@ with tab_pred:
     st.markdown(generate_board_html(grid_data, max(0, win_start - 1), win_start + 30, c_class), unsafe_allow_html=True)
 
 # ------------------------------------------
-# TAB 2: SLEEPERS RADAR
+# TAB 2: PATTERN MATCHES
 # ------------------------------------------
-with tab_sleep:
-    st.markdown("<h3 style='color: #F9FAFB; margin-bottom: 5px;'>Sleepers Radar & Chain Reaction</h3>", unsafe_allow_html=True)
-    c_nav1, c_nav2, c_nav3 = st.columns([1, 2, 1])
-    with c_nav1: st.button("➖ Older Draw", use_container_width=True, on_click=inc_sleep_win, key="btn_inc_slp")
-    with c_nav2: 
-        sw_start = st.session_state['sleep_window_start']
-        header_text = "Row: 0 (🔮 Next Draw)" if sw_start == 0 else f"Row: {sw_start} (🎯 Target: Row {sw_start - 1})"
-        st.markdown(f"<div style='text-align:center; font-size: 18px; font-weight: 800; background: #1F2937; padding: 5px; border-radius: 8px; border: 1px solid #10B981; color: #10B981; box-shadow: 0 0 10px rgba(16,185,129,0.2);'>{header_text}</div>", unsafe_allow_html=True)
-    with c_nav3: st.button("➕ Newer Draw", use_container_width=True, on_click=dec_sleep_win, key="btn_dec_slp")
-        
-    slp_data, active_sleepers = {}, set()
-    for col_idx, col_name in enumerate(SUITS):
-        col_data = grid_data[sw_start:, col_idx] if sw_start < len(grid_data) else np.array([])
-        lst = []
-        for c in np.unique(grid_data[:, col_idx].astype(str)):
-            if not str(c).strip() or str(c).lower()=='nan': continue
-            locs = np.where(col_data == str(c))[0]
-            gap = locs[0] if len(locs) > 0 else len(col_data)
-            if gap >= global_sleep_thresh: 
-                lst.append((c, gap))
-                active_sleepers.add((col_idx, str(c)))
-        lst.sort(key=lambda x: x[1], reverse=True)
-        slp_data[col_name] = [f"{item[0]} : {item[1]}" for item in lst]
+with tab_matches:
+    with st.expander("⚙️ Configuration & Target Inputs", expanded=not st.session_state.get('search_done', False)):
+        col_conf, col_prev = st.columns([4, 1])
+        with col_conf:
+            nav_col1, nav_col2, nav_col3 = st.columns([1, 4, 1])
+            with nav_col1: st.button("◀", use_container_width=True, key="prev_pat_btn", on_click=prev_pat)
+            with nav_col2:
+                curr_name = PATTERN_NAMES[st.session_state['current_shape_idx']]
+                st.markdown(f"<div style='display: flex; align-items: center; justify-content: center; height: 2.8rem; background-color: #161B22; border: 1px solid #30363D; border-radius: 8px; font-weight: 600; color: #58A6FF; font-size: 15px;'>{curr_name}</div>", unsafe_allow_html=True)
+            with nav_col3: st.button("▶", use_container_width=True, key="next_pat_btn", on_click=next_pat)
+            shape_idx = st.session_state['current_shape_idx']
 
-    st.markdown(f"<h4 style='margin-top: 15px; font-weight: 800; color: #F3F4F6;'>Sleeping Cards (At Row {sw_start})</h4>", unsafe_allow_html=True)
-    if any(slp_data.values()): st.markdown(create_sleeping_html_table(slp_data), unsafe_allow_html=True)
-    else: st.info("No sleeping cards found for the selected threshold.")
+        with col_prev: st.markdown(draw_preview_html(BASE_SHAPES[shape_idx]), unsafe_allow_html=True)
         
-    st.markdown(f"<h4 style='margin-top: 25px; font-weight: 800; color: #F3F4F6;'>Awakening Tracker (3+ Cards Required)</h4>", unsafe_allow_html=True)
-    
-    c_class_sleep = {}
-    if sw_start == 0:
-        st.info("Showing recent history. No chain reactions to display yet (Draw 0 hasn't happened).")
-        for r in range(1, min(len(grid_data), 6)):
-            for c in range(4): c_class_sleep[(r, c)] = "window-dim"
-        st.markdown(generate_board_html(grid_data, 0, min(len(grid_data), 6), c_class_sleep), unsafe_allow_html=True)
-    else:
-        target_draw = sw_start - 1
-        draw_limit = min(len(grid_data), target_draw + 5)
-        for r in range(target_draw + 1, draw_limit):
-            for c in range(4): c_class_sleep[(r, c)] = "window-dim"
-                
-        for r in range(sw_start - 1, -1, -1):
-            woke_this_row = [(c, str(grid_data[r, c])) for c in range(4) if (c, str(grid_data[r, c])) in active_sleepers]
-            for item in woke_this_row: active_sleepers.remove(item)
+        raw_cards = np.unique(grid_data.astype(str))
+        clean_cards = sorted([c for c in raw_cards if str(c).lower() != 'nan' and str(c).strip() != ''])
+        
+        c1, c2, c3 = st.columns(3)
+        with c1: card1 = st.selectbox("Card 1", [""] + clean_cards, key="c1", label_visibility="collapsed")
+        with c2: card2 = st.selectbox("Card 2", [""] + clean_cards, key="c2", label_visibility="collapsed")
+        with c3: card3 = st.selectbox("Card 3", [""] + clean_cards, key="c3", label_visibility="collapsed")
+        sel_cards = [c for c in [card1, card2, card3] if c != ""]
+        
+        b_search, b_empty, b_reset = st.columns([3, 3, 1])
+        with b_search: run_search = st.button("🔍 Search", type="primary", use_container_width=True)
+        with b_reset: st.button("Reset", use_container_width=True, on_click=reset_search)
+
+    found_matches = []
+    if (run_search or st.session_state.get('search_done', False)) and len(sel_cards) == 3:
+        st.session_state['search_done'] = True
+        found_matches = find_matches_for_pattern(st.session_state.get('current_shape_idx', shape_idx), sel_cards, grid_data, global_search_depth)
+
+    if found_matches:
+        raw_df = pd.DataFrame([{'Missing Card': m['miss_val'], 'Row': m['miss_coords'][0], 'Hidden_ID': m['id']} for m in found_matches])
+        grouped_df = raw_df.groupby('Missing Card').agg({'Row': lambda x: sorted(list(x)), 'Hidden_ID': list}).reset_index()
+        grouped_df['Count'] = grouped_df['Hidden_ID'].apply(len)
+        grouped_df = grouped_df.sort_values(by='Count', ascending=False)
+        grouped_df['Count'] = grouped_df['Count'].astype(str)
+        grouped_df['Row Indexes'] = grouped_df['Row'].apply(lambda x: ", ".join(map(str, x)))
+        
+        display_df = grouped_df[['Missing Card', 'Count', 'Row Indexes', 'Hidden_ID']]
+        event = st.dataframe(display_df.drop(columns=['Hidden_ID']), hide_index=True, use_container_width=True, selection_mode="single-row", on_select="rerun")
+        selected_match_ids = display_df.iloc[event.selection['rows'][0]]['Hidden_ID'] if len(event.selection['rows']) > 0 else None
+        
+        st.markdown("<h4 style='margin-top: 15px; font-weight: 800; color: #F3F4F6;'>Live Game Board</h4>", unsafe_allow_html=True)
+        cell_classes = {}
+        matches_to_show = [m for m in found_matches if m['id'] in selected_match_ids] if selected_match_ids else found_matches
+
+        for m in matches_to_show:
+            for coord in m['full_coords_list']:
+                if coord != m['miss_coords']: cell_classes[coord] = cell_classes.get(coord, "") + f" match-color-{m['color_idx']}"
+            miss = m['miss_coords']
+            cell_classes[miss] = cell_classes.get(miss, "") + (" missing-selected" if selected_match_ids else " missing-marker")
             
-            for c in range(4):
-                val = str(grid_data[r, c])
-                classes = "trigger-row " if r == target_draw else ""
-                if len(woke_this_row) >= 3 and (c, val) in woke_this_row: classes += "awakened-card"
-                if classes: c_class_sleep[(r, c)] = classes.strip()
-                    
-        st.markdown(generate_board_html(grid_data, 0, draw_limit, c_class_sleep), unsafe_allow_html=True)
+        draw_limit = max(30, max(c[0] for m in matches_to_show for c in m['full_coords_list']) + 3) if matches_to_show else 30
+        st.markdown(generate_board_html(grid_data, 0, draw_limit, cell_classes), unsafe_allow_html=True)
 
 # ------------------------------------------
 # TAB 3: PATTERN LAB (Manual Search)
@@ -581,11 +580,9 @@ with tab_lab:
     col_nav, col_prev = st.columns([3, 1])
     with col_nav:
         st.selectbox("Select Shape", list(PATTERN_NAMES.values()), index=st.session_state['current_shape_idx'], key='lab_shape_sel', disabled=True)
-        def nav_back(): st.session_state['current_shape_idx'] = (st.session_state['current_shape_idx'] - 1) % len(PATTERN_NAMES)
-        def nav_fwd(): st.session_state['current_shape_idx'] = (st.session_state['current_shape_idx'] + 1) % len(PATTERN_NAMES)
         c1, c2 = st.columns(2)
-        c1.button("◀ Previous Shape", on_click=nav_back, use_container_width=True)
-        c2.button("Next Shape ▶", on_click=nav_fwd, use_container_width=True)
+        c1.button("◀ Previous Shape", on_click=prev_pat, use_container_width=True, key="lab_prev")
+        c2.button("Next Shape ▶", on_click=next_pat, use_container_width=True, key="lab_next")
         
         cards = sorted([c for c in np.unique(grid_data.astype(str)) if str(c).strip() and str(c).lower()!='nan'])
         sc1, sc2, sc3 = st.columns(3)
@@ -602,10 +599,8 @@ with tab_lab:
             if matches:
                 lab_classes = {}
                 for m in matches:
-                    col_idx = m['color_idx']
                     for coord in m['full_coords_list']:
-                        if coord != m['miss_coords']:
-                            lab_classes[coord] = lab_classes.get(coord, "") + f" match-color-{col_idx}"
+                        if coord != m['miss_coords']: lab_classes[coord] = lab_classes.get(coord, "") + f" match-color-{m['color_idx']}"
                     lab_classes[m['miss_coords']] = lab_classes.get(m['miss_coords'], "") + " missing-selected"
                 st.markdown(f"**Found {len(matches)} matches.**")
                 st.markdown(generate_board_html(grid_data, 0, max(c[0] for m in matches for c in m['full_coords_list']) + 3, lab_classes), unsafe_allow_html=True)
@@ -613,7 +608,7 @@ with tab_lab:
         else: st.warning("Please select exactly 3 cards.")
 
 # ------------------------------------------
-# TAB 4: BACKTEST PREDICTOR
+# TAB 4: 3-ROW BACKTEST
 # ------------------------------------------
 with tab_hist_pred:
     st.markdown("<h3 style='color: #F9FAFB;'>📈 Backtest: Smart Predictor</h3>", unsafe_allow_html=True)
@@ -654,16 +649,39 @@ with tab_hist_pred:
         st.markdown(f'<div class="scrollable-board">{generate_board_html(grid_data, 0, min(200, len(grid_data)), st.session_state["bt_pred_classes"])}</div>', unsafe_allow_html=True)
 
 # ------------------------------------------
-# TAB 5: BACKTEST SLEEPERS
+# TAB 5: SLEEPERS (LIVE & HISTORY)
 # ------------------------------------------
-with tab_hist_sleep:
-    st.markdown("<h3 style='color: #F9FAFB;'>📉 Backtest: Sleepers Chain Reaction</h3>", unsafe_allow_html=True)
-    st.markdown(f"Evaluates the last 200 draws using your global Sleep Threshold (**{global_sleep_thresh}**). Highlights <span style='color:#10B981; font-weight:bold;'>GREEN</span> only when **3 or 4 sleeping cards awaken in the exact same draw**.", unsafe_allow_html=True)
+with tab_sleepers:
+    st.markdown("<h3 style='color: #F9FAFB;'>💤 Sleepers Radar & History</h3>", unsafe_allow_html=True)
+    st.markdown(f"Using Global Sleep Threshold: **{global_sleep_thresh}** draws.")
     
-    if st.button("🚀 Analyze Chain Reactions"):
-        with st.spinner("Detecting mass awakenings..."):
+    # 1. LIVE RADAR
+    st.markdown("<h4 style='color: #10B981; margin-top: 15px;'>Live Radar: Sleeping Right Now (Heading into Next Draw)</h4>", unsafe_allow_html=True)
+    live_sleep_data = {}
+    for col_idx, col_name in enumerate(SUITS):
+        col_data = grid_data[:, col_idx]
+        lst = []
+        for c in np.unique(col_data.astype(str)):
+            if not str(c).strip() or str(c).lower()=='nan': continue
+            locs = np.where(col_data == str(c))[0]
+            gap = locs[0] if len(locs) > 0 else len(col_data)
+            if gap >= global_sleep_thresh: lst.append((c, gap))
+        lst.sort(key=lambda x: x[1], reverse=True)
+        live_sleep_data[col_name] = [f"{item[0]} : {item[1]}" for item in lst]
+        
+    if any(live_sleep_data.values()): st.markdown(create_sleeping_html_table(live_sleep_data, SUITS), unsafe_allow_html=True)
+    else: st.info("No sleeping cards currently.")
+        
+    st.markdown("---")
+    
+    # 2. HISTORICAL BACKTEST & TIME MACHINE
+    st.markdown("<h3 style='color: #F9FAFB;'>📉 Historical Backtest (Last 200 Draws)</h3>", unsafe_allow_html=True)
+    
+    if st.button("🚀 Analyze Past 200 Draws", key="btn_run_slp_hist"):
+        with st.spinner("Analyzing chain reactions..."):
             bt_slp_classes = {(r, c): "window-dim" for r in range(min(200, len(grid_data))) for c in range(4)}
             wins_sleep = 0
+            hist_rows = []
             
             for r in range(min(200, len(grid_data)-1)):
                 row_awakened = []
@@ -675,14 +693,52 @@ with tab_hist_sleep:
                     gap = locs[0] if len(locs) > 0 else len(col_data)
                     if gap >= global_sleep_thresh: row_awakened.append((r, c))
                 
+                # Append to interactive dataframe
+                hist_rows.append({
+                    "Row": r,
+                    "♠ Spades": str(grid_data[r, 0]).replace('nan','-'),
+                    "♥ Hearts": str(grid_data[r, 1]).replace('nan','-'),
+                    "♦ Diamonds": str(grid_data[r, 2]).replace('nan','-'),
+                    "♣ Clubs": str(grid_data[r, 3]).replace('nan','-'),
+                    "Awakenings": len(row_awakened)
+                })
+                
                 if len(row_awakened) >= 3:
                     wins_sleep += 1
                     for cell in row_awakened: bt_slp_classes[cell] = "awakened-card"
                     for c in range(4): 
                         if (r,c) not in bt_slp_classes: bt_slp_classes[(r,c)] = "" # Un-dim the rest of the winning row
             
-            st.session_state['bt_slp_classes'], st.session_state['bt_slp_wins'], st.session_state['bt_slp_run'] = bt_slp_classes, wins_sleep, True
-        
-    if st.session_state.get('bt_slp_run', False):
+            st.session_state['bt_slp_classes'], st.session_state['bt_slp_wins'] = bt_slp_classes, wins_sleep
+            st.session_state['sleep_hist_df'] = pd.DataFrame(hist_rows)
+            st.session_state['sleep_hist_run'] = True
+
+    if st.session_state.get('sleep_hist_run', False):
         st.metric("🌪️ Mass Awakenings (3+ Cards)", st.session_state['bt_slp_wins'])
         st.markdown(f'<div class="scrollable-board">{generate_board_html(grid_data, 0, min(200, len(grid_data)), st.session_state["bt_slp_classes"])}</div>', unsafe_allow_html=True)
+        
+        st.markdown("<h4 style='color: #F9FAFB; margin-top: 30px;'>🔍 Interactive Time Machine</h4>", unsafe_allow_html=True)
+        st.markdown("Select any row in the table below to see the exact state of sleeping cards **just before** that draw occurred.")
+        
+        df_to_show = st.session_state['sleep_hist_df']
+        event = st.dataframe(df_to_show, use_container_width=True, hide_index=True, selection_mode="single-row", on_select="rerun")
+        
+        if len(event.selection['rows']) > 0:
+            target_row = df_to_show.iloc[event.selection['rows'][0]]['Row']
+            st.markdown(f"<h5 style='color: #10B981; margin-top: 15px;'>Sleepers Just Before Row {target_row}</h5>", unsafe_allow_html=True)
+            
+            calc_start = target_row + 1
+            tm_sleep_data = {}
+            for col_idx, col_name in enumerate(SUITS):
+                col_data = grid_data[calc_start:, col_idx] if calc_start < len(grid_data) else np.array([])
+                lst = []
+                for c in np.unique(grid_data[:, col_idx].astype(str)):
+                    if not str(c).strip() or str(c).lower()=='nan': continue
+                    locs = np.where(col_data == str(c))[0]
+                    gap = locs[0] if len(locs) > 0 else len(col_data)
+                    if gap >= global_sleep_thresh: lst.append((c, gap))
+                lst.sort(key=lambda x: x[1], reverse=True)
+                tm_sleep_data[col_name] = [f"{item[0]} : {item[1]}" for item in lst]
+                
+            if any(tm_sleep_data.values()): st.markdown(create_sleeping_html_table(tm_sleep_data, SUITS), unsafe_allow_html=True)
+            else: st.info("No sleeping cards found for this historical draw.")
