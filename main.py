@@ -333,6 +333,7 @@ if 'current_shape_idx' not in st.session_state: st.session_state['current_shape_
 if 'window_start' not in st.session_state: st.session_state['window_start'] = 0
 if 'sleep_window_start' not in st.session_state: st.session_state['sleep_window_start'] = 0
 if 'chk_all' not in st.session_state: st.session_state['chk_all'] = False
+if 'num_combos_val' not in st.session_state: st.session_state['num_combos_val'] = 6
 
 for k in PATTERN_NAMES.keys():
     if f'chk_pat_{k}' not in st.session_state: st.session_state[f'chk_pat_{k}'] = False
@@ -349,7 +350,7 @@ st.title("⚡ Chance Analyzer PRO")
 with st.sidebar:
     st.image("https://upload.wikimedia.org/wikipedia/commons/thumb/c/c2/Mifal_Hapayis_logo.svg/512px-Mifal_Hapayis_logo.svg.png", width=100)
     st.header("📂 Global Settings")
-    csv_file = st.file_uploader("Upload CSV Data", type=['csv'])
+    csv_file = st.file_uploader("Upload CSV Data", type=None) # CHANGED BACK TO TYPE=NONE
     st.markdown("---")
     st.header("⚙️ Algorithm Params")
     global_search_depth = st.number_input("🔍 History Scan Depth", min_value=5, max_value=50000, value=26, step=1)
